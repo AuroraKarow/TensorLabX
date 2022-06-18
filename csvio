@@ -1,0 +1,9 @@
+#pragma once
+#include <fstream>
+#include <sstream>
+#include "bagrt"
+
+#define CSVIO_BEGIN namespace csvio { 
+#define CSVIO_END   }
+
+#include "csvio.h"

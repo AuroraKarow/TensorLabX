@@ -1,0 +1,49 @@
+#pragma once
+#pragma comment(lib, "gdiplus.lib")
+
+#include <comdef.h>
+#include <gdiplus.h>
+#include "async"
+#include "matrix"
+
+#define BMIO_BEGIN              namespace bmio{
+#define BMIO_END                }
+
+#define _BMIO                   bmio::
+
+#define BMIO_CHANN              mtx::matrix<__mtx_elem>
+#define BMIO_CHANN_BLANK        mtx::matrix<__mtx_elem>()
+
+#define BMIO_R                  0
+#define BMIO_G                  1
+#define BMIO_B                  2
+#define BMIO_A                  3
+
+#define BMIO_PNG                0
+#define BMIO_JPG                1
+#define BMIO_BMP                2
+#define BMIO_GIF                3
+#define BMIO_TIF                4
+
+#define BMIO_GRAY_WEIGHT_R      0.299
+#define BMIO_GRAY_WEIGHT_G      0.587
+#define BMIO_GRAY_WEIGHT_B      0.114
+
+#define BMIO_RGB_CNT            3
+#define BMIO_RGBA_CNT           4
+
+#define BMIO_CALLBACK           __mtx_callback
+#define BMIO_CALLBACK_          __mtx_callback_
+#define BMIO_T                  _bitmap<__mtx_elem, __mtx_elem_v_>              
+
+#include "bmio.h"
+
+BMIO_BEGIN
+
+typedef mtx::matrix<uint64_t>   bmio_chann[BMIO_RGBA_CNT];
+typedef _bitmap<uint64_t>       bitmap;
+typedef _bitmap<bagrt::decimal> bitmap_dec;
+
+template<typename __mtx_elem> using bmio_chann_t = mtx::matrix<__mtx_elem>[BMIO_RGBA_CNT];
+
+BMIO_END

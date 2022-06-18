@@ -1,0 +1,28 @@
+#pragma once
+#include "bmio"
+#include "csvio"
+
+#define DATASET_BEGIN           namespace dataset{
+#define DATASET_END             }
+
+// MNIST
+
+#define MNIST_MAGIC_ELEM        0x803
+#define MNIST_MAGIC_LBL         0x801
+
+#define MNIST_ORGN_SIZE         10
+
+#define MNIST_ELEM_ORGN         0
+#define MNIST_ELEM_BOOL         1
+#define MNIST_ELEM_GRAY         2
+
+//
+
+DATASET_BEGIN
+
+using   mtx::vect;
+__mtx_callback using data_seq = _BAGRT net_sequence<__mtx_elem>;
+
+DATASET_END
+
+#include "mnist.h"

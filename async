@@ -1,0 +1,26 @@
+#pragma once
+#include <shared_mutex>
+#include <future>
+#include "bagrt"
+
+#define ASYNC_BEGIN                         namespace async {
+#define ASYNC_END                           }
+
+#define _ASYNC                              async::
+#define ASYNC_CORE_CNT                      std::thread::hardware_concurrency()
+
+template<typename rT> using PACK_PTR    =   std::shared_ptr<std::packaged_task<rT()>>;
+
+#include "async.h"
+
+ASYNC_BEGIN
+
+async_concurrent                            gbl_concurr;
+
+ASYNC_END
+
+#define ASYNC_BATCH_SZIE(BATCH_SIZE)        async::gbl_concurr.set_batch_size(BATCH_SIZE);
+#define ASYNC_BATCH_BEGIN                   async::gbl_concurr.batch_thread_attach();
+#define ASYNC_BATCH_END                     async::gbl_concurr.batch_thread_detach();
+#define ASYNC_BATCH_MAIN_DEPLOY             async::gbl_concurr.main_thread_deploy_batch_thread();
+#define ASYNC_BATCH_MAIN_ERROR              async::gbl_concurr.main_thread_exception();

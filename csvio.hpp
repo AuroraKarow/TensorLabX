@@ -1,0 +1,88 @@
+CSVIO_BEGIN
+
+_BAGRT net_set<std::string> split_string(std::string string_value, char cond_syb)
+{
+    _BAGRT net_set<std::string> str_vector;
+    bool punc_syb = true;
+    std::string elem = "";
+    for(auto temp : string_value){
+        if(temp==cond_syb){
+            if(punc_syb)continue;
+            else{
+                str_vector.emplace_back(elem);
+                elem = "";
+                punc_syb = true;
+            }
+        }else {
+            punc_syb = false;
+            elem.push_back(temp);
+        }
+    } if(elem.length()) str_vector.emplace_back(elem);
+    return str_vector;
+}
+
+std::string parse_table(std::string file_path)
+{
+    std::ifstream in(file_path);
+    if (! in.is_open())
+    {
+        std::cout << "Error opening file";
+        in.close();
+        return " ";
+    }
+    else
+    {
+        std::stringstream buffer;
+        buffer << in.rdbuf();
+        std::string dat(buffer.str());
+        in.close();
+        return dat;
+    }
+}
+
+_BAGRT net_set<std::string> parse_line_strings(std::string strings)
+{
+    _BAGRT net_set<std::string> out;
+    std::string elem = "";
+    for(int i=0; i<strings.length(); ++i)
+    {
+        char temp = strings.at(i);
+        char next_temp = ' ';
+        if(i+1 != strings.length()) next_temp = strings.at(i+1);
+        else next_temp = ' ';
+        if(temp!=' ' && temp!='\t' && temp!='\n' && temp!='\0') elem.push_back(temp);
+        else if(next_temp==' ' || next_temp=='\t' || next_temp=='\n' || temp=='\0') continue;
+        else
+        {
+            out.emplace_back(elem);
+            elem = "";
+        }
+    }
+    out.emplace_back(elem);
+    return out;
+}
+
+void output_table(_BAGRT net_set<_BAGRT net_set<std::string>>output_strings, std::string file_path)
+{
+    std::ofstream oFile;
+    oFile.open(file_path, std::ios::out|std::ios::trunc);
+    for(auto i=0; i<output_strings.size(); ++i)
+    {
+        for(auto j=0; j<output_strings[i].size(); ++j) oFile << output_strings[i][j] << ',';
+        oFile << std::endl;
+    }
+    oFile.close();
+}
+
+_BAGRT net_set<_BAGRT net_set<std::string>> input_table(std::string file_path)
+{
+    auto tab_str = parse_table(file_path);
+    auto line_vector = split_string(tab_str, '\n');
+    _BAGRT net_set<_BAGRT net_set<std::string>> struct_tab;
+    for(auto i=0; i<line_vector.size(); ++i){
+        auto tab_vector = split_string(line_vector[i], ',');
+        struct_tab.emplace_back(tab_vector);
+    }return struct_tab;
+}
+
+CSVIO_END  
