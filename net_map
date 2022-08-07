@@ -1,0 +1,14 @@
+#pragma once
+
+#ifndef __NET_MAP__
+#define __NET_MAP__
+
+#include "net_set"
+
+#define NEUNET_MAP_INSERT_SUCCESS 0x0000
+#define NEUNET_MAP_INSERT_PARTIAL 0x0001
+#define NEUNET_MAP_INSERT_FAILED  0x0002
+
+#include "net_map.hpp"
+
+#endif

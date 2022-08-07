@@ -1,0 +1,16 @@
+#pragma once
+#ifndef __CONV__
+#define __CONV__
+
+#include "fc"
+
+#define CONV_BEGIN      namespace neunet { namespace conv {
+#define CONV_END        } }
+
+#define NEUNET_POOL_MAX 0x0000
+#define NEUNET_POOL_AVG 0x0001
+#define NEUNET_POOL_GAG 0x0002
+
+#include "conv.hpp"
+
+#endif

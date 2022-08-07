@@ -1,0 +1,13 @@
+#pragma once
+#ifndef __FC__
+#define __FC__
+
+#include "matrix"
+#include "neunet_base.hpp"
+
+#define FC_BEGIN    namespace neunet { namespace fc {
+#define FC_END      } }
+
+#include "fc.hpp"
+
+#endif

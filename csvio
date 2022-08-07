@@ -1,9 +1,15 @@
 #pragma once
+
+#ifndef __CSVIO__
+#define __CSVIO__
+
 #include <fstream>
 #include <sstream>
-#include "bagrt"
+#include "net_sequence"
 
-#define CSVIO_BEGIN namespace csvio { 
-#define CSVIO_END   }
+#define CSVIO_BEGIN namespace neunet{ namespace csvio { 
+#define CSVIO_END   }}
 
-#include "csvio.h"
+#include "csvio.hpp"
+
+#endif

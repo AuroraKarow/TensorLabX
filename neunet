@@ -1,0 +1,45 @@
+#pragma once
+#ifndef __NEUNET_NS__
+#define __NEUNET_NS__
+
+
+#define LAYER_BEGIN         namespace neunet { namespace layer {
+#define LAYER_END           } }
+
+#define neunet_vect         matrix::net_matrix<matrix_elem_t>
+
+#define NEUNET_SIGMOID      0x0001
+#define NEUNET_RELU         0x0002
+#define NEUNET_SOFTMAX      0x0003
+
+// Activation function
+#define NEUNET_LAYER_ACT    0x0000
+// Padding & cropping
+#define NEUNET_LAYER_PC     0x0001
+// Transformation
+#define NEUNET_LAYER_TRANS  0x0002
+// Fully connection
+#define NEUNET_LAYER_FC     0x0003
+// Convolution
+#define NEUNET_LAYER_CONV   0x0004
+// Pooling
+#define NEUNET_LAYER_POOL   0x0005
+// BN
+#define NEUNET_LAYER_BN     0x0006
+
+#define NetTDerive          = std::enable_if_t<std::is_base_of_v<layer::Layer, NetT>>
+
+#include "conv"
+#include "bn"
+
+NEUNET_BEGIN typedef std::shared_ptr<layer::Layer> NetLayerPtr; NEUNET_END
+
+#define NEUNET_TSK_BN_FP    0x0000
+#define NEUNET_TSK_BN_BP    0x0001
+#define NEUNET_TSK_UPDATE   0x0002
+
+#include "async"
+#include "dataset"
+#include "neunet.hpp"
+
+#endif

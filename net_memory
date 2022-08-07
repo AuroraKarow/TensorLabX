@@ -1,0 +1,9 @@
+#pragma once
+
+#ifndef __NET_MEMORY__
+#define __NET_MEMORY__
+
+#include "net_list"
+#include "net_memory.hpp"
+
+#endif

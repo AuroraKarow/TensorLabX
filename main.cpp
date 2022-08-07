@@ -1,57 +1,47 @@
-#pragma once
+/* Hello, This is Hatsune ~
+ * こんにちは、ハツネちゃんです～　キラー～(∠・ω< )⌒✨
+ */
 
+#pragma once
 #include <iostream>
-#include "dataset"
+#include "net_chrono"
+#include "neunet"
 
 using std::cout;
 using std::endl;
 using std::string;
 
-using mtx::matrix;
-using mtx::vect;
-using mtx::vect_dec;
+using neunet::net_set;
+using neunet::dataset::mnist;
+using neunet::NeunetMNIST;
 
-using bagrt::decimal;
-using bagrt::net_list;
-using bagrt::net_map;
-using bagrt::net_set;
-
-using namespace bmio;
-
-struct elem_data
-{
-    int val = 0; double sup = 0;
-    elem_data(int src = 0, double src_sup = 0) : val(src), sup(src_sup) {}
-    bool operator==(elem_data &src) { return src.val==val && src.sup==sup; }
-    bool operator!=(elem_data &src) { return !(*this == src); }
-    friend std::ostream &operator<<(std::ostream &output, const elem_data &src)
-    {
-        output << '(' << src.val << ", " << src.sup << ')';
-        return output;
-    }
-};
-
-uint64_t hash_elem_data(elem_data &&src) { return HASH_FLOAT(std::move(src.sup)) + HASH_INTEGER(std::move(src.val)) * 2; }
-
-
-
-int main(int argc, char *argv[], char *envp[])
-{
-    CLOCK_DECLARE(uint64_t, clk, HASH_INTEGER)
-    CLOCK_BEGIN(clk, 0)
-
+int main(int argc, char *argv[], char *envp[]) {
+    cout << "hello, world.\n" << endl;
+    auto chrono_begin = NEUNET_CHRONO_TIME_POINT;
     
-    decimal::calculate_digit = 5;
-    decimal a = 1.70352;
-    cout << a << endl;
-    bitmap bm("src\\tamago.png");
-    cout << "*.png -> *.bmp, *.jpg" << endl;
-    cout << "HEIGHT - " << bm.height << ", WIDTH - " << bm.width << endl;
-    bm.save_img("src", "tamago_bmp", BMIO_BMP);
-    bm.save_img("src", "tamago_jpg", BMIO_JPG);
+    using mat_t = long double;
+    std::string root = "D:\\Users\\Aurora\\Documents\\Visual Studio Code Project\\MNIST\\file\\";
+    mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
+    test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
+    NeunetMNIST net(125, 0.1);
+    auto dLearnRate = 0.4l;
+    net.AddLayer<neunet::layer::LayerConv<mat_t>>(20, 5, 5, 1, 1, 0, 0, dLearnRate);
+    net.AddLayer<neunet::layer::LayerBN<mat_t>>();
+    net.AddLayer<neunet::layer::LayerAct<mat_t>>(NEUNET_RELU);
+    net.AddLayer<neunet::layer::LayerPool>(NEUNET_POOL_MAX, 2, 2, 2, 2);
+    net.AddLayer<neunet::layer::LayerConv<mat_t>>(50, 5, 5, 1, 1, 0, 0, dLearnRate);
+    net.AddLayer<neunet::layer::LayerBN<mat_t>>();
+    net.AddLayer<neunet::layer::LayerAct<mat_t>>(NEUNET_RELU);
+    net.AddLayer<neunet::layer::LayerPool>(NEUNET_POOL_MAX, 2, 2, 2, 2);
+    net.AddLayer<neunet::layer::LayerTrans>();
+    net.AddLayer<neunet::layer::LayerFC<mat_t>>(500, dLearnRate);
+    net.AddLayer<neunet::layer::LayerBN<mat_t>>();
+    net.AddLayer<neunet::layer::LayerAct<mat_t>>(NEUNET_SIGMOID);
+    net.AddLayer<neunet::layer::LayerFC<mat_t>>(10, dLearnRate);
+    net.AddLayer<neunet::layer::LayerAct<mat_t>>(NEUNET_SOFTMAX);
+    net.Run(train, test);
 
-
-    CLOCK_END(clk, 0)
-    cout << CLOCK_DURATION(clk, 0) << "ms" << endl;
+    auto chrono_end = NEUNET_CHRONO_TIME_POINT;
+    cout << '\n' << (chrono_end - chrono_begin) << "ms" << endl;
     return EXIT_SUCCESS;
 }

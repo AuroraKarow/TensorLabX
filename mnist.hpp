@@ -1,244 +1,324 @@
 DATASET_BEGIN
 
-inline bool mnist::open_stream(std::string elem_dir, std::string lbl_dir)
-{
-    strm_elem = std::ifstream(elem_dir, std::ios::in | std::ios::binary);
-    strm_lbl = std::ifstream(lbl_dir, std::ios::in | std::ios::binary);
-    return strm_elem.is_open() && strm_lbl.is_open();
-}
-inline void mnist::close_stream() { strm_elem.close(); strm_lbl.close(); }
-inline bool mnist::magic_verify()
-{
-    uint32_t magic = 0;
-    // data
-    strm_elem.read(reinterpret_cast<char*>(&magic), sizeof(uint32_t));
-    auto dat_magic = _BAGRT num_swap_endian(magic);
-    if (dat_magic != MNIST_MAGIC_ELEM) return false;
-    magic = 0;
-    // label
-    strm_lbl.read(reinterpret_cast<char*>(&magic), sizeof(uint32_t));
-    auto lbl_magic = _BAGRT num_swap_endian(magic);
-    if (lbl_magic != MNIST_MAGIC_LBL) return false;
-    return true;
-}
-inline uint64_t mnist::load_elem_cnt()
-{
-    uint32_t dat_cnt = 0, lbl_cnt = 0;
-    strm_elem.read(reinterpret_cast<char*>(&dat_cnt), sizeof(uint32_t));
-    auto shrk_dat_cnt = _BAGRT num_swap_endian(dat_cnt);
-    strm_lbl.read(reinterpret_cast<char*>(&lbl_cnt), sizeof(uint32_t));
-    auto shrk_lbl_cnt = _BAGRT num_swap_endian(lbl_cnt);
-    if(shrk_dat_cnt == shrk_lbl_cnt) return shrk_lbl_cnt;
-    else return 0;
-}
-inline uint64_t mnist::load_elem_shape()
-{
-    uint32_t _temp = 0;
-    strm_elem.read(reinterpret_cast<char*>(&_temp), sizeof(uint32_t));
-    return _BAGRT num_swap_endian(_temp);
-}
-inline vect mnist::read_curr_elem(bool w_flag, uint64_t padding, bool gray)
-{
-    auto data_length = elem_ln_cnt * elem_col_cnt;
-    MEM_INIT(char, data_ptr, data_length);
-    strm_elem.read(data_ptr, data_length);
-    vect vec_data;
-    if(w_flag)
-    {
-        vec_data = vect(elem_ln_cnt, elem_col_cnt);
-        for(auto i=0; i<data_length; ++i)
-        {
-            int curr_pt = data_ptr[i];
-            if(curr_pt) switch (elem_status)
-            {
-            case MNIST_ELEM_ORGN: vec_data.pos_idx(i) = curr_pt; break;
-            case MNIST_ELEM_BOOL: vec_data.pos_idx(i) = 1; break;
-            case MNIST_ELEM_GRAY: vec_data.pos_idx(i) = 255; break;
-            default: MEM_RECYCLE(data_ptr); return false;
-            }
-            else vec_data.pos_idx(i) = 0;
-        }
-        if(padding) vec_data = vec_data.pad(padding, padding, padding, padding);
-        vec_data.reshape(data_length, 1);
+matrix_declare class mnist final {
+private:
+    void value_assign(const mnist &src) {
+        elem_ln_cnt     = src.elem_ln_cnt;
+        elem_col_cnt    = src.elem_col_cnt;
+        elem_cnt        = src.elem_cnt;
+        batch_size      = src.batch_size;
+        batch_cnt       = src.batch_cnt;
+        rear_batch_size = src.rear_batch_size;
     }
-    MEM_RECYCLE(data_ptr);
-    return vec_data;
-}
-inline uint64_t mnist::read_curr_lbl()
-{
-    char label = 0;
-    strm_lbl.read(&label, 1);
-    return (uint64_t)label;
-}
-inline bool mnist::preprocess(std::string elem_dir, std::string lbl_dir)
-{
-    if(open_stream(elem_dir, lbl_dir) && magic_verify())
-    {
-        elem_cnt = load_elem_cnt();
-        if(elem_cnt)
-        {
-            elem_ln_cnt = load_elem_shape();
-            elem_col_cnt = load_elem_shape();
-            return true;
-        }
-    }
-    return false;
-}
-inline data_seq<uint64_t> mnist::curr_idx_set(uint64_t curr_batch_idx)
-{
-    if(elem_idx_seq.size())
-    {
-        auto curr_batch_size = batch_size;
-        if(rear_batch_size && curr_batch_idx+1==batch_size) curr_batch_size = rear_batch_size;
-        // Dataset shuffled indexes for current batch
-        return elem_idx_seq.sub_sequence(mtx::mtx_elem_pos(curr_batch_idx, 0, batch_size), mtx::mtx_elem_pos(curr_batch_idx, curr_batch_size-1, batch_size));
-    }
-    else return data_seq<uint64_t>();
-}
 
-inline mnist::mnist(uint64_t load_elem_status) : elem_status(load_elem_status < 3 ? load_elem_status : MNIST_ELEM_ORGN) {}
-inline mnist::mnist(std::string elem_dir, std::string lbl_dir, uint64_t load_cnt, uint64_t load_elem_status, uint64_t padding) : elem_status(load_elem_status < 3 ? load_elem_status : MNIST_ELEM_ORGN) { assert(load_elem_lbl(elem_dir, lbl_dir, load_cnt, padding)); }
-inline mnist::mnist(std::string elem_dir, std::string lbl_dir, std::initializer_list<uint64_t> load_cnt_list, uint64_t load_elem_status, uint64_t padding) : elem_status(load_elem_status < 3 ? load_elem_status : MNIST_ELEM_ORGN) { assert(load_elem_lbl(elem_dir, lbl_dir, load_cnt_list, padding)); }
-inline bool mnist::load_elem_lbl(std::string elem_dir, std::string lbl_dir, uint64_t load_cnt, uint64_t padding)
-{
-    auto load_flag = true;
-    if(preprocess(elem_dir, lbl_dir))
-    {
-        data_seq<uint64_t> lbl_data_stat;
-        if(load_cnt) lbl_data_stat = bagrt::rand_idx(elem_cnt, load_cnt);
-        else load_cnt = elem_cnt;
-        elem.init(load_cnt); lbl.init(load_cnt);
-        for(auto i=0,j=0; j<load_cnt; ++i) if(i==lbl_data_stat[j] || !lbl_data_stat.size())
-        {
-            elem[j] = read_curr_elem(true, padding);
-            lbl[j] = read_curr_lbl();
-            ++ j;
+    void value_copy(const mnist &src) {
+        value_assign(src);
+        lbl             = src.lbl;
+        elem_idx_seq    = src.elem_idx_seq;
+        elem            = src.elem;
+        curr_batch_lbl  = src.curr_batch_lbl;
+        curr_batch_elem = src.curr_batch_elem;
+        curr_batch_orgn = src.curr_batch_orgn;
+    }
+
+    void value_move(mnist &&src) {
+        value_assign(src);
+        lbl             = std::move(src.lbl);
+        elem_idx_seq    = std::move(src.elem_idx_seq);
+        elem            = std::move(src.elem);
+        curr_batch_lbl  = std::move(src.curr_batch_lbl);
+        curr_batch_elem = std::move(src.curr_batch_elem);
+        curr_batch_orgn = std::move(src.curr_batch_orgn);
+    }
+
+    bool open_stream(const std::string &elem_dir, const std::string &lbl_dir) {
+        strm_elem = std::ifstream(elem_dir, std::ios::in | std::ios::binary);
+        strm_lbl  = std::ifstream(lbl_dir, std::ios::in | std::ios::binary);
+        return strm_elem.is_open() && strm_lbl.is_open();
+    }
+
+    void close_stream() {
+        strm_elem.close();
+        strm_lbl.close();   
+    }
+
+    bool magic_verify() {
+        uint32_t magic = 0;
+        // data
+        strm_elem.read(reinterpret_cast<char*>(&magic), sizeof(uint32_t));
+        auto dat_magic = num_swap_endian(magic);
+        if (dat_magic != mnist_magic_elem) return false;
+        magic = 0;
+        // label
+        strm_lbl.read(reinterpret_cast<char*>(&magic), sizeof(uint32_t));
+        auto lbl_magic = num_swap_endian(magic);
+        if (lbl_magic != mnist_magic_lbl) return false;
+        return true;
+    }
+
+    uint64_t load_elem_cnt() {
+        uint32_t dat_cnt = 0, lbl_cnt = 0;
+        strm_elem.read(reinterpret_cast<char*>(&dat_cnt), sizeof(uint32_t));
+        auto shrk_dat_cnt = num_swap_endian(dat_cnt);
+        strm_lbl.read(reinterpret_cast<char*>(&lbl_cnt), sizeof(uint32_t));
+        auto shrk_lbl_cnt = num_swap_endian(lbl_cnt);
+        if (shrk_dat_cnt == shrk_lbl_cnt) return shrk_lbl_cnt;
+        else return 0;
+    }
+
+    inline uint64_t load_elem_shape() {
+        uint32_t _temp = 0;
+        strm_elem.read(reinterpret_cast<char*>(&_temp), sizeof(uint32_t));
+        return num_swap_endian(_temp);
+    }
+
+    neunet_vect read_curr_elem(bool w_flag, uint64_t padding = 0) {
+        auto data_length = elem_ln_cnt * elem_col_cnt;
+        auto data_ptr    = ptr_init<char>(data_length);
+        strm_elem.read(data_ptr, data_length);
+        neunet_vect vec_data;
+        if (w_flag) {
+            vec_data = neunet_vect(data_length, 1);
+            for (auto i = 0ull; i < data_length; ++i) {
+                int curr_pt = data_ptr[i];
+                if (curr_pt) switch (elem_status) {
+                case mnist_elem_bool: vec_data.index(i) = 1; break;
+                case mnist_elem_gray: vec_data.index(i) = 255; break;
+                default: vec_data.index(i) = curr_pt; break;
+                } else vec_data.index(i) = 0;
+            }
+            if (padding) vec_data = vec_data.padding(padding, padding, padding, padding);
+            vec_data.reshape(data_length, 1);
         }
-        else
-        {
+        ptr_reset(data_ptr);
+        return vec_data;
+    }
+
+    uint64_t read_curr_lbl() {
+        char label = 0;
+        strm_lbl.read(&label, 1);
+        return (uint64_t)label;
+    }
+
+    bool preprocess(const std::string &elem_dir, const std::string &lbl_dir) {
+        if (open_stream(elem_dir, lbl_dir) && magic_verify()) {
+            elem_cnt = load_elem_cnt();
+            if (elem_cnt) {
+                elem_ln_cnt  = load_elem_shape();
+                elem_col_cnt = load_elem_shape();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    net_set<uint64_t> curr_idx_set(uint64_t curr_batch_idx) {
+        if (elem_idx_seq.size() == 0) return net_set<uint64_t>();
+        auto curr_batch_size = batch_size;
+        if (rear_batch_size && curr_batch_idx + 1 == batch_size) curr_batch_size = rear_batch_size;
+        // Dataset shuffled indexes for current batch
+        return elem_idx_seq.sub_set(matrix::elem_pos(curr_batch_idx, 0, batch_size), matrix::elem_pos(curr_batch_idx, curr_batch_size - 1, batch_size));
+    }
+
+public:
+    mnist(uint64_t load_elem_status = mnist_elem_orgn) :
+        elem_status(load_elem_status < 3 ? load_elem_status : 0) {}
+    mnist(const mnist &src) :
+        elem_status(src.elem_status) { value_copy(src); }
+    mnist(mnist &&src) :
+        elem_status(src.elem_status) { value_move(std::move(src)); }
+    mnist(const ch_str elem_dir, const ch_str lbl_dir, uint64_t load_cnt = 0, uint64_t load_elem_status = mnist_elem_orgn, uint64_t padding = 0) :
+        elem_status(load_elem_status) { load(elem_dir, lbl_dir, load_cnt, padding); }
+    mnist(const ch_str elem_dir, const ch_str lbl_dir, net_set<uint64_t> &&lbl_load_distribute, uint64_t load_elem_status = mnist_elem_orgn, uint64_t padding = 0) :
+        elem_status(load_elem_status) { load(elem_dir, lbl_dir, std::move(lbl_load_distribute), padding); }
+    
+    uint64_t size() const { return elem.length; }
+
+    uint64_t ln_cnt() const { return elem_ln_cnt; }
+
+    uint64_t col_cnt() const { return elem_col_cnt; }
+
+    bool dataset_verify() const { return elem.length == lbl.length; }
+
+    bool load(const ch_str elem_dir, const ch_str lbl_dir, uint64_t load_cnt = 0, uint64_t padding = 0) {
+        if (!preprocess(elem_dir, lbl_dir)) {
+            close_stream();
+            return false;
+        }
+        long long *idx_arr = nullptr;
+        if (load_cnt) idx_arr = num_rand<long long>(0, elem_cnt);
+        else load_cnt = elem_cnt;
+        elem.init(load_cnt);
+        lbl.init(load_cnt);
+        auto cnt = 0;
+        for (auto i = 0ull; i < elem_cnt; ++i) if ((idx_arr && *(idx_arr + cnt) == i) || !idx_arr) {
+            elem[cnt] = read_curr_elem(true, padding);
+            lbl[cnt]  = read_curr_lbl();
+            ++cnt;
+            if (cnt == load_cnt) break;
+        } else {
             read_curr_elem(false);
             read_curr_lbl();
         }
+        close_stream();
+        ptr_reset(idx_arr);
+        return true;
     }
-    else load_flag = false;
-    close_stream();
-    return load_flag;
-}
-inline bool mnist::load_elem_lbl(std::string elem_dir, std::string lbl_dir, data_seq<uint64_t> load_cnt_seq, uint64_t padding)
-{
-    auto pcdr_flag = true;
-    if(preprocess(elem_dir, lbl_dir))
-    {
-        auto data_cnt = 0, load_cnt = 0;
-        if(load_cnt_seq.size() == 1)
-        {
-            auto sgl_cnt = load_cnt_seq[IDX_ZERO];
-            load_cnt = sgl_cnt * MNIST_ORGN_SIZE;
-            load_cnt_seq.init(MNIST_ORGN_SIZE);
-            for(auto i=0; i<MNIST_ORGN_SIZE; ++i) load_cnt_seq[i] = sgl_cnt;
+
+    bool load(const ch_str elem_dir, const ch_str lbl_dir, net_set<uint64_t> &&lbl_load_distribute, uint64_t padding = 0) {
+        uint64_t cnt      = mnist_orgn_size,
+                 idx      = 0;
+        net_set<uint64_t> load_qnty(mnist_orgn_size);
+        if (lbl_load_distribute.length == 1) {
+            load_qnty.fill_with(lbl_load_distribute[0]);
+            elem.init(mnist_orgn_size * lbl_load_distribute[0]);
+            lbl.init(elem.length);
+            lbl_load_distribute.reset();
         }
-        else if(load_cnt_seq.size() == MNIST_ORGN_SIZE) load_cnt = load_cnt_seq.sum();
-        else pcdr_flag = false;
-        if(pcdr_flag)
-        {
-            elem.init(load_cnt);
-            lbl.init(load_cnt);
-            auto check = MNIST_ORGN_SIZE;
-            while(check)
-            {
-                auto curr_lbl = read_curr_lbl();
-                if(load_cnt_seq[curr_lbl])
-                {
-                    elem[data_cnt] = read_curr_elem(true, padding, true);
-                    lbl[data_cnt] = curr_lbl;
-                    ++ data_cnt;
-                    -- load_cnt_seq[curr_lbl];
-                    if(!load_cnt_seq[curr_lbl]) -- check;
-                }
-                else read_curr_elem(false);
+        else if (lbl_load_distribute.length == 10) load_qnty = std::move(lbl_load_distribute);
+        else return load(elem_dir, lbl_dir);
+        for (auto i = 0ull; i < elem_cnt; ++i) {
+            auto load_sgn = true;
+            auto curr_lbl = read_curr_lbl();
+            if (load_qnty[curr_lbl]) {
+                --load_qnty[curr_lbl];
+                if (load_qnty[curr_lbl] == 0) --cnt;
+            } else {
+                read_curr_elem(false);
+                continue;
             }
+            elem[idx] = read_curr_elem(true, padding);
+            lbl[idx]  = curr_lbl;
+            ++idx;
+            if (cnt == 0) break;
         }
-        else pcdr_flag = false;
+        return true;
     }
-    else pcdr_flag = false;
-    close_stream();
-    return pcdr_flag;
-}
-inline bool mnist::verify_dataset() { return elem.length == lbl.length; }
-inline uint64_t mnist::size() { return elem.length; }
-inline uint64_t mnist::ln_cnt() { return elem_ln_cnt; }
-inline uint64_t mnist::col_cnt() { return elem_col_cnt; }
-inline bool mnist::init_batch(uint64_t _batch_size)
-{
-    if(_batch_size && verify_dataset())
-    {
-        batch_size = _batch_size;
-        batch_cnt = elem.length / batch_size;
+
+    void shuffle() { if (elem_idx_seq.length) elem_idx_seq.shuffle(); }
+
+    bool init_batch(uint64_t dataset_batch_size = 1) {
+        if (!(dataset_batch_size && dataset_verify()) || dataset_batch_size > elem_cnt) return false;
+        batch_size = dataset_batch_size;
+        batch_cnt  = elem.length / batch_size;
         rear_batch_size = elem.length % batch_size;
-        if(rear_batch_size) ++ batch_cnt;
+        if(rear_batch_size) ++batch_cnt;
         else rear_batch_size = batch_size;
-        if(batch_size > 1)
-        {
-            elem_idx_seq.init(elem.length);
-            for(auto i=0; i<elem_idx_seq.length; ++i) elem_idx_seq[i] = i;
-        }
-        else
-        {
+        if (batch_size == 1 || batch_size == elem_cnt) {
             curr_batch_lbl = lbl;
             curr_batch_elem = elem;
+            curr_batch_orgn = orgn(lbl);
+        } else {
+            elem_idx_seq.init(elem.length);
+            for(auto i = 0ull; i < elem_idx_seq.length; ++i) elem_idx_seq[i] = i;
         }
         return true;
     }
-    else return false;
-}
-inline void mnist::shuffle() { if(elem_idx_seq.length) elem_idx_seq.shuffle(); }
-inline bool mnist::init_curr_batch(uint64_t curr_batch_idx)
-{
-    if(elem_idx_seq.length && verify_dataset())
-    {
+
+    bool init_curr_batch(uint64_t curr_batch_idx) {
+        if (!(dataset_verify() && elem_idx_seq.length)) return false;
         auto idx_set = curr_idx_set(curr_batch_idx);
-        curr_batch_elem = elem.sub_sequence(idx_set);
-        curr_batch_lbl = lbl.sub_sequence(idx_set);
+        curr_batch_elem = elem.sub_set(idx_set);
+        curr_batch_lbl  = lbl.sub_set(idx_set);
+        curr_batch_orgn = orgn(curr_batch_lbl);
         return true;
     }
-    else return false;
-}
-inline bool mnist::save_elem_as_bitmap(std::string dir_root, uint64_t ex_name)
-{
-    if(elem_status == MNIST_ELEM_BOOL) return false;
-    for(auto i=0; i<elem.length; ++i)
-    {
-        auto name = '[' + std::to_string(i) + ']' + std::to_string(lbl[i]);
-        _BMIO bmio_chann bm_chann_temp;
-        for(auto j=0; j<BMIO_RGB_CNT; ++j) bm_chann_temp[j] = elem[i].reshape(elem_ln_cnt, elem_col_cnt);
-        _BMIO bitmap bm(bm_chann_temp);
-        if(!bm.save_img(dir_root, name, ex_name)) return false;
+
+    bool save_as_bitmap(const ch_str dir_root, uint64_t ex_name, char backslash = '\\') {
+        if (elem.length == 0) return false;
+        auto save_flag     = true;
+        auto w_dir_root    = str_charset_exchange(dir_root);
+        auto dir_backslash = L'/';
+        if (backslash == '\\') dir_backslash = L'\\';
+        for (auto i = 0ull; i < elem.length; ++i) {
+            auto name = L'[' + std::to_wstring(i) + L']' + std::to_wstring(lbl[i]);
+            bmio::bmio_bitmap raw;
+            for (auto j = 0; j < bmio_rgb; ++j) {
+                raw[j] = bmio_chann(elem_ln_cnt, elem_col_cnt);
+                for (auto k = 0ull; k < raw[j].element_count ; ++k) {
+                    if (elem[i].index(k)) raw[j].index(k) = 255;
+                    else raw[j].index(k) = 0;
+                }
+            }
+            if (!bmio::gdi_save_bitmap(raw, w_dir_root, name.c_str(), ex_name, dir_backslash)) {
+                save_flag = false;
+                break;
+            }
+        }
+        return save_flag;
     }
-    return true;
-}
-inline vect mnist::orgn(uint64_t lbl_val)
-{
-    vect ans;
-    if(lbl_val < MNIST_ORGN_SIZE)
-    {
-        ans = vect(MNIST_ORGN_SIZE, IDX_SGL);
-        ans.pos_idx(lbl_val) = 1;
+
+    void reset() {
+        elem_ln_cnt     = 0;
+        elem_col_cnt    = 0;
+        elem_cnt        = 0;
+        batch_size      = 0;
+        batch_cnt       = 0;
+        rear_batch_size = 0;
+
+        lbl.reset();
+        elem.reset();   
+        elem_idx_seq.reset();
+        curr_batch_lbl.reset(); 
+        curr_batch_elem.reset();
+        curr_batch_orgn.reset();
     }
-    return ans;
-}
-inline data_seq<vect> mnist::orgn(data_seq<uint64_t> &lbl_set)
-{
-    data_seq<vect> ans(lbl_set.length);
-    for(auto i=0; i<ans.length; ++i) ans[i] = orgn(lbl_set[i]);
-    return ans;
-}
-inline void mnist::reset()
-{
-    elem.reset(); lbl.reset(); elem_idx_seq.reset();
-    curr_batch_elem.reset(); curr_batch_lbl.reset();
-    batch_size = 0; batch_cnt = 0; rear_batch_size = 0;
-    elem_ln_cnt = 0; elem_col_cnt = 0; elem_cnt = 0;
-}
-inline mnist::~mnist() { reset(); }
+
+    ~mnist() { reset(); }
+
+private:
+    net_set<neunet_vect> elem;
+    net_set<uint64_t>    lbl,
+                         elem_idx_seq;
+
+    std::ifstream strm_elem,
+                  strm_lbl;
+
+    uint64_t elem_ln_cnt  = 0, 
+             elem_col_cnt = 0,
+             elem_cnt     = 0;
+
+    const uint64_t elem_status;
+
+public:
+    net_set<neunet_vect> curr_batch_elem,
+                         curr_batch_orgn;
+    net_set<uint64_t>    curr_batch_lbl;
+    
+    uint64_t batch_size      = 0,
+             batch_cnt       = 0,
+             rear_batch_size = 0;
+
+    __declspec(property(get=size))           uint64_t element_count;
+    __declspec(property(get=ln_cnt))         uint64_t element_line_count;
+    __declspec(property(get=col_cnt))        uint64_t element_column_count;
+    __declspec(property(get=dataset_verify)) bool     verify;
+
+    bool operator==(const mnist &val) const { return batch_size == val.batch_size && batch_cnt == val.batch_cnt && rear_batch_size == val.rear_batch_size && elem_status == val.elem_status && elem_ln_cnt == val.elem_ln_cnt && elem_col_cnt == val.elem_col_cnt && elem_cnt == val.elem_cnt && lbl == val.lbl && elem_idx_seq == val.elem_idx_seq && elem == val.elem; }
+    
+    bool operator!=(const mnist &val) const { return !(*this == val); }
+
+    mnist &operator=(const mnist &src) {
+        assert(elem_status == src.elem_status);
+        value_copy(src);
+        return *this;
+    }
+    mnist &operator=(mnist &&src) {
+        assert(elem_status == src.elem_status);
+        value_move(std::move(src));
+        return *this;
+    }
+
+    static neunet_vect orgn(uint64_t lbl_val) {
+        neunet_vect ans(mnist_orgn_size, 1);
+        ans.index(lbl_val) = 1;
+        return ans;
+    }
+    static net_set<neunet_vect> orgn(const net_set<uint64_t> &lbl_set) {
+        net_set<neunet_vect> ans(lbl_set.length);
+        for (auto i = 0ull; i < ans.length; ++i) ans[i] = orgn(lbl_set[i]);
+        return ans;
+    }
+};
 
 DATASET_END

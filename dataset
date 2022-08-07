@@ -1,28 +1,25 @@
 #pragma once
+
+#ifndef __DATASET__
+#define __DATASET__
+
 #include "bmio"
 #include "csvio"
 
-#define DATASET_BEGIN           namespace dataset{
-#define DATASET_END             }
+#define DATASET_BEGIN       namespace neunet { namespace dataset {
+#define DATASET_END         }}
 
-// MNIST
+// mnist
 
-#define MNIST_MAGIC_ELEM        0x803
-#define MNIST_MAGIC_LBL         0x801
+#define mnist_magic_elem    0x0803
+#define mnist_magic_lbl     0x0801
 
-#define MNIST_ORGN_SIZE         10
+#define mnist_orgn_size     0x000a
 
-#define MNIST_ELEM_ORGN         0
-#define MNIST_ELEM_BOOL         1
-#define MNIST_ELEM_GRAY         2
+#define mnist_elem_orgn     0x0000
+#define mnist_elem_bool     0x0001
+#define mnist_elem_gray     0x0002
 
-//
+#include "mnist.hpp"
 
-DATASET_BEGIN
-
-using   mtx::vect;
-__mtx_callback using data_seq = _BAGRT net_sequence<__mtx_elem>;
-
-DATASET_END
-
-#include "mnist.h"
+#endif
