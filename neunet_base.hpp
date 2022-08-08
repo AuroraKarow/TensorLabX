@@ -80,44 +80,12 @@ callback_matrix neunet_vect chann_vec_crop(uint64_t &ans_ln_cnt, uint64_t &ans_c
     }
 }
 
-callback_matrix bool deduce_acc_prec_rc(long double &acc, long double &prec, long double &rc, const net_set<neunet_vect> &deduce_output, const net_set<uint64_t> &curr_lbl_batch, long double net_acc, bool convert_to_rate = true) {
-    if (deduce_output.length == curr_lbl_batch.length) {
-        auto confid = 1 - net_acc;
-        for (auto i = 0ull; i < curr_lbl_batch.size(); ++i) {
-            auto curr_prop = deduce_output[i].index(curr_lbl_batch[i]);
-            prec += curr_prop;
-            if (curr_prop > 0.5) {
-                acc += 1;
-                if (curr_prop > confid) rc += 1;
-            }
-        }
-        if (convert_to_rate) {
-            acc  /= curr_lbl_batch.size();
-            prec /= curr_lbl_batch.size();
-            rc   /= curr_lbl_batch.size();
-        }
-        return true;
-    } else return false;
-}
 
-callback_matrix void print_train_status(const neunet_vect &output, const neunet_vect &origin) {
-    std::cout << " [No.]\t[Output]\t[Origin]" << std::endl;
-    for (auto i = 0ull; i < origin.element_count; ++i) {
-        if (origin.index(i)) std::cout << '>';
-        else std::cout << ' ';
-        std::cout << i << '\t' << output.index(i) << '\t' << origin.index(i) << std::endl;
-    }
-}
-
-callback_matrix void print_train_status(const net_set<neunet_vect> &output_set, const net_set<neunet_vect> &origin_set) {
-    for (auto i = 0ull; i < output_set.length; ++i) {
-        print_train_status(output_set[i], origin_set[i]);
-        std::cout << std::endl;
-    }
-}
 
 void print_train_status(int epoch, int curr_prog, int prog, long double acc, long double prec, long double rc, int dur) { std::printf("\r[Ep][%d][Prog][%d/%d][Acc/Prec/Rc][%.2f/%.2f/%.2f][Dur][%dms]", epoch, curr_prog, prog, acc, prec, rc, dur); }
+
 void print_deduce_status(int epoch, long double acc, long double prec, long double rc, int dur) { std::printf("\r[Ep][%d][Acc/Prec/Rc][%lf/%lf/%lf][Dur][%dms]", epoch, acc, prec, rc, dur); }
+
 void print_deduce_progress(int curr_prog, int prog) { std::printf("\r[Deducing][%d/%d]", curr_prog, prog); }
 
 template <typename matrix_elem_t, typename matrix_elem_v> struct ada_delta final {
@@ -450,23 +418,16 @@ struct LayerPC : Layer {
         }
     }
 
-    bool NeedAlter() { return iTop || iRight || iBottom || iLeft || iLnDist || iColDist; }
-
     callback_matrix bool PadCrop(neunet_vect &vecSrc, bool bIsPadMode) {
+        if (!(iTop || iRight || iBottom || iLeft || iLnDist || iColDist)) return true;
         if(bIsPadMode) vecSrc = chann_vec_pad(iOutputLnCnt, iOutputColCnt, vecSrc, iInputLnCnt, iInputColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
         else vecSrc = chann_vec_crop(iOutputLnCnt, iOutputColCnt, vecSrc, iInputLnCnt, iInputColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
         return vecSrc.verify;
     }
 
-    callback_matrix bool ForwProp(neunet_vect &vecInput) { 
-        if (NeedAlter()) return PadCrop(vecInput, bPadMode);
-        return true;
-    }
+    callback_matrix bool ForwProp(neunet_vect &vecInput) { return PadCrop(vecInput, bPadMode); }
 
-    callback_matrix bool BackProp(neunet_vect &vecGrad) {
-        if (NeedAlter()) return PadCrop(vecGrad, !bPadMode);
-        return true;
-    }
+    callback_matrix bool BackProp(neunet_vect &vecGrad) { return PadCrop(vecGrad, !bPadMode); }
 
     callback_matrix bool Deduce(neunet_vect &vecInput) { return ForwProp(vecInput); }
 

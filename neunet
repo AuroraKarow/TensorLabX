@@ -34,9 +34,13 @@
 
 NEUNET_BEGIN typedef std::shared_ptr<layer::Layer> NetLayerPtr; NEUNET_END
 
-#define NEUNET_TSK_BN_FP    0x0000
-#define NEUNET_TSK_BN_BP    0x0001
-#define NEUNET_TSK_UPDATE   0x0002
+#define NEUNET_STAT_DED     0x0000
+#define NEUNET_STAT_TRN     0x0001
+#define NEUNET_STAT_END     0x0002
+#define NEUNET_STAT_EXC     0x0003
+#define NEUNET_STAT_BNF     0x0004
+#define NEUNET_STAT_BNB     0x0005
+#define NEUNET_STAT_UPT     0x0006
 
 #include "async"
 #include "dataset"

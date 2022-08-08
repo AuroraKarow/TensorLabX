@@ -9,7 +9,7 @@ protected:
             case NEUNET_LAYER_PC: {
                 auto pCurrLayer = std::dynamic_pointer_cast<layer::LayerPC>(seqLayer[i]);
                 pCurrLayer->RunInit(iInputLnCnt, iInputColCnt);
-                iInputLnCnt = pCurrLayer->iOutputLnCnt;
+                iInputLnCnt  = pCurrLayer->iOutputLnCnt;
                 iInputColCnt = pCurrLayer->iOutputColCnt;
             } break;
             case NEUNET_LAYER_TRANS: {
@@ -109,6 +109,72 @@ public:
      */
     template<typename LayerType, typename ... Args,  typename = std::enable_if_t<std::is_base_of_v<layer::Layer, LayerType>>> bool AddLayer(Args &&... argsLayerInit) { return seqLayer.emplace_back(std::make_shared<LayerType>(std::forward<Args>(argsLayerInit)...)); }
 
+    callback_matrix bool ForwProp(net_set<neunet_vect> &setInput) {
+        for (auto i = 0ull; i < this->seqLayer.length; ++i) {
+            auto bFlag = true;
+            if (this->seqLayer[i]->iLayerType == NEUNET_LAYER_BN) bFlag = std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[i])->ForwProp(setInput);
+            else for (auto j = 0ull; j < setInput.length; ++j) switch (this->seqLayer[i]->iLayerType) {
+            case NEUNET_LAYER_ACT: bFlag = std::dynamic_pointer_cast<layer::LayerAct<matrix_elem_t>>(this->seqLayer[i])->ForwProp(setInput[j], j); break;
+            case NEUNET_LAYER_PC: bFlag = std::dynamic_pointer_cast<layer::LayerPC>(this->seqLayer[i])->ForwProp(setInput[j]); break;
+            case NEUNET_LAYER_TRANS: bFlag = std::dynamic_pointer_cast<layer::LayerTrans>(this->seqLayer[i])->ForwProp(setInput[j]); break;
+            case NEUNET_LAYER_FC: bFlag = std::dynamic_pointer_cast<layer::LayerFC<matrix_elem_t>>(this->seqLayer[i])->ForwProp(setInput[j], j); break;
+            case NEUNET_LAYER_CONV: bFlag = std::dynamic_pointer_cast<layer::LayerConv<matrix_elem_t>>(this->seqLayer[i])->ForwProp(setInput[j], j); break;
+            case NEUNET_LAYER_POOL: bFlag = std::dynamic_pointer_cast<layer::LayerPool>(this->seqLayer[i])->ForwProp(setInput[j], j); break;
+            default: bFlag = false;
+            }
+            if (!bFlag) return false;
+        }
+        return true;
+    }
+
+    callback_matrix bool BackProp(net_set<neunet_vect> &setGrad, const net_set<neunet_vect> &setOrgn) {
+        for (auto i = this->seqLayer.length; i; --i) {
+            auto bFlag   = true;
+            auto iLyrIdx = i - 1;
+            if (this->seqLayer[iLyrIdx]->iLayerType == NEUNET_LAYER_BN) bFlag = std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[iLyrIdx])->BackProp(setGrad);
+            else for (auto j = 0ull; j < setGrad.length; ++j) switch (this->seqLayer[iLyrIdx]->iLayerType) {
+            case NEUNET_LAYER_ACT: bFlag = std::dynamic_pointer_cast<layer::LayerAct<matrix_elem_t>>(this->seqLayer[iLyrIdx])->BackProp(setGrad[j], setOrgn[j], j); break;
+            case NEUNET_LAYER_PC: bFlag = std::dynamic_pointer_cast<layer::LayerPC>(this->seqLayer[iLyrIdx])->BackProp(setGrad[j]); break;
+            case NEUNET_LAYER_TRANS: bFlag = std::dynamic_pointer_cast<layer::LayerTrans>(this->seqLayer[iLyrIdx])->BackProp(setGrad[j]); break;
+            case NEUNET_LAYER_FC: bFlag = std::dynamic_pointer_cast<layer::LayerFC<matrix_elem_t>>(this->seqLayer[iLyrIdx])->BackProp(setGrad[j], j); break;
+            case NEUNET_LAYER_CONV: bFlag = std::dynamic_pointer_cast<layer::LayerConv<matrix_elem_t>>(this->seqLayer[iLyrIdx])->BackProp(setGrad[j], j); break;
+            case NEUNET_LAYER_POOL: bFlag = std::dynamic_pointer_cast<layer::LayerPool>(this->seqLayer[iLyrIdx])->BackProp(setGrad[j], j); break;
+            default: bFlag = false;
+            }
+            if (!bFlag) return false;
+        }
+        return true;
+    }
+
+    callback_matrix void Update(uint64_t iCurrBatch, uint64_t iBatchCnt) {
+        for (auto i = 0ull; i < this->seqLayer.length; ++i) {
+            switch (this->seqLayer[i]->iLayerType) {
+            case NEUNET_LAYER_FC: std::dynamic_pointer_cast<layer::LayerFC<matrix_elem_t>>(this->seqLayer[i])->Update(); break;
+            case NEUNET_LAYER_CONV: std::dynamic_pointer_cast<layer::LayerConv<matrix_elem_t>>(this->seqLayer[i])->Update(); break;
+            case NEUNET_LAYER_BN: std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[i])->Update(iCurrBatch + 1 == iBatchCnt, iBatchCnt, this->iBatchSize); break;
+            default: continue;
+            }
+        }
+    }
+
+    callback_matrix bool Deduce(net_set<neunet_vect> &setInput, uint64_t iIdx) {
+        for (auto i = 0ull; i < this->seqLayer.length; ++i) {
+            auto bFlag = true;
+            switch (this->seqLayer[i]->iLayerType) {
+            case NEUNET_LAYER_ACT: bFlag = std::dynamic_pointer_cast<layer::LayerAct<matrix_elem_t>>(this->seqLayer[i])->Deduce(setInput[iIdx]); break;
+            case NEUNET_LAYER_PC: bFlag = std::dynamic_pointer_cast<layer::LayerPC>(this->seqLayer[i])->Deduce(setInput[iIdx]); break;
+            case NEUNET_LAYER_TRANS: bFlag = std::dynamic_pointer_cast<layer::LayerTrans>(this->seqLayer[i])->Deduce(setInput[iIdx]); break;
+            case NEUNET_LAYER_FC: bFlag = std::dynamic_pointer_cast<layer::LayerFC<matrix_elem_t>>(this->seqLayer[i])->Deduce(setInput[iIdx]); break;
+            case NEUNET_LAYER_CONV: bFlag = std::dynamic_pointer_cast<layer::LayerConv<matrix_elem_t>>(this->seqLayer[i])->Deduce(setInput[iIdx]); break;
+            case NEUNET_LAYER_POOL: bFlag = std::dynamic_pointer_cast<layer::LayerPool>(this->seqLayer[i])->Deduce(setInput[iIdx]); break;
+            case NEUNET_LAYER_BN: std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[i])->Deduce(setInput[iIdx]); break;
+            default: bFlag = false; break;
+            }
+            if (!bFlag) return false;
+        }
+        return true;
+    }
+
     uint64_t Depth() const { return seqLayer.length; }
 
     virtual void Reset(bool bFull = true) {
@@ -125,11 +191,6 @@ protected:
     long double dAcc = 1e-8;
 
     net_sequence<NetLayerPtr> seqLayer;
-};
-
-matrix_declare struct NetOutput final {
-    net_set<neunet_vect> setOutput;
-    net_set<uint64_t>    setLblOrgn;
 };
 
 class NeunetMNIST final : public Neunet {
@@ -151,7 +212,7 @@ public:
             case NEUNET_LAYER_BN:
                 asyConcurr.batch_thread_detach([this, i]{
                     iCurrLayerIdx = i;
-                    iAsyncTsk     = NEUNET_TSK_BN_FP;
+                    iAsyncStat    = NEUNET_STAT_BNF;
                 });
                 asyConcurr.batch_thread_attach(); break;
             default: bFlag = false;
@@ -175,7 +236,7 @@ public:
             case NEUNET_LAYER_BN:
                 asyConcurr.batch_thread_detach([this, iLyrIdx]{
                     iCurrLayerIdx = iLyrIdx;
-                    iAsyncTsk     = NEUNET_TSK_BN_BP;
+                    iAsyncStat    = NEUNET_STAT_BNB;
                 });
                 asyConcurr.batch_thread_attach();
                 break;
@@ -186,167 +247,146 @@ public:
         return true;
     }
 
-    callback_matrix void Update(uint64_t iCurrBatch, uint64_t iBatchCnt) {
-        for (auto i = 0ull; i < this->seqLayer.length; ++i) {
-            switch (this->seqLayer[i]->iLayerType) {
-            case NEUNET_LAYER_FC: std::dynamic_pointer_cast<layer::LayerFC<matrix_elem_t>>(this->seqLayer[i])->Update(); break;
-            case NEUNET_LAYER_CONV: std::dynamic_pointer_cast<layer::LayerConv<matrix_elem_t>>(this->seqLayer[i])->Update(); break;
-            case NEUNET_LAYER_BN: std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[i])->Update(iCurrBatch + 1 == iBatchCnt, iBatchCnt, this->iBatchSize); break;
-            default: continue;
-            }
-        }
-    }
-
-    callback_matrix bool Deduce(neunet_vect &vecInput) {
-        for (auto i = 0ull; i < this->seqLayer.length; ++i) {
-            auto bFlag = true;
-            switch (this->seqLayer[i]->iLayerType) {
-            case NEUNET_LAYER_ACT: bFlag = std::dynamic_pointer_cast<layer::LayerAct<matrix_elem_t>>(this->seqLayer[i])->Deduce(vecInput); break;
-            case NEUNET_LAYER_PC: bFlag = std::dynamic_pointer_cast<layer::LayerPC>(this->seqLayer[i])->Deduce(vecInput); break;
-            case NEUNET_LAYER_TRANS: bFlag = std::dynamic_pointer_cast<layer::LayerTrans>(this->seqLayer[i])->Deduce(vecInput); break;
-            case NEUNET_LAYER_FC: bFlag = std::dynamic_pointer_cast<layer::LayerFC<matrix_elem_t>>(this->seqLayer[i])->Deduce(vecInput); break;
-            case NEUNET_LAYER_CONV: bFlag = std::dynamic_pointer_cast<layer::LayerConv<matrix_elem_t>>(this->seqLayer[i])->Deduce(vecInput); break;
-            case NEUNET_LAYER_POOL: bFlag = std::dynamic_pointer_cast<layer::LayerPool>(this->seqLayer[i])->Deduce(vecInput); break;
-            case NEUNET_LAYER_BN: std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[i])->Deduce(vecInput); break;
-            default: bFlag = false; break;
-            }
-            if (!bFlag) return false;
-        }
-        return true;
-    }
-
     callback_matrix bool Run(dataset::mnist<matrix_elem_t> &dsTrainSet, dataset::mnist<matrix_elem_t> &dsTestSet) {
-        // Data preparation
-        async::net_async_digit<bool> bTrainMode = true,
-                                     bComplete  = false,
-                                     bException = false;
+        // batch process
+        net_set<neunet_vect> setBatchOutput;
+        for (auto i = 0ull; i < this->iBatchSize; ++i) asyPool.add_task([this, &dsTrainSet, &dsTestSet, &setBatchOutput](uint64_t idx) { while (true) {
+            // attach thread
+            asyConcurr.batch_thread_attach();
+            if (iAsyncStat == NEUNET_STAT_END || iAsyncStat == NEUNET_STAT_EXC) break;
+            // train
+            else if (iAsyncStat == NEUNET_STAT_TRN && ForwProp(dsTrainSet.curr_batch_elem, idx)) {
+                setBatchOutput[idx] = dsTrainSet.curr_batch_elem[idx];
+                if (BackProp(dsTrainSet.curr_batch_elem, dsTrainSet.curr_batch_orgn, idx)) {
+                    // detach thread, update
+                    asyConcurr.batch_thread_detach([this]{ iAsyncStat = NEUNET_STAT_UPT; });
+                }
+            }
+            // deduce
+            else if (iAsyncStat == NEUNET_STAT_DED && this->Deduce(dsTestSet.curr_batch_elem, idx)) {
+                setBatchOutput[idx] = dsTestSet.curr_batch_elem[idx];
+                asyConcurr.batch_thread_detach();
+            }
+            // exception
+            else asyConcurr.batch_thread_detach([this]{ iAsyncStat = NEUNET_STAT_EXC; });
+        } }, i);
 
-        async::net_async_digit<uint64_t> iTrainCnt  = 0,
-                                         iDeduceCnt = 0;
-
+        // control process
+        async::net_queue<net_set<neunet_vect>> queTrainOutput,
+                                               queTestOutput;
+        async::net_queue<net_set<uint64_t>> queTrainLbl,
+                                            queTestLbl;
+        // dataset initialization
         dsTrainSet.init_batch(this->iBatchSize);
         dsTestSet.init_batch(this->iBatchSize);
-
-        RunInit<matrix_elem_t>(dsTrainSet.element_line_count, dsTrainSet.element_column_count, 1);
-
-        // Batch
-        NetOutput<matrix_elem_t> netCurrTrainOutput,
-                                 netCurrDeduceOutput;
-        
-        for (auto i = 0ull; i < this->iBatchSize; ++i) asyPool.add_task([this, &netCurrTrainOutput, &netCurrDeduceOutput, &bTrainMode, &bComplete, &bException, &dsTrainSet, &dsTestSet, &iTrainCnt, &iDeduceCnt] (uint64_t idx) { while (true) {
-            asyConcurr.batch_thread_attach();
-            if (bComplete || bException) break;
-            if (bTrainMode) {
-                if (ForwProp(dsTrainSet.curr_batch_elem, idx)) {
-                    netCurrTrainOutput.setOutput[idx] = dsTrainSet.curr_batch_elem[idx];
-                    if (BackProp(dsTrainSet.curr_batch_elem, dsTrainSet.curr_batch_orgn, idx)) ++iTrainCnt;
-                }
-            } else if (Deduce(dsTestSet.curr_batch_elem[idx])) {
-                netCurrDeduceOutput.setOutput[idx] = std::move(dsTestSet.curr_batch_elem[idx]);
-                ++iDeduceCnt;
-            }
-            asyConcurr.batch_thread_detach([this]{ iAsyncTsk = NEUNET_TSK_UPDATE; });
-        } }, i);
-        
-        // Main
-        async::net_queue<NetOutput<matrix_elem_t>> queTrainOutput,
-                                                   queTestOutput;
-
-        asyPool.add_task([this, &netCurrTrainOutput, &netCurrDeduceOutput, &bTrainMode, &bComplete, &bException, &dsTrainSet, &dsTestSet, &iTrainCnt, &iDeduceCnt, &queTrainOutput, &queTestOutput]{ while(!bComplete) {
+        this->RunInit<matrix_elem_t>(dsTrainSet.element_line_count, dsTrainSet.element_column_count, 1);
+        // task
+        asyPool.add_task([this, &dsTrainSet, &dsTestSet, &setBatchOutput, &queTrainOutput, &queTestOutput, &queTrainLbl, &queTestLbl]{ do {
             dsTrainSet.shuffle();
-            // Train
-            bTrainMode = true;
+            // train, batch
             for (auto i = 0ull; i < dsTrainSet.batch_cnt; ++i) {
                 dsTrainSet.init_curr_batch(i);
-                iTrainCnt = 0;
-                netCurrTrainOutput.setLblOrgn.init(this->iBatchSize);
-                netCurrTrainOutput.setOutput.init(this->iBatchSize);
+                setBatchOutput.init(this->iBatchSize, false);
+                auto bWaitStat = true;
                 do {
+                    iAsyncStat = NEUNET_STAT_TRN;
                     asyConcurr.main_thread_deploy_batch_thread();
-                    switch (iAsyncTsk) {
-                    case NEUNET_TSK_BN_FP: bException = !std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[iCurrLayerIdx])->ForwProp(dsTrainSet.curr_batch_elem); break;
-                    case NEUNET_TSK_BN_BP: bException = !std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[iCurrLayerIdx])->BackProp(dsTrainSet.curr_batch_elem); break;
-                    case NEUNET_TSK_UPDATE: Update<matrix_elem_t>(i, dsTrainSet.batch_cnt); break;
-                    default: break;
+                    switch (iAsyncStat) {
+                    case NEUNET_STAT_UPT:
+                        this->Update<matrix_elem_t>(i, dsTrainSet.batch_cnt);
+                        bWaitStat = false;
+                        break;
+                    case NEUNET_STAT_BNF:
+                        bWaitStat = std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[iCurrLayerIdx])->ForwProp(dsTrainSet.curr_batch_elem);
+                        if (!bWaitStat) iAsyncStat = NEUNET_STAT_EXC;
+                        break;
+                    case NEUNET_STAT_BNB:
+                        bWaitStat = std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[iCurrLayerIdx])->BackProp(dsTrainSet.curr_batch_elem);
+                        if (!bWaitStat) iAsyncStat = NEUNET_STAT_EXC;
+                        break;
+                    default:
+                        bWaitStat = false;
+                        break;
                     }
-                    if (bException) break;
-                } while(iAsyncTsk != NEUNET_TSK_UPDATE);
-                // Transfer data
-                if (!bException && iTrainCnt == this->iBatchSize || iTrainCnt == dsTrainSet.rear_batch_size) {
-                    netCurrTrainOutput.setLblOrgn = std::move(dsTrainSet.curr_batch_lbl);
-                    queTrainOutput.en_queue(std::move(netCurrTrainOutput));
+                } while (bWaitStat);
+                // package train output
+                if (iAsyncStat == NEUNET_STAT_EXC) {
+                    // exception
                     asyControl.thread_wake_one();
-                } else {
                     asyConcurr.main_thread_exception();
                     break;
                 }
+                queTrainOutput.en_queue(std::move(setBatchOutput));
+                queTrainLbl.en_queue(std::move(dsTrainSet.curr_batch_lbl));
+                asyControl.thread_wake_one();
             }
-            if (bException) break;
-            // Deduce
-            bTrainMode = false;            
+            // deduce
+            iAsyncStat = NEUNET_STAT_DED;
             for (auto i = 0ull; i < dsTestSet.batch_cnt; ++i) {
                 dsTestSet.init_curr_batch(i);
-                iDeduceCnt = 0;
-                netCurrDeduceOutput.setOutput.init(this->iBatchSize);
+                setBatchOutput.init(this->iBatchSize, false);
                 asyConcurr.main_thread_deploy_batch_thread();
-                if (iDeduceCnt == this->iBatchSize || iDeduceCnt == dsTestSet.rear_batch_size) {
-                    netCurrDeduceOutput.setLblOrgn = std::move(dsTestSet.curr_batch_lbl);
-                    queTestOutput.en_queue(std::move(netCurrDeduceOutput));
+                if (iAsyncStat == NEUNET_STAT_EXC) {
+                    // exception
                     asyControl.thread_wake_one();
-                } else {
-                    bException = true;
                     asyConcurr.main_thread_exception();
                     break;
                 }
+                queTestOutput.en_queue(std::move(setBatchOutput));
+                queTestLbl.en_queue(std::move(dsTestSet.curr_batch_lbl));
+                asyControl.thread_wake_one();
             }
-        } });
+        } while (iAsyncStat != NEUNET_STAT_END); });
 
-        // Data show
-        long double dCurrAcc  = 0,
-                    dPrec     = 0,
-                    dRc       = 0;
-        
+        // data show
+        // parameter
+        long double dHAcc = 0,
+                    dPrec = 0,
+                    dRc   = 0;
+        // epoch
         uint64_t iEp = 0;
-        while (!bComplete) {
+        do {
             auto iEpBegin = NEUNET_CHRONO_TIME_POINT;
             ++iEp;
-            // Train
+            // train
             for (auto i = 0ull; i < dsTrainSet.batch_cnt; ++i) {
-                auto iTrainBegin = NEUNET_CHRONO_TIME_POINT;
-                dAcc  = 0;
+                auto iTrBegin = NEUNET_CHRONO_TIME_POINT;
+                if (!(queTrainLbl.length && queTrainOutput.length)) asyControl.thread_sleep();
+                if (iAsyncStat == NEUNET_STAT_EXC) return false;
+                auto setCurrOutput = queTrainOutput.de_queue();
+                auto setCurrLbl    = queTrainLbl.de_queue();
+                dHAcc = 0;
                 dPrec = 0;
                 dRc   = 0;
-                if (queTrainOutput.length == 0) asyControl.thread_sleep();
-                if (bException) return false;
-                auto netCurrTrainRs = queTrainOutput.de_queue();
-                deduce_acc_prec_rc(dCurrAcc, dPrec, dRc, netCurrTrainRs.setOutput, netCurrTrainRs.setLblOrgn, dAcc);
-                auto iTrainEnd = NEUNET_CHRONO_TIME_POINT;
-                print_train_status(iEp, i + 1, dsTrainSet.batch_cnt, dAcc, dPrec, dRc, iTrainEnd - iTrainBegin);
+                dsTrainSet.output_para(setCurrOutput, setCurrLbl, this->dAcc, dHAcc, dPrec, dRc, true, this->iBatchSize);
+                auto iTrEnd = NEUNET_CHRONO_TIME_POINT;
+                print_train_status(iEp, i + 1, dsTrainSet.batch_cnt, dHAcc, dPrec, dRc, iTrEnd - iTrBegin);
             }
-            // Deduce
-            dAcc  = 0;
+            // deduce
+            dHAcc = 0;
             dPrec = 0;
             dRc   = 0;
             for (auto i = 0ull; i < dsTestSet.batch_cnt; ++i) {
-                if (queTestOutput.length == 0) asyControl.thread_sleep();
-                if (bException) return false;
-                auto netCurrTestRs = queTestOutput.de_queue();
-                deduce_acc_prec_rc(dCurrAcc, dPrec, dRc, netCurrTestRs.setOutput, netCurrTestRs.setLblOrgn, dAcc, false);
+                if (!(queTestLbl.length && queTestOutput.length)) asyControl.thread_sleep();
+                if (iAsyncStat == NEUNET_STAT_EXC) return false;
+                auto setCurrOutput = queTestOutput.de_queue();
+                auto setCurrLbl    = queTestLbl.de_queue();
+                dsTestSet.output_para(setCurrOutput, setCurrLbl, this->dAcc, dHAcc, dPrec, dRc);
+                print_deduce_progress(i, dsTestSet.batch_cnt);
             }
-            // Summary
-            dAcc  /= dsTestSet.element_count;
+            dHAcc /= dsTestSet.element_count;
             dPrec /= dsTestSet.element_count;
             dRc   /= dsTestSet.element_count;
             auto iEpEnd = NEUNET_CHRONO_TIME_POINT;
-            print_deduce_status(iEp, dAcc, dPrec, dRc, iEpEnd - iEpBegin);
-            bComplete = (dRc == 1);
-        }
+            print_deduce_status(iEp, dHAcc, dPrec, dRc, iEpEnd - iEpBegin);
+            if (dRc == 1) iAsyncStat = NEUNET_STAT_END;
+        } while (iAsyncStat != NEUNET_STAT_END);
         return true;
     }
 
 private:
-    uint64_t iCurrLayerIdx = 0,
-             iAsyncTsk     = NEUNET_TSK_UPDATE;
+    async::net_async_digit<uint64_t> iCurrLayerIdx = 0,
+                                     iAsyncStat    = NEUNET_STAT_UPT;
     
     async::net_async_concurrent asyConcurr;
     async::net_async_controller asyControl;

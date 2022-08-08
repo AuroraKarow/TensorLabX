@@ -14,8 +14,8 @@ private:
     void value_copy(const mnist &src) {
         value_assign(src);
         lbl             = src.lbl;
-        elem_idx_seq    = src.elem_idx_seq;
         elem            = src.elem;
+        elem_idx_seq    = src.elem_idx_seq;
         curr_batch_lbl  = src.curr_batch_lbl;
         curr_batch_elem = src.curr_batch_elem;
         curr_batch_orgn = src.curr_batch_orgn;
@@ -24,8 +24,8 @@ private:
     void value_move(mnist &&src) {
         value_assign(src);
         lbl             = std::move(src.lbl);
-        elem_idx_seq    = std::move(src.elem_idx_seq);
         elem            = std::move(src.elem);
+        elem_idx_seq    = std::move(src.elem_idx_seq);
         curr_batch_lbl  = std::move(src.curr_batch_lbl);
         curr_batch_elem = std::move(src.curr_batch_elem);
         curr_batch_orgn = std::move(src.curr_batch_orgn);
@@ -115,7 +115,7 @@ private:
     net_set<uint64_t> curr_idx_set(uint64_t curr_batch_idx) {
         if (elem_idx_seq.size() == 0) return net_set<uint64_t>();
         auto curr_batch_size = batch_size;
-        if (rear_batch_size && curr_batch_idx + 1 == batch_size) curr_batch_size = rear_batch_size;
+        if (rear_batch_size && curr_batch_idx + 1 == batch_cnt) curr_batch_size = rear_batch_size;
         // Dataset shuffled indexes for current batch
         return elem_idx_seq.sub_set(matrix::elem_pos(curr_batch_idx, 0, batch_size), matrix::elem_pos(curr_batch_idx, curr_batch_size - 1, batch_size));
     }
@@ -166,6 +166,10 @@ public:
     }
 
     bool load(const ch_str elem_dir, const ch_str lbl_dir, net_set<uint64_t> &&lbl_load_distribute, uint64_t padding = 0) {
+        if (!preprocess(elem_dir, lbl_dir)) {
+            close_stream();
+            return false;
+        }
         uint64_t cnt      = mnist_orgn_size,
                  idx      = 0;
         net_set<uint64_t> load_qnty(mnist_orgn_size);
@@ -192,13 +196,14 @@ public:
             ++idx;
             if (cnt == 0) break;
         }
+        close_stream();
         return true;
     }
 
     void shuffle() { if (elem_idx_seq.length) elem_idx_seq.shuffle(); }
 
     bool init_batch(uint64_t dataset_batch_size = 1) {
-        if (!(dataset_batch_size && dataset_verify()) || dataset_batch_size > elem_cnt) return false;
+        if (!dataset_batch_size || dataset_batch_size > elem_cnt || !dataset_verify()) return false;
         batch_size = dataset_batch_size;
         batch_cnt  = elem.length / batch_size;
         rear_batch_size = elem.length % batch_size;
@@ -209,7 +214,7 @@ public:
             curr_batch_elem = elem;
             curr_batch_orgn = orgn(lbl);
         } else {
-            elem_idx_seq.init(elem.length);
+            elem_idx_seq.init(elem.length, false);
             for(auto i = 0ull; i < elem_idx_seq.length; ++i) elem_idx_seq[i] = i;
         }
         return true;
@@ -318,6 +323,39 @@ public:
         net_set<neunet_vect> ans(lbl_set.length);
         for (auto i = 0ull; i < ans.length; ++i) ans[i] = orgn(lbl_set[i]);
         return ans;
+    }
+    
+    static void output_para(const neunet_vect &output, uint64_t cor_lbl) {
+        std::cout << " [No.]\t[Output]\t[Origin]\n";
+        for (auto i = 0ull; i < output.element_count; ++i) {
+            if (i == cor_lbl) std::cout << '>';
+            else std::cout << ' ';
+            std::cout << i << '\t' << output.index(i) << '\t';
+            if (i == cor_lbl) std::cout << 1 << '\n';
+            else std::cout << 0 << '\n';
+        }
+    }
+    static void output_para(const net_set<neunet_vect> &output, const net_set<uint64_t> &cor_lbl) {
+        if (output.length != cor_lbl.length) return;
+        for (auto i = 0ull; i < output.length; ++i) {
+            output_para(output[i], cor_lbl[i]);
+            std::cout << std::endl;
+        }
+    }
+    static void output_para(const net_set<neunet_vect> &output, const net_set<uint64_t> &cor_lbl, long double axis_acc, long double &acc, long double &prec, long double &rc, bool rate = false, uint64_t denominator = 1) {
+        if (output.length != cor_lbl.length) return;
+        for (auto i = 0ull; i < output.length; ++i) {
+            prec += output[i].index(cor_lbl[i]);
+            if (output[i].index(cor_lbl[i]) > 0.5) {
+                ++acc;
+                if (1 - output[i].index(cor_lbl[i]) < axis_acc) ++rc;
+            }
+        }
+        if (rate) {
+            acc  /= denominator;
+            prec /= denominator;
+            rc   /= denominator;
+        }
     }
 };
 

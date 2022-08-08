@@ -4,9 +4,11 @@ callback_matrix neunet_vect VectElemExp(const net_set<neunet_vect> &setSrc) { re
 
 callback_matrix neunet_vect VectElemVar(const net_set<neunet_vect> &setSrc, const neunet_vect &vecExp) {
     neunet_vect vecAns; 
-    for (auto i = 0ull; i < setSrc.length; ++i)
-        if (i) vecAns = (setSrc[i] - vecExp).elem_wise_opt(2, MATRIX_ELEM_POW);
-        else vecAns += (setSrc[i] - vecExp).elem_wise_opt(2, MATRIX_ELEM_POW);
+    for (auto i = 0ull; i < setSrc.length; ++i) {
+        auto vecDistSqr = (setSrc[i] - vecExp).elem_wise_opt(2, MATRIX_ELEM_POW);
+        if (i) vecAns += vecDistSqr;
+        else vecAns = std::move(vecDistSqr);
+    }
     vecAns *= (1.0l / setSrc.length);
     return vecAns;
 }
@@ -37,10 +39,10 @@ callback_matrix void BNDeduceInit(neunet_vect &vecMuBeta, neunet_vect &vecSigmaS
  */
 callback_matrix neunet_vect BNDeduce(const neunet_vect &vecMuBeta, const neunet_vect &vecSigmaSqr, const neunet_vect &vecInput, const neunet_vect &vecBeta, const neunet_vect &vecGamma, long double dEpsilon = 1e-8l)
 {
-    auto        vecNrom = vecInput - vecMuBeta,
-                vecVar  = divisor_dominate(vecSigmaSqr, dEpsilon);
-    neunet_vect vecAns  = vecNrom.elem_wise_opt(vecVar.elem_wise_opt(0.5, MATRIX_ELEM_POW), MATRIX_ELEM_DIV);
-    for(auto i = 0ull; i < vecAns.element_count; ++i) {
+    auto vecNrom = vecInput - vecMuBeta,
+         vecVar  = divisor_dominate(vecSigmaSqr, dEpsilon),
+         vecAns  = vecNrom.elem_wise_opt(vecVar.elem_wise_opt(0.5, MATRIX_ELEM_POW), MATRIX_ELEM_DIV);
+    for (auto i = 0ull; i < vecAns.element_count; ++i) {
         auto iCurrChann = 0;
         if (vecGamma.element_count > 1) iCurrChann = matrix::elem_pos(i, vecAns.column_count).col;
         vecAns.index(i) = vecGamma.index(iCurrChann) * vecAns.index(i) + vecBeta.index(iCurrChann);
@@ -52,13 +54,13 @@ callback_matrix net_set<neunet_vect> BNTrain (neunet_vect &vecMuBeta, neunet_vec
     // Average, miu
     vecMuBeta   = VectElemExp(setInput);
     // Variance, sigma square
-    vecSigmaSqr = VectElemVar(setInput, vecMuBeta);
+    vecSigmaSqr = divisor_dominate(VectElemVar(setInput, vecMuBeta), dEpsilon);
     // Bar X, normalize x
     setBarX.init(setInput.length, false);
-    for (auto i = 0ull; i < setInput.length; ++i) setBarX[i] = (setInput[i] - vecMuBeta).elem_wise_opt(divisor_dominate(vecSigmaSqr, dEpsilon).elem_wise_opt(0.5, MATRIX_ELEM_POW), MATRIX_ELEM_DIV);
+    for (auto i = 0ull; i < setInput.length; ++i) setBarX[i] = (setInput[i] - vecMuBeta).elem_wise_opt(vecSigmaSqr.elem_wise_opt(0.5, MATRIX_ELEM_POW), MATRIX_ELEM_DIV);
     // Y, Output
     auto setY = setBarX;
-    for (auto i = 0ull; i < setBarX.length; ++i) for (auto j = 0ull; j < setBarX[i].line_count; ++j) for (auto k = 0ull; k < setBarX[i].column_count; ++k) setY[i][j][k] = vecGamma.index(k) * setY[i][j][k] + vecBeta.index(k);
+    for (auto i = 0ull; i < setY.length; ++i) for (auto j = 0ull; j < setY[i].line_count; ++j) for (auto k = 0ull; k < setY[i].column_count; ++k) setY[i][j][k] = vecGamma.index(k) * setY[i][j][k] + vecBeta.index(k);
     return setY;
 }
 
@@ -124,6 +126,7 @@ matrix_declare struct LayerBN : Layer {
 
     ada_nesterov<matrix_elem_t> advBeta,
                                 advGamma;
+
     ada_delta<matrix_elem_t> adaBeta,
                              adaGamma;
 
@@ -201,7 +204,7 @@ matrix_declare struct LayerBN : Layer {
     void RunInit(uint64_t iChannCnt) {
         vecBeta  = BNInitBetaGamma(iChannCnt, dBeta);
         vecGamma = BNInitBetaGamma(iChannCnt, dGamma);
-        if (dLearnRate) {
+        if (this->dLearnRate) {
             vecNesterovBeta  = advBeta.weight(vecBeta);
             vecNesterovGamma = advGamma.weight(vecGamma);
         }
@@ -209,7 +212,7 @@ matrix_declare struct LayerBN : Layer {
 
     bool ForwProp(net_set<neunet_vect> &setInput) {
         this->setInput = std::move(setInput);
-        if (dLearnRate) setInput = BNTrain(vecMuBeta, vecSigmaSqr, setBarX, this->setInput, vecNesterovBeta, vecNesterovGamma, dEpsilon);
+        if (this->dLearnRate) setInput = BNTrain(vecMuBeta, vecSigmaSqr, setBarX, this->setInput, vecNesterovBeta, vecNesterovGamma, dEpsilon);
         else setInput = BNTrain(vecMuBeta, vecSigmaSqr, setBarX, this->setInput, vecBeta, vecGamma, dEpsilon);
         return setInput.length;
     }
@@ -217,7 +220,8 @@ matrix_declare struct LayerBN : Layer {
     bool BackProp(net_set<neunet_vect> &setGrad) {
         vecGradBeta  = BNGradLossToShift(setGrad);
         vecGradGamma = BNGradLossToScale(setBarX, setGrad);
-        setGrad      = BNGradLossToInput(vecMuBeta, vecSigmaSqr, setBarX, setInput, setGrad, vecGamma, dEpsilon);
+        if (this->dLearnRate) setGrad = BNGradLossToInput(vecMuBeta, vecSigmaSqr, setBarX, setInput, setGrad, vecNesterovGamma, dEpsilon);
+        else setGrad = BNGradLossToInput(vecMuBeta, vecSigmaSqr, setBarX, setInput, setGrad, vecGamma, dEpsilon);
         return setGrad.length;
     }
 
@@ -227,9 +231,9 @@ matrix_declare struct LayerBN : Layer {
     }
 
     void Update(bool bIsLastBatch = true, bool iBatchCnt = 1, bool iCurrBatchSize = 1) {
-        if (dLearnRate) {
-            vecBeta         -= advBeta.momentum(vecGradBeta, dLearnRate);
-            vecGamma        -= advGamma.momentum(vecGradGamma, dLearnRate);
+        if (this->dLearnRate) {
+            vecBeta         -= advBeta.momentum(vecGradBeta, this->dLearnRate);
+            vecGamma        -= advGamma.momentum(vecGradGamma, this->dLearnRate);
             vecNesterovBeta  = advBeta.weight(vecBeta);
             vecNesterovGamma = advGamma.weight(vecGamma);
         } else {

@@ -139,7 +139,7 @@ matrix_declare struct LayerFC : Layer {
 
     void RunInit(uint64_t iCurrInputLnCnt, uint64_t iBatchSize) {
         vecWeight = fc::InitWeight(iCurrInputLnCnt, iOutputLnCnt, dFstRng, dSndRng, iAcc);
-        if (dLearnRate) vecNesterovWeight = advWeight.weight(vecWeight);
+        if (this->dLearnRate) vecNesterovWeight = advWeight.weight(vecWeight);
         setInput.init(iBatchSize, false);
         setGradWeight.init(iBatchSize, false);
     }
@@ -147,7 +147,7 @@ matrix_declare struct LayerFC : Layer {
     bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
         if (iIdx >= setInput.length) return false;
         setInput[iIdx] = std::move(vecInput);
-        if (dLearnRate) vecInput = fc::Output(setInput[iIdx], vecNesterovWeight);
+        if (this->dLearnRate) vecInput = fc::Output(setInput[iIdx], vecNesterovWeight);
         else vecInput = fc::Output(setInput[iIdx], vecWeight);
         return vecInput.verify;
     }
@@ -155,7 +155,7 @@ matrix_declare struct LayerFC : Layer {
     bool BackProp(neunet_vect &vecGrad, uint64_t iIdx) {
         if (iIdx >= setInput.length) return false;
         setGradWeight[iIdx] = fc::GradLossToWeight(vecGrad, setInput[iIdx]);
-        if (dLearnRate) vecGrad = fc::GradLossToInput(vecGrad, vecNesterovWeight);
+        if (this->dLearnRate) vecGrad = fc::GradLossToInput(vecGrad, vecNesterovWeight);
         else vecGrad = fc::GradLossToInput(vecGrad, vecWeight);
         return setGradWeight[iIdx].verify && vecGrad.verify;
     }
@@ -168,7 +168,7 @@ matrix_declare struct LayerFC : Layer {
     void Update() {
         auto vecGrad = setGradWeight.sum.elem_wise_opt(setGradWeight.length, MATRIX_ELEM_DIV);
         if (this->dLearnRate) {
-            vecWeight        -= advWeight.momentum(vecGrad, dLearnRate);
+            vecWeight        -= advWeight.momentum(vecGrad, this->dLearnRate);
             vecNesterovWeight = advWeight.weight(vecWeight);
         }
         else vecWeight -= adaWeight.delta(vecGrad);

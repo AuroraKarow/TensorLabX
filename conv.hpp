@@ -193,7 +193,7 @@ matrix_declare struct LayerConv : Layer {
         iOutputLnCnt    = samp_output_dir_cnt(iInputLnCnt, iKernelLnCnt, iLnStride, iLnDilate);
         iOutputColCnt   = samp_output_dir_cnt(iInputColCnt, iKernelColCnt, iColStride, iColDilate);
         vecKernel       = conv::InitKernel(iKernelAmt, iKernelChannCnt, iKernelLnCnt, iKernelColCnt, dFstRng, dSndRng, iAcc);
-        if (dLearnRate) vecNesterovKernel = advKernel.weight(vecKernel);
+        if (this->dLearnRate) vecNesterovKernel = advKernel.weight(vecKernel);
         setCaffeInput.init(iBatchSize, false);
         setGradKernel.init(iBatchSize, false);
     }
@@ -201,7 +201,7 @@ matrix_declare struct LayerConv : Layer {
     bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
         if (iIdx >= setCaffeInput.length) return false;
         setCaffeInput[iIdx] = conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
-        if (dLearnRate) vecInput = conv::Conv(setCaffeInput[iIdx], vecNesterovKernel);
+        if (this->dLearnRate) vecInput = conv::Conv(setCaffeInput[iIdx], vecNesterovKernel);
         else vecInput = conv::Conv(setCaffeInput[iIdx], vecKernel);
         return vecInput.verify;
     }
@@ -209,22 +209,21 @@ matrix_declare struct LayerConv : Layer {
     bool BackProp(neunet_vect &vecGrad, uint64_t iIdx) {
         if (iIdx >= setCaffeInput.length) return false;
         setGradKernel[iIdx] = conv::GradLossToConvKernal(vecGrad, setCaffeInput[iIdx]);
-        if (dLearnRate) vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecNesterovKernel);
+        if (this->dLearnRate) vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecNesterovKernel);
         else vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecKernel);
         vecGrad = conv::CaffeTransform(vecGrad, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate, true);
         return vecGrad.verify && setGradKernel[iIdx].verify;
     }
 
     bool Deduce(neunet_vect &vecInput) {
-        auto vecCurrCaffe = conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
-        vecInput = conv::Conv(vecCurrCaffe, vecKernel);
+        vecInput = conv::Conv(conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate), vecKernel);
         return vecInput.verify;
     }
 
     void Update() {
         auto vecGrad = setGradKernel.sum.elem_wise_opt(setGradKernel.length, MATRIX_ELEM_DIV);
         if (this->dLearnRate) {
-            vecKernel        -= advKernel.momentum(vecGrad, dLearnRate);
+            vecKernel        -= advKernel.momentum(vecGrad, this->dLearnRate);
             vecNesterovKernel = advKernel.weight(vecKernel);
         }
         else vecKernel -= adaKernel.delta(vecGrad);
@@ -317,6 +316,7 @@ struct LayerPool : Layer {
     }
 
     LayerPool(uint64_t iCurrPoolType = NEUNET_POOL_MAX, uint64_t iCurrFilterLnCnt = 0, uint64_t iCurrFilterColCnt = 0, uint64_t iCurrLnStride = 0, uint64_t iCurrColStride = 0, uint64_t iCurrLnDilate = 0, uint64_t iCurrColDilate = 0) : Layer(NEUNET_LAYER_POOL),
+        iPoolType(iCurrPoolType),
         iFilterLnCnt(iCurrFilterLnCnt),
         iFilterColCnt(iCurrFilterColCnt),
         iLnStride(iCurrLnStride),
@@ -327,8 +327,8 @@ struct LayerPool : Layer {
     LayerPool(LayerPool &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
     void RunInit(uint64_t iCurrInputLnCnt, uint64_t iCurrInputColCnt, uint64_t iBatchSize) {
-        iInputLnCnt   = iCurrInputLnCnt;
-        iInputColCnt  = iCurrInputColCnt;
+        iInputLnCnt  = iCurrInputLnCnt;
+        iInputColCnt = iCurrInputColCnt;
         if (iPoolType == NEUNET_POOL_GAG) {
             iOutputColCnt = 1;
             iOutputLnCnt  = 1;
@@ -341,19 +341,13 @@ struct LayerPool : Layer {
 
     callback_matrix bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
         if (iPoolType == NEUNET_POOL_GAG) vecInput = conv::PoolGlbAvg(vecInput);
-        else {
-            auto vecCurrCaffe = conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
-            vecInput = conv::PoolMaxAvg(iPoolType, vecCurrCaffe, iFilterLnCnt, iFilterColCnt, setCaffeMaxPos[iIdx]);
-        }
+        else vecInput = conv::PoolMaxAvg(iPoolType, conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate), iFilterLnCnt, iFilterColCnt, setCaffeMaxPos[iIdx]);
         return vecInput.verify;
     }
 
     callback_matrix bool BackProp(neunet_vect &vecGrad, uint64_t iIdx) {
         if (iPoolType == NEUNET_POOL_GAG) vecGrad = conv::GradLossToPoolGlbAvgChann(vecGrad, iInputLnCnt, iInputColCnt);
-        else {
-            vecGrad = conv::GradLossToPoolMaxAvgCaffeInput(iPoolType, vecGrad, iFilterLnCnt, iFilterColCnt, setCaffeMaxPos[iIdx]);
-            vecGrad = conv::CaffeTransform(vecGrad, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate, true);
-        }
+        else vecGrad = conv::CaffeTransform(conv::GradLossToPoolMaxAvgCaffeInput(iPoolType, vecGrad, iFilterLnCnt, iFilterColCnt, setCaffeMaxPos[iIdx]), iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate, true);
         return vecGrad.verify;
     }
 

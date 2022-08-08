@@ -14,16 +14,17 @@ using std::string;
 using neunet::net_set;
 using neunet::dataset::mnist;
 using neunet::NeunetMNIST;
+using neunet::vect;
 
 int main(int argc, char *argv[], char *envp[]) {
     cout << "hello, world.\n" << endl;
     auto chrono_begin = NEUNET_CHRONO_TIME_POINT;
     
     using mat_t = long double;
-    std::string root = "D:\\Users\\Aurora\\Documents\\Visual Studio Code Project\\MNIST\\file\\";
-    mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
-    test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
-    NeunetMNIST net(125, 0.1);
+    std::string root = "E:\\VS Code project data\\MNIST\\";
+    mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str(), net_set({10ull})), 
+    test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str(), net_set({10ull}));
+    NeunetMNIST net(2, 0.1);
     auto dLearnRate = 0.4l;
     net.AddLayer<neunet::layer::LayerConv<mat_t>>(20, 5, 5, 1, 1, 0, 0, dLearnRate);
     net.AddLayer<neunet::layer::LayerBN<mat_t>>();
@@ -39,7 +40,7 @@ int main(int argc, char *argv[], char *envp[]) {
     net.AddLayer<neunet::layer::LayerAct<mat_t>>(NEUNET_SIGMOID);
     net.AddLayer<neunet::layer::LayerFC<mat_t>>(10, dLearnRate);
     net.AddLayer<neunet::layer::LayerAct<mat_t>>(NEUNET_SOFTMAX);
-    net.Run(train, test);
+    std::cout << net.Run(train, test) << std::endl;
 
     auto chrono_end = NEUNET_CHRONO_TIME_POINT;
     cout << '\n' << (chrono_end - chrono_begin) << "ms" << endl;

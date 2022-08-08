@@ -9,13 +9,12 @@
             "type": "cppvsdbg",
             "request": "launch",
             "preLaunchTask": "shell: cl.exe build active file",
-            "program": "${workspaceFolder}/${fileBasenameNoExtension}.exe",
+            "program": "${workspaceFolder}/.vscode/debug/bin/${fileBasenameNoExtension}.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "console":"externalTerminal",
-            "symbolSearchPath": "https://msdl.microsoft.com/download/symbols"
+            "console":"externalTerminal"
         }
     ]
 }
