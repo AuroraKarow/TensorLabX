@@ -22,10 +22,10 @@ int main(int argc, char *argv[], char *envp[]) {
     
     using mat_t = long double;
     std::string root = "E:\\VS Code project data\\MNIST\\";
-    mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str(), net_set({10ull})), 
-    test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str(), net_set({10ull}));
-    NeunetMNIST net(2, 0.1);
-    auto dLearnRate = 0.4l;
+    mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
+    test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
+    NeunetMNIST net(125, 0.1);
+    auto dLearnRate = 0.1l;
     net.AddLayer<neunet::layer::LayerConv<mat_t>>(20, 5, 5, 1, 1, 0, 0, dLearnRate);
     net.AddLayer<neunet::layer::LayerBN<mat_t>>();
     net.AddLayer<neunet::layer::LayerAct<mat_t>>(NEUNET_RELU);

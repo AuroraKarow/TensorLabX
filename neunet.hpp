@@ -151,7 +151,7 @@ public:
             switch (this->seqLayer[i]->iLayerType) {
             case NEUNET_LAYER_FC: std::dynamic_pointer_cast<layer::LayerFC<matrix_elem_t>>(this->seqLayer[i])->Update(); break;
             case NEUNET_LAYER_CONV: std::dynamic_pointer_cast<layer::LayerConv<matrix_elem_t>>(this->seqLayer[i])->Update(); break;
-            case NEUNET_LAYER_BN: std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[i])->Update(iCurrBatch + 1 == iBatchCnt, iBatchCnt, this->iBatchSize); break;
+            case NEUNET_LAYER_BN: std::dynamic_pointer_cast<layer::LayerBN<matrix_elem_t>>(this->seqLayer[i])->Update(iCurrBatch, iBatchCnt, this->iBatchSize); break;
             default: continue;
             }
         }
@@ -336,7 +336,7 @@ public:
                 queTestLbl.en_queue(std::move(dsTestSet.curr_batch_lbl));
                 asyControl.thread_wake_one();
             }
-        } while (iAsyncStat != NEUNET_STAT_END); });
+        } while (!(iAsyncStat == NEUNET_STAT_END || iAsyncStat == NEUNET_STAT_EXC)); });
 
         // data show
         // parameter
@@ -358,7 +358,7 @@ public:
                 dHAcc = 0;
                 dPrec = 0;
                 dRc   = 0;
-                dsTrainSet.output_para(setCurrOutput, setCurrLbl, this->dAcc, dHAcc, dPrec, dRc, true, this->iBatchSize);
+                dataset::mnist<matrix_elem_t>::output_para(setCurrOutput, setCurrLbl, this->dAcc, dHAcc, dPrec, dRc, true, this->iBatchSize);
                 auto iTrEnd = NEUNET_CHRONO_TIME_POINT;
                 print_train_status(iEp, i + 1, dsTrainSet.batch_cnt, dHAcc, dPrec, dRc, iTrEnd - iTrBegin);
             }
@@ -371,8 +371,8 @@ public:
                 if (iAsyncStat == NEUNET_STAT_EXC) return false;
                 auto setCurrOutput = queTestOutput.de_queue();
                 auto setCurrLbl    = queTestLbl.de_queue();
-                dsTestSet.output_para(setCurrOutput, setCurrLbl, this->dAcc, dHAcc, dPrec, dRc);
-                print_deduce_progress(i, dsTestSet.batch_cnt);
+                dataset::mnist<matrix_elem_t>::output_para(setCurrOutput, setCurrLbl, this->dAcc, dHAcc, dPrec, dRc);
+                print_deduce_progress(i + 1, dsTestSet.batch_cnt);
             }
             dHAcc /= dsTestSet.element_count;
             dPrec /= dsTestSet.element_count;

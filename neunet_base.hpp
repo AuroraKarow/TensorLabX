@@ -6,7 +6,7 @@ callback_matrix neunet_vect vec_travel(const neunet_vect &src, matrix_elem_t(*fu
     return ans;
 }
 
-callback_matrix neunet_vect divisor_dominate(const neunet_vect &src, const matrix_elem_t &epsilon = 1e-8) {
+callback_matrix neunet_vect divisor_dominate(const neunet_vect &src, const matrix_elem_t &epsilon = 1e-8l) {
     auto ans = src;
     for (auto i = 0ull; i < src.element_count; ++i) if (ans.index(i) == 0) ans.index(i) = epsilon;
     return ans;
@@ -84,7 +84,10 @@ callback_matrix neunet_vect chann_vec_crop(uint64_t &ans_ln_cnt, uint64_t &ans_c
 
 void print_train_status(int epoch, int curr_prog, int prog, long double acc, long double prec, long double rc, int dur) { std::printf("\r[Ep][%d][Prog][%d/%d][Acc/Prec/Rc][%.2f/%.2f/%.2f][Dur][%dms]", epoch, curr_prog, prog, acc, prec, rc, dur); }
 
-void print_deduce_status(int epoch, long double acc, long double prec, long double rc, int dur) { std::printf("\r[Ep][%d][Acc/Prec/Rc][%lf/%lf/%lf][Dur][%dms]", epoch, acc, prec, rc, dur); }
+void print_deduce_status(int epoch, long double acc, long double prec, long double rc, int dur) {
+    std::printf("\r[Ep][%d][Acc/Prec/Rc][%lf/%lf/%lf][Dur][%dms]", epoch, acc, prec, rc, dur);
+    std::cout << std::endl;
+}
 
 void print_deduce_progress(int curr_prog, int prog) { std::printf("\r[Deducing][%d/%d]", curr_prog, prog); }
 

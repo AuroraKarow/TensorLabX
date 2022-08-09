@@ -351,7 +351,12 @@ struct LayerPool : Layer {
         return vecGrad.verify;
     }
 
-    callback_matrix bool Deduce(neunet_vect &vecInput) { return ForwProp(vecInput, 0); }
+    callback_matrix bool Deduce(neunet_vect &vecInput) {
+        if (iPoolType == NEUNET_POOL_GAG) return ForwProp(vecInput, 0);
+        net_set<net_set<matrix::pos>> setTemp;
+        vecInput = conv::PoolMaxAvg(iPoolType, conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate), iFilterLnCnt, iFilterColCnt, setTemp);
+        return vecInput.verify;
+    }
 
     virtual void Reset(bool bFull = true) {
         if (bFull) Layer::Reset(true);

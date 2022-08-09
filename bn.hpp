@@ -26,11 +26,13 @@ callback_matrix neunet_vect BNInitBetaGamma(uint64_t iChannCnt, const matrix_ele
 /* Expectation Average, Expectation MiuBeta
  * Variance mini-batch variance, Variance SigmaSqr
  */
-callback_matrix void BNDeduceInit(neunet_vect &vecMuBeta, neunet_vect &vecSigmaSqr, uint64_t iBatchCnt, uint64_t iBatchSize) {
+callback_matrix void BNDeduceInit(neunet_vect &vecMuBeta, neunet_vect &vecSigmaSqr, uint64_t iBatchCnt, uint64_t iBatchSize, long double dEpsilon = 1e-8l) {
     if(iBatchCnt) {
         vecMuBeta   = vecMuBeta.elem_wise_opt(iBatchCnt, MATRIX_ELEM_DIV);
         vecSigmaSqr = vecSigmaSqr.elem_wise_opt(iBatchCnt, MATRIX_ELEM_DIV);
         if(iBatchSize > 1) vecSigmaSqr *= (iBatchSize / (iBatchSize - 1.0l));
+        vecSigmaSqr = divisor_dominate(vecSigmaSqr, dEpsilon);
+        vecSigmaSqr = vecSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
     }
 }
 
@@ -39,14 +41,8 @@ callback_matrix void BNDeduceInit(neunet_vect &vecMuBeta, neunet_vect &vecSigmaS
  */
 callback_matrix neunet_vect BNDeduce(const neunet_vect &vecMuBeta, const neunet_vect &vecSigmaSqr, const neunet_vect &vecInput, const neunet_vect &vecBeta, const neunet_vect &vecGamma, long double dEpsilon = 1e-8l)
 {
-    auto vecNrom = vecInput - vecMuBeta,
-         vecVar  = divisor_dominate(vecSigmaSqr, dEpsilon),
-         vecAns  = vecNrom.elem_wise_opt(vecVar.elem_wise_opt(0.5, MATRIX_ELEM_POW), MATRIX_ELEM_DIV);
-    for (auto i = 0ull; i < vecAns.element_count; ++i) {
-        auto iCurrChann = 0;
-        if (vecGamma.element_count > 1) iCurrChann = matrix::elem_pos(i, vecAns.column_count).col;
-        vecAns.index(i) = vecGamma.index(iCurrChann) * vecAns.index(i) + vecBeta.index(iCurrChann);
-    }
+    auto vecAns = (vecInput - vecMuBeta).elem_wise_opt(vecSigmaSqr, MATRIX_ELEM_DIV);
+    for (auto i = 0ull; i < vecAns.line_count; ++i) for (auto j = 0ull; j < vecAns.column_count; ++j) vecAns[i][j] = vecGamma.index(j) * vecAns[i][j] + vecBeta.index(j);    
     return vecAns;
 }
 
@@ -230,7 +226,7 @@ matrix_declare struct LayerBN : Layer {
         return vecInput.verify;
     }
 
-    void Update(bool bIsLastBatch = true, bool iBatchCnt = 1, bool iCurrBatchSize = 1) {
+    void Update(uint64_t iCurrBatch = 0, uint64_t iBatchCnt = 1, uint64_t iCurrBatchSize = 1) {
         if (this->dLearnRate) {
             vecBeta         -= advBeta.momentum(vecGradBeta, this->dLearnRate);
             vecGamma        -= advGamma.momentum(vecGradGamma, this->dLearnRate);
@@ -240,9 +236,14 @@ matrix_declare struct LayerBN : Layer {
             vecBeta  -= adaBeta.delta(vecGradBeta);
             vecGamma -= adaGamma.delta(vecGradGamma);
         }
-        vecExpMuBeta   += vecMuBeta;
-        vecExpSigmaSqr += vecSigmaSqr;
-        if (bIsLastBatch) BNDeduceInit(vecExpMuBeta, vecExpSigmaSqr, iBatchCnt, iCurrBatchSize);
+        if (iCurrBatch) {
+            vecExpMuBeta   += vecMuBeta;
+            vecExpSigmaSqr += vecSigmaSqr;
+        } else {
+            vecExpMuBeta   = std::move(vecMuBeta);
+            vecExpSigmaSqr = std::move(vecSigmaSqr);
+        }
+        if (iCurrBatch + 1 == iBatchCnt) BNDeduceInit(vecExpMuBeta, vecExpSigmaSqr, iBatchCnt, iCurrBatchSize);
     }
 
     virtual void Reset(bool bFull = true) {
