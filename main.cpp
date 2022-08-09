@@ -21,7 +21,7 @@ int main(int argc, char *argv[], char *envp[]) {
     auto chrono_begin = NEUNET_CHRONO_TIME_POINT;
     
     using mat_t = long double;
-    std::string root = "E:\\VS Code project data\\MNIST\\";
+    std::string root = "...\\MNIST\\";
     mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
     NeunetMNIST net(125, 0.1);
