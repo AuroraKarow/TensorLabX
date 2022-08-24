@@ -1,38 +1,5 @@
 NEUNET_BEGIN
 
-/* Hash key */
-
-uint64_t hash_in_built(const std::string &src) {
-    auto ans = 0ull;
-    for(auto i = 0ull; i < src.length(); ++i) ans += (i + 1) * src[i];
-    return ans;
-}
-
-uint64_t hash_in_built(long double src) {
-    if (src) {
-        uint64_t ans = *(uint64_t*)(&src);
-        return ans;
-    } else return 0;
-}
-
-long long hash_detect(long long &threshold, bool &sgn) {
-    if (threshold) if (sgn) { 
-        auto temp = (-1) * threshold * threshold;
-              sgn = false;
-        ++ threshold;
-        return temp;
-    } else {
-        sgn = true;
-        return threshold * threshold;
-    } else {
-        auto temp = threshold;
-             sgn  = false;
-        ++ threshold;
-        return temp;
-    }
-}
-long long hash_next_key(long long hash_key, long long detect_v, long long curr_mem_len) { return (hash_key + detect_v) % curr_mem_len; }
-
 /* Pointer */
 
 callback_arg arg *ptr_init(uint64_t len) {
@@ -256,6 +223,25 @@ callback_arg arg *ptr_intersect(uint64_t &ans_len, const arg *src_fst, uint64_t 
     }
     ptr_reset(temp_snd);
     if (ans_len != ans_len_temp) ptr_alter(ans, ans_len_temp, ans_len);
+    return ans;
+}
+
+/* @brief Find common element between two arrays
+ * @param comm_cnt  [Out]   Common elements count
+ * @param axis      [In]    Axis array, at rest array for comparing.
+ * @param axis_len  [In]    Axis array length.
+ * @param src       [In]    Source array, find the index of common element comparing with the axis array.
+ * @param src_len   [In]    Source array length
+ * @return Boolean array. Length of this array equals to the source array. Each element value of this array which is the index of common element in axis array would be true, otherwise false.
+ */
+callback_arg bool *ptr_com_elem_idx(uint64_t &comm_cnt, const arg *axis, uint64_t axis_len, const arg *src, uint64_t src_len) {
+    auto ans = ptr_init<bool>(src_len);
+    comm_cnt = 0;
+    for (auto i = 0ull; i < axis_len; ++i) if (src_len != comm_cnt) for (auto j = 0ull; j < src_len; ++j) if (*(src + j) == *(axis + i) && !(*(ans + j))) {
+        *(ans + j) = true;
+        ++comm_cnt;
+        break;
+    }
     return ans;
 }
 
@@ -536,7 +522,7 @@ ch_str str_cat(const ch_str fst, const ch_str snd) {
 }
 template <typename ... arg> ch_str str_cat(const ch_str fst, const ch_str snd, arg &&... src) {
     auto curr_ans = str_cat(fst, snd);
-    auto ans = str_cat(curr_ans, src ...);
+    auto ans      = str_cat(curr_ans, src ...);
     ptr_reset(curr_ans);
     return ans;
 }
@@ -560,5 +546,50 @@ template <typename arg> struct net_ptr_base {
         ptr_reset(ptr_base);
     }
 };
+
+/* iterator */
+template <typename arg, typename inst_t> struct net_iterator_base {
+public:
+    net_iterator_base(const inst_t *ptr_src = nullptr) : ptr(ptr_src) {}
+
+    virtual bool operator==(const net_iterator_base &val) const { return ptr == val.ptr;}
+
+    virtual arg operator*() const = 0;
+
+    virtual net_iterator_base &operator++() { return *this; }
+
+    virtual net_iterator_base &operator--() { return *this; }
+
+    virtual ~net_iterator_base() { ptr = nullptr; }
+protected:
+    const inst_t *ptr = nullptr;
+};
+
+/* Hash key */
+
+template <typename arg> uint64_t hash_in_built(const arg &src) {
+    if constexpr (std::is_same_v<arg, std::string>) return std::hash<std::string>{}(src);
+    else if constexpr (std::is_integral_v<arg>) return src;
+    else if constexpr (std::is_floating_point_v<arg>) return std::hash<arg>{}(src);
+    else return 0;
+}
+
+long long hash_detect(long long &threshold, bool &sgn) {
+    if (threshold) if (sgn) { 
+        auto temp = (-1) * threshold * threshold;
+              sgn = false;
+        ++ threshold;
+        return temp;
+    } else {
+        sgn = true;
+        return threshold * threshold;
+    } else {
+        auto temp = threshold;
+             sgn  = false;
+        ++ threshold;
+        return temp;
+    }
+}
+long long hash_next_key(long long hash_key, long long detect_v, long long curr_mem_len) { return (hash_key + detect_v) % curr_mem_len; }
 
 NEUNET_END

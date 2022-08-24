@@ -3,11 +3,11 @@
 #ifndef __NET_MAP__
 #define __NET_MAP__
 
-#include "net_set"
+#include "net_tree"
 
-#define NEUNET_MAP_INSERT_SUCCESS 0x0000
-#define NEUNET_MAP_INSERT_PARTIAL 0x0001
-#define NEUNET_MAP_INSERT_FAILED  0x0002
+#define NEUNET_HASH_EXIST_CURR  0x0000
+#define NEUNET_HASH_EXIST_BACK  0x0001
+#define NEUNET_HASH_NOT_FOUND   0x0002
 
 #include "net_map.hpp"
 

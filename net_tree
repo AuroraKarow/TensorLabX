@@ -1,0 +1,15 @@
+#pragma once
+
+#ifndef __NET_TREE__
+#define __NET_TREE__
+
+#include "net_set"
+#include "net_list"
+
+#define NEUNET_INSERT_SUCCESS   0x0000
+#define NEUNET_INSERT_PARTIAL   0x0001
+#define NEUNET_INSERT_FAILED    0x0002
+
+#include "net_tree.hpp"
+
+#endif

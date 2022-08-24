@@ -311,7 +311,10 @@ public:
         tail = p_tool_prev;
     }
 
-    iterator begin() const { return iterator(head); }
+    iterator begin() const {
+        if (len) return iterator(head);
+        else return end();
+    }
 
     iterator end() const { return iterator(nullptr); }
 
