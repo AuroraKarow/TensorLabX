@@ -2,7 +2,7 @@ NEUNET_BEGIN
 
 /* net_set */
 template <typename arg> class net_set {
-protected:
+public:
     /* net_set iterator */
     struct iterator final : net_iterator_base<arg, net_set<arg>> {
     public:
@@ -42,6 +42,8 @@ protected:
         ~iterator() { curr_idx = 0; }
     private: uint64_t curr_idx = 0;
     };
+
+protected:
     void value_copy(const net_set &src) {
         ptr_alter(ptr, len, src.len, false);
         ptr_copy(ptr, src.ptr, src.len);

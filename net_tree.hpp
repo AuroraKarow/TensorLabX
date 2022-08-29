@@ -23,9 +23,9 @@ template <typename k_arg, typename arg> struct net_kv {
         key(std::move(src.key)),
         value(std::move(src.value)) {}
     
-    bool operator==(const net_kv &val) { return key == val.key && value == val.value; }
+    bool operator==(const net_kv &val) const { return key == val.key && value == val.value && valid == val.valid; }
     
-    bool operator!=(const net_kv &val) { return !(*this == val); }
+    bool operator!=(const net_kv &val) const { return !(*this == val); }
 
     net_kv &operator=(const net_kv &src) {
         valid = src.valid;
@@ -68,30 +68,38 @@ template <typename k_arg, typename arg> struct net_leaf {
     }
 };
 
-template <typename k_arg, typename arg> net_leaf<k_arg, arg> *net_leaf_root_prev(net_leaf<k_arg, arg> *src_lc) {
-    if (src_lc == nullptr) return src_lc;
-    if (src_lc->rc) return net_leaf_root_prev(src_lc->rc);
-    else return src_lc;
-}
-
-template <typename k_arg, typename arg> net_leaf<k_arg, arg> *net_leaf_root_next(net_leaf<k_arg, arg> *src_rc) {
-    if (src_rc == nullptr) return src_rc;
-    if (src_rc->lc) return net_leaf_root_prev(src_rc->lc);
-    else return src_rc;
-}
-
 template <typename k_arg, typename arg> net_leaf<k_arg, arg> *net_leaf_pred(net_leaf<k_arg, arg> *src) {
     if (src == nullptr) return src;
-    if (src->lc) return net_leaf_root_prev(src->lc);
-    else if (src->pt && src->pt->rc != src) while (src->pt && src->pt->lc == src) src = src->pt;
-    return src->pt;
+    net_leaf<k_arg, arg> *ans = nullptr;
+    if (src->lc) {
+        ans = src->lc;
+        while (ans->rc) ans = ans->rc;
+    } else {
+        auto tool = src;
+             ans  = src->pt;
+        while (ans && ans->lc == tool) {
+            tool = ans;
+            ans  = ans->pt;
+        }
+    }
+    return ans;
 }
 
 template <typename k_arg, typename arg> net_leaf<k_arg, arg> *net_leaf_succ(net_leaf<k_arg, arg> *src) {
     if (src == nullptr) return src;
-    if (src->rc) return net_leaf_root_next(src->rc);
-    else if (src->pt && src->pt->lc != src) while (src->pt && src->pt->rc == src) src = src->pt;
-    return src->pt;
+    net_leaf<k_arg, arg> *ans = nullptr;
+    if (src->rc) {
+        ans = src->rc;
+        while (ans->lc) ans = ans->lc;
+    } else {
+        auto tool = src;
+             ans  = src->pt;
+        while (ans && ans->rc == tool) {
+            tool = ans;
+            ans  = ans->pt;
+        }
+    }
+    return ans;
 }
 
 template <typename k_arg, typename arg> net_leaf<k_arg, arg> *net_leaf_find(net_leaf<k_arg, arg> *root, uint64_t hash_key) {
@@ -130,6 +138,9 @@ template <typename k_arg, typename arg> void net_leaf_rot(net_leaf<k_arg, arg> *
 
 template <typename k_arg, typename arg> bool net_leaf_insert_check(net_leaf<k_arg, arg> *&root, net_leaf<k_arg, arg> *pre_tool, net_leaf<k_arg, arg> *tool) {
     if (!pre_tool->red) return true;
+    /* g_tool -> grandfather
+     * pre_tool -> father
+     */
     auto g_tool = pre_tool->pt;
     // uncle is red
     if ((g_tool->hash_key > tool->hash_key && g_tool->rc && g_tool->rc->red) || (g_tool->hash_key < tool->hash_key && g_tool->lc && g_tool->lc->red)) {
@@ -167,6 +178,7 @@ template <typename k_arg, typename arg> bool net_leaf_insert_check(net_leaf<k_ar
 }
 
 template <typename k_arg, typename arg> bool net_leaf_insert(net_leaf<k_arg, arg> *&root, uint64_t hash_key, net_kv<k_arg, arg> &&src) {
+    if (!src.valid) return false;
     auto tool = new net_leaf<k_arg, arg> {hash_key, std::move(src)};
     if (root == nullptr) {
         root      = tool;
@@ -175,100 +187,106 @@ template <typename k_arg, typename arg> bool net_leaf_insert(net_leaf<k_arg, arg
     }
     auto pre_tool = net_leaf_find(root, hash_key);
          tool->pt = pre_tool;
-    if (pre_tool->hash_key > hash_key) pre_tool->lc = tool;
+    if (pre_tool->hash_key == hash_key) {
+        if (pre_tool->elem.valid) return false;
+        else pre_tool->elem = std::move(src);
+        return true;
+    }
+    else if (pre_tool->hash_key > hash_key) pre_tool->lc = tool;
     else pre_tool->rc = tool;
     return net_leaf_insert_check(root, pre_tool, tool);
 }
 
-template <typename k_arg, typename arg> net_kv<k_arg, arg> net_leaf_erase_check(net_leaf<k_arg, arg> *&root, net_leaf<k_arg, arg> *pre_tool, net_leaf<k_arg, arg> *tool) {
-    // with one child
-    if (tool->lc) {
-        // left child
-        std::swap(tool->elem, tool->lc->elem);
-        std::swap(tool->hash_key, tool->lc->hash_key);
-        tool = tool->lc;
+template <typename k_arg, typename arg> void net_leaf_erase_check(net_leaf<k_arg, arg> *&root, net_leaf<k_arg, arg> *pre_tool, net_leaf<k_arg, arg> *tool) {
+    /* temp -> sibling
+     * pre_tool -> father
+     */
+    net_leaf<k_arg, arg> *temp    = pre_tool->rc;
+    auto                 left_rot = true;
+    if (pre_tool->rc == tool) {
+        temp = pre_tool->lc;
+        left_rot = false;
     }
-    if (tool->rc) {
-        // right child
-        std::swap(tool->elem, tool->rc->elem);
-        std::swap(tool->hash_key, tool->rc->hash_key);
-        tool = tool->rc;
+    if (temp == nullptr) return;
+    if (temp->red) {
+        // sibling->red
+        net_leaf_rot(root, pre_tool, left_rot);
+        std::swap(pre_tool->red, temp->red);
+        return net_leaf_erase_check(root, pre_tool, tool);
     }
-    pre_tool = tool->pt;
-    if (tool->lc == nullptr && tool->rc == nullptr && !tool->red && tool != root) {
-        net_leaf<k_arg, arg> *temp = nullptr;
-        auto rot_left = true;
-        if (tool == pre_tool->lc) {
-            temp     = pre_tool->rc;
-            rot_left = true;
-        } else {
-            temp     = pre_tool->lc;
-            rot_left = false;
-        }
-        if (temp && temp->red && temp->lc && temp->rc) {
-            // uncle -> red
-            net_leaf_rot(root, pre_tool, rot_left);
-            std::swap(pre_tool->red, pre_tool->pt->red);
-            temp = nullptr;
-            return net_leaf_erase_check(root, pre_tool, tool);
-        }
-        // left nephew is red
-        if (temp && temp->lc && temp->lc->red) {
-            if (rot_left) { // left
-                net_leaf_rot(root, temp, !rot_left);
-                temp = temp->pt;
-                std::swap(temp->red, temp->rc->red);
-            } else { // right
-                temp->lc->red = false;
-                std::swap(pre_tool->red, temp->red);
-                net_leaf_rot(root, pre_tool, rot_left);
-            }
-            temp = nullptr;
-            return net_leaf_erase_check(root, pre_tool, tool);
-        }
-        // right nephew is red
-        if (temp && temp->rc && temp->rc->red) {
-            if (rot_left) { // left
-                temp->rc->red = false;
-                std::swap(pre_tool->red, temp->red);
-                net_leaf_rot(root, pre_tool, rot_left);
-            } else { // right
-                net_leaf_rot(root, temp, !rot_left);
-                temp = temp->pt;
-                std::swap(temp->red, temp->lc->red);
-            }
-            temp = nullptr;
-            return net_leaf_erase_check(root, pre_tool, tool);
-        }
-        if (pre_tool) pre_tool->red = false;
-        if (temp) temp->red = true;
+    if ((left_rot && temp->rc && temp->rc->red) || (!left_rot && temp->lc && temp->lc->red)) {
+        // red nephew at same side as sibling
+        net_leaf_rot(root, pre_tool, left_rot);
+        std::swap(pre_tool->red, temp->red);
+        if (left_rot) temp->rc->red = false;
+        else temp->lc->red = false;
+        return;
     }
-    auto ans = std::move(tool->elem);
-    if (tool == root) root = nullptr;
-    else if (pre_tool->lc == tool) pre_tool->lc = nullptr;
-    else pre_tool->rc = nullptr;
-    delete tool;
-    tool     = nullptr;
-    pre_tool = nullptr;
-    return ans;
+    if ((left_rot && temp->lc && temp->lc->red) || (!left_rot && temp->rc && temp->rc->red)) {
+        // red nephew at diffrent side from sibling
+        net_leaf_rot(root, temp, !left_rot);
+        std::swap(temp->pt->red, temp->red);
+        return net_leaf_erase_check(root, pre_tool, tool);
+    }
+    if ((temp->lc == nullptr || !temp->lc->red) && (temp->rc == nullptr || !temp->rc->red)) {
+        // all nephews are black
+        temp->red = true;
+        if (pre_tool->red || pre_tool == root) {
+            // father is red
+            pre_tool->red = false;
+            return;
+        }
+        // father is black
+        tool     = pre_tool;
+        pre_tool = pre_tool->pt;
+        return net_leaf_erase_check(root, pre_tool, tool);
+    }
 }
 
 template <typename k_arg, typename arg> net_kv<k_arg, arg> net_leaf_erase(net_leaf<k_arg, arg> *&root, uint64_t hash_key) {
+    net_kv<k_arg, arg> ans;
+    ans.valid = false;
     auto tool = net_leaf_find(root, hash_key);
-    if (tool == nullptr || tool->hash_key != hash_key) {
-        net_kv<k_arg, arg> ans;
-        ans.valid = false;
-        return ans;
-    }
+    if (tool == nullptr || tool->hash_key != hash_key) return ans;
     if (tool->lc && tool->rc) {
-        auto temp = net_leaf_root_next(tool->rc);
+        auto temp = net_leaf_succ(tool);
         std::swap(tool->hash_key, temp->hash_key);
         std::swap(tool->elem, temp->elem);
         tool = temp;
         temp = nullptr;
     }
-    auto pre_tool = tool->pt;
-    return net_leaf_erase_check(root, pre_tool, tool);
+    auto pre_tool = tool;
+    if (tool->lc || tool->rc) {
+        // with one child
+        if (tool->lc) {
+            // left child
+            std::swap(tool->elem, tool->lc->elem);
+            std::swap(tool->hash_key, tool->lc->hash_key);
+            tool         = tool->lc;
+            pre_tool->lc = nullptr;
+        }
+        if (tool->rc) {
+            // right child
+            std::swap(tool->elem, tool->rc->elem);
+            std::swap(tool->hash_key, tool->rc->hash_key);
+            tool         = tool->rc;
+            pre_tool->rc = nullptr;
+        }
+        tool->red = true;
+    } else {
+        pre_tool = pre_tool->pt;
+        if (pre_tool) {
+            if (pre_tool->lc == tool) pre_tool->lc = nullptr;
+            else pre_tool->rc = nullptr;
+        } else tool->red = true;
+    }
+    auto del_red = tool->red;
+    ans = std::move(tool->elem);
+    if (tool == root) root = nullptr;
+    delete tool;
+    tool = nullptr;
+    if (!del_red) net_leaf_erase_check(root, pre_tool, tool);
+    return ans;
 }
 
 template <typename k_arg, typename arg, typename f_arg, typename ... args> void net_leaf_iter(const net_leaf<k_arg, arg> *root, f_arg &&func, args &&...paras) {
@@ -319,13 +337,15 @@ template <typename k_arg, typename arg> bool net_leaf_compare(net_leaf<k_arg, ar
 }
 
 template <typename k_arg, typename arg> class net_tree {
-protected:
+public:
     struct iterator final : net_iterator_base<net_kv<k_arg, arg>, net_tree<k_arg, arg>> {
     public:
         iterator(const net_tree *src = nullptr) : net_iterator_base<net_kv<k_arg, arg>, net_tree<k_arg, arg>>(src) {
             if (src) {
                 curr = src->root;
                 while (curr->lc) curr = curr->lc;
+                hash_key  = curr->hash_key;
+                color_red = curr->red;
             }
         }
 
@@ -341,7 +361,13 @@ protected:
         virtual iterator &operator++() {
             if (this->ptr) {
                 curr = net_leaf_succ(curr);
-                if (curr == nullptr) this->ptr = nullptr;
+                if (curr) {
+                    hash_key  = curr->hash_key;
+                    color_red = curr->red;
+                } else {
+                    this->ptr = nullptr;
+                    hash_key  = 0;
+                }
             }
             return *this;
         }
@@ -354,7 +380,13 @@ protected:
         virtual iterator &operator--() {
             if (this->ptr) {
                 curr = net_leaf_pred(curr);
-                if (curr == nullptr) this->ptr = nullptr;
+                if (curr) {
+                    hash_key  = curr->hash_key;
+                    color_red = curr->red;
+                } else {
+                    this->ptr = nullptr;
+                    hash_key  = 0;
+                }
             }
             return *this;
         }
@@ -364,11 +396,22 @@ protected:
             return temp;
         }
 
+        const net_kv<k_arg, arg> *operator->() { return &(curr->elem); }
+
+        bool is_end() { return curr == nullptr; }
+
+        void change_valid(bool valid = true) { curr->elem.valid = valid; }
+
         virtual ~iterator() { curr = nullptr; }
 
     private: net_leaf<k_arg, arg> *curr = nullptr;
-    };
 
+    public:
+        uint64_t hash_key  = 0;
+        bool     color_red = true;
+    };
+    
+protected:
     void value_copy(const net_tree &src) {
         neunet::net_leaf_copy(root, src.root);
         len       = src.len;
@@ -397,39 +440,31 @@ public:
         if (len == 0) return ans;
         ans.init(len);
         uint64_t idx = 0;
-        net_leaf_iter(root, [](const neunet::net_leaf<k_arg, arg> *leaf, uint64_t &idx, net_set<k_arg> &ans) { ans[idx++] = leaf->elem.key; }, std::ref(idx), std::ref(ans));
+        net_leaf_iter(root, [&ans](const neunet::net_leaf<k_arg, arg> *leaf, uint64_t &idx) { ans[idx++] = leaf->elem.key; }, std::ref(idx));
         return ans;
     }
 
     net_set<k_arg> find_key(const arg &value) const {
-        net_set<uint64_t> ans;
+        net_set<k_arg> ans;
         if (len == 0) return ans;
-        net_ptr_base<k_arg> ans_ptr;
-        ans_ptr.init(len);
+        ans.init(len);
         uint64_t cnt = 0;
-        net_leaf_iter(root, [](const neunet::net_leaf<k_arg, arg> *leaf, uint64_t &cnt, net_ptr_base<k_arg> &ptr, const arg &value){ if (leaf->elem.value == value) *(ptr.ptr_base + cnt++) = leaf->elem.key; }, std::ref(cnt), std::ref(ans_ptr), std::ref(value));
-        if (cnt != ans_ptr.len) ptr_alter(ans_ptr.ptr_base, ans_ptr.len, cnt);
-        ans_ptr.len = cnt;
-        ans.pointer = std::move(ans_ptr);
+        net_leaf_iter(root, [&ans, &value](const neunet::net_leaf<k_arg, arg> *leaf, uint64_t &cnt){ if (leaf->elem.value == value) ans[cnt++] = leaf->elem.key; }, std::ref(cnt));
+        if (cnt != len) ans.init(cnt);
         return ans;
     }
 
-    bool insert(uint64_t hash_key, k_arg &&key, arg &&value) {
-        net_kv temp(std::move(key), std::move(value));
-        if (net_leaf_insert(root, hash_key, std::move(temp))) {
+    bool insert(uint64_t hash_key, net_kv<k_arg, arg> &&src) {
+        if (net_leaf_insert(root, hash_key, std::move(src))) {
             ++len;
             return true;
-        }
-        return false;
+        } else return false;
     }
     uint64_t insert(net_set<net_kv<k_arg, arg>> &&elem_list) {
         uint64_t cnt = 0;
         for (auto i = 0ull; i < elem_list.length; ++i) {
-            auto curr_leaf_val = hash_func(elem_list[i].key);
-            if (net_leaf_insert(root, curr_leaf_val, std::move(elem_list[i]))) {
-                ++len;
-                ++cnt;
-            }
+            auto curr_hash = hash_func(elem_list[i].key);
+            if (insert(curr_hash, std::move(elem_list[i]))) ++cnt;
         }
         auto src_len = elem_list.length;
         elem_list.reset();
@@ -443,7 +478,10 @@ public:
         for (auto temp : init_list) elem_list[cnt++] = std::move(temp);
         return insert(std::move(elem_list));
     }
-    bool insert(const k_arg &key, const arg &value) { return NEUNET_INSERT_SUCCESS == insert({net_kv<k_arg, arg>(key, value)}); }
+    bool insert(const k_arg &key, const arg &value) {
+        auto curr_hash = hash_func(key);
+        return insert(curr_hash, net_kv(key, value));
+    }
 
     net_kv<k_arg, arg> erase(uint64_t hash_key) {
         auto temp = net_leaf_erase(root, hash_key);
@@ -452,20 +490,13 @@ public:
     }
     net_set<net_kv<k_arg, arg>> erase(const net_set<k_arg> &k_set) {
         uint64_t cnt = 0;
-        net_ptr_base<net_kv<k_arg, arg>> ans_ptr;
-        ans_ptr.init(k_set.length);
+        net_set<net_kv<k_arg, arg>> ans(len);
         for (auto temp : k_set) {
-            auto curr_leaf_val = hash_func(temp);
-            auto kv_temp       = net_leaf_erase(root, curr_leaf_val);
-            if (kv_temp.valid) {
-                *(ans_ptr.ptr_base + cnt++) = std::move(kv_temp);
-                --len;
-            }
+            auto curr_hash = hash_func(temp);
+            auto kv_temp   = erase(curr_hash);
+            if (kv_temp.valid) ans[cnt++] = std::move(kv_temp);
         }
-        net_set<net_kv<k_arg, arg>> ans(cnt);
-        if (cnt != ans_ptr.len) ptr_alter(ans_ptr.ptr_base, ans_ptr.len, cnt);
-        ans_ptr.len = cnt;
-        ans.pointer = std::move(ans_ptr);
+        if (cnt != ans.length) ans.init(cnt);
         return ans;
     }
     net_set<net_kv<k_arg, arg>> erase(const std::initializer_list<k_arg> &init_k) {
@@ -474,9 +505,17 @@ public:
         for (auto temp : init_k) k_set_temp[cnt++] = std::move(temp);
         return erase(k_set_temp);
     }
-    net_kv<k_arg, arg> erase(const k_arg &key) { return net_leaf_erase(root, hash_func(key)); }
+    net_kv<k_arg, arg> erase(const k_arg &key) {
+        auto curr_hash = hash_func(key);
+        return erase(curr_hash);
+    }
 
-    bool hash_key_verify (uint64_t hash_key) const { return len && net_leaf_find(root, hash_key)->hash_key == hash_key; }
+    bool hash_key_verify (uint64_t hash_key) const {
+        if (len) {
+            auto curr_leaf = net_leaf_find(root, hash_key);
+            return curr_leaf->elem.valid && curr_leaf->hash_key == hash_key;
+        } else return false;
+    }
 
     iterator begin() const {
         if (len) return iterator(this);
@@ -484,16 +523,10 @@ public:
     }
 
     iterator end() const { return iterator(nullptr); }
-
-    k_arg root_key() const {
-        k_arg ans {};
-        if (root) ans = root->elem.key;
-        return ans;
-    }
     
     arg &get_value(uint64_t hash_key) const {
         auto tgt_leaf = net_leaf_find(root, hash_key);
-        assert(tgt_leaf);
+        assert(tgt_leaf && tgt_leaf->hash_key == hash_key);
         return tgt_leaf->elem.value;
     }
 
@@ -533,8 +566,6 @@ protected:
     std::function<uint64_t(const k_arg&)> hash_func;
 
 public:
-    bool list_mode = false;
-
     __declspec(property(get=size)) uint64_t length;
 
     friend std::ostream &operator<<(std::ostream &out, const net_tree &src) {

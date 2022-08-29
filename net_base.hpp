@@ -289,17 +289,19 @@ bool num_booleam(bool fst, bool snd, uint8_t boolean_type) {
 }
 
 ul_ptr num_primes(uint64_t &len, uint64_t upper) {
-    auto ans = ptr_init<uint64_t>(upper);
-         len = 0;
-    *(ans + len++) = 2;
-    if (upper > 2) for (auto i = 3ull; i <= upper; ++i) {
-        auto cnt_temp = 0ull;
-        while (cnt_temp < len) 
-            if (i % (*(ans + cnt_temp)) == 0) break;
-            else ++cnt_temp;
-        if(cnt_temp == len) *(ans + len++) = i;
+    auto ans = ptr_init<uint64_t>(upper + 1);
+    auto pmf = ptr_init<bool>(upper + 1);
+    len = 0;
+    for (auto i = 2ull; i <= upper; ++i) {
+        if (!(*(pmf + i))) *(ans + len++) = i;
+        for (auto j = 0ull; j < len; ++j) {
+            if (i * (*(ans + j)) > upper) break;
+            *(pmf + (i * (*(ans + j)))) = true;
+            if (!(i % (*(ans + j)))) break;
+        }
     }
-    if(len != upper) ptr_alter(ans, upper, len);
+    ptr_alter(ans, upper, len);
+    ptr_reset(pmf);
     return ans;
 }
 
@@ -561,8 +563,8 @@ public:
     virtual net_iterator_base &operator--() { return *this; }
 
     virtual ~net_iterator_base() { ptr = nullptr; }
-protected:
-    const inst_t *ptr = nullptr;
+
+protected: const inst_t *ptr = nullptr;
 };
 
 /* Hash key */

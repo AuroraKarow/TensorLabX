@@ -23,12 +23,13 @@ int main(int argc, char *argv[], char *envp[]) {
     cout << "hello, world.\n" << endl;
     auto chrono_begin = NEUNET_CHRONO_TIME_POINT;
     
+    // mnist demo
     using mat_t = long double;
-    std::string root = "E:\\VS Code project data\\MNIST\\";
+    std::string root = "...\\MNIST\\";
     mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
     NeunetMNIST net(125, 0.1);
-    auto dLearnRate = 0.1l;
+    auto dLearnRate = 0.4l;
     net.AddLayer<LayerConv<mat_t>>(20, 5, 5, 1, 1, 0, 0, dLearnRate);
     net.AddLayer<LayerBN<mat_t>>();
     net.AddLayer<LayerAct<mat_t>>(NEUNET_RELU);

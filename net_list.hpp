@@ -16,6 +16,35 @@ template <typename arg> struct net_node {
 };
 
 template <typename arg> class net_list {
+public:
+    struct iterator final : net_iterator_base<arg, net_node<arg>> {
+    public:
+        iterator(const net_node<arg> *node = nullptr) : net_iterator_base<arg, net_node<arg>>(node) {}
+
+        virtual bool operator==(const iterator &val) const { return net_iterator_base<arg, net_node<arg>>::operator==(val); }
+
+        virtual bool operator!=(const iterator &val) const { return !(*this == val); }
+    
+        virtual arg operator*() const {
+            if (this->ptr) return this->ptr->elem;
+            else return arg();
+        }
+    
+        virtual iterator &operator++() {
+            if (this->ptr) this->ptr = this->ptr->next;
+            return *this;
+        }
+    
+        virtual iterator operator++(int) { auto temp = *this; ++*this; return temp; }
+    
+        virtual iterator &operator--() {
+            if (this->ptr) this->ptr = this->ptr->prev;
+            return *this;
+        }
+    
+        virtual iterator operator--(int) { auto temp = *this; --*this; return temp; }
+    };
+
 protected:
     void value_copy(const net_list &src) {
         if (src.head == nullptr) { reset(); return; }
@@ -52,34 +81,6 @@ protected:
         len      = src.len;
         src.len  = 0;
     }
-
-    struct iterator final : net_iterator_base<arg, net_node<arg>> {
-    public:
-        iterator(const net_node<arg> *node = nullptr) : net_iterator_base<arg, net_node<arg>>(node) {}
-
-        virtual bool operator==(const iterator &val) const { return net_iterator_base<arg, net_node<arg>>::operator==(val); }
-
-        virtual bool operator!=(const iterator &val) const { return !(*this == val); }
-    
-        virtual arg operator*() const {
-            if (this->ptr) return this->ptr->elem;
-            else return arg();
-        }
-    
-        virtual iterator &operator++() {
-            if (this->ptr) this->ptr = this->ptr->next;
-            return *this;
-        }
-    
-        virtual iterator operator++(int) { auto temp = *this; ++*this; return temp; }
-    
-        virtual iterator &operator--() {
-            if (this->ptr) this->ptr = this->ptr->prev;
-            return *this;
-        }
-    
-        virtual iterator operator--(int) { auto temp = *this; --*this; return temp; }
-    };
 
 public:
     net_list() {}

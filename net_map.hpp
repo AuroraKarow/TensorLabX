@@ -5,16 +5,15 @@ NEUNET_BEGIN
 template <typename k_arg, typename arg> class net_map {
 protected:
     void value_assign(const net_map &src) {
-        backup        = src.backup;
-        bucket_upper  = src.bucket_upper;
-        bucket_lower  = src.bucket_lower;
-        rehash_base   = src.rehash_base;
-        rehash_load   = src.rehash_hash;
-        rehash_idx    = src.rehash_idx;
-        bucket_len[0] = bucket_len[0];
-        bucket_len[1] = bucket_len[1];
-        len[0]        = len[0];
-        len[1]        = len[1];
+        backup       = src.backup;
+        bucket_upper = src.bucket_upper;
+        bucket_lower = src.bucket_lower;
+        rehash_base  = src.rehash_base;
+        rehash_load  = src.rehash_hash;
+        rehash_idx   = src.rehash_idx;
+        rehash_leaf  = src.rehash_leaf;
+        len[0]       = src.len[0];
+        len[1]       = src.len[1];
     }
 
     void value_copy(const net_map &src) {
@@ -29,6 +28,7 @@ protected:
         kv_data[0] = std::move(src.kv_data[0]);
         kv_data[1] = std::move(src.kv_data[1]);
         hash_func  = std::move(src.hash_func);
+        src.reset();
     }
 
     void rehash_init(uint64_t alloc_size) {
@@ -39,32 +39,32 @@ protected:
         }
         kv_data[backup].init(alloc_size);
         rehash_load = rehash_base;
+        rehash_idx  = 0;
+        rehash_leaf = kv_data[!backup][rehash_idx].begin();
     }
 
     void rehash_transfer() {
         if (!kv_data[backup].length) return;
         for (auto i = 0ull; i < rehash_load; ++i) {
-            if (!len[!backup]) break;
-            while (!kv_data[!backup][rehash_idx].length) ++rehash_idx;
-            auto curr_key = hash_func(kv_data[!backup][rehash_idx].root_key());
-            auto curr_kv  = kv_data[!backup][rehash_idx].erase(curr_key);
-            --len[!backup];
-            if (!kv_data[!backup][rehash_idx].length) {
-                --bucket_len[!backup];
-                ++rehash_idx;
+            if (!len[!backup]) {
+                backup = !backup;
+                kv_data[backup].reset();
+                break;
             }
-            auto curr_idx = curr_key % kv_data[backup].length;
-            if (!kv_data[backup][curr_idx].length) ++bucket_len[backup];
-            kv_data[backup][curr_idx].insert(curr_key, std::move(curr_kv.key), std::move(curr_kv.value));
+            if (rehash_leaf == kv_data[!backup][rehash_idx].end()) {
+                kv_data[!backup][rehash_idx].reset();
+                while (!kv_data[!backup][rehash_idx].length) ++rehash_idx;
+                rehash_leaf = kv_data[!backup][rehash_idx].begin();
+            }
+            auto curr_hash = rehash_leaf.hash_key;
+            auto curr_idx  = curr_hash % kv_data[backup].length;
+            kv_data[backup][curr_idx].insert(curr_hash, (*rehash_leaf));
+            rehash_leaf.change_valid(false);
+            --len[!backup];
             ++len[backup];
+            ++rehash_leaf;
         }
-        if (len[!backup]) rehash_load <<= 1;
-        else {
-            backup      = !backup;
-            rehash_load = rehash_base;
-            rehash_idx  = 0;
-            kv_data[backup].reset();
-        }
+        if (len[backup]) rehash_load <<= 1;
     }
 
 public:
@@ -79,8 +79,6 @@ public:
     net_map(net_map &&src) { value_move(std::move(src)); }
 
     uint64_t size() const { return len[0] + len[1]; }
-
-    uint64_t bucket_size() const { return bucket_len[backup] + bucket_len[!backup]; }
 
     uint64_t mem_size() const { return kv_data[backup].length ? kv_data[backup].length : kv_data[!backup].length; }
 
@@ -98,18 +96,15 @@ public:
         auto all_key = key_set();
         net_set<k_arg> ans;
         if (all_key.length == 0) return ans;
-        net_ptr_base<k_arg> ans_ptr;
-        ans_ptr.init(all_key.length);
+        ans.init(all_key.length);
         auto cnt = 0ull;
-        for (auto temp : all_key) if (*this[temp] == value) *(ans_ptr.ptr_base + cnt++) = std::move(temp);
-        if (cnt != ans_ptr.len) ptr_alter(ans_ptr.ptr_base, ans_ptr.len, cnt);
-        ans_ptr.len = cnt;
-        ans.pointer = std::move(ans_ptr);
+        for (auto temp : all_key) if (*this[temp] == value) ans[cnt++] = std::move(temp);
+        if (cnt != ans.length) ans.init(cnt);
         return ans;
     }
 
-    uint64_t hash_key_verify(uint64_t hash_key) const {
-        auto idx = hash_key % kv_data[!backup].length;
+    uint64_t hash_key_verify(uint64_t &idx, uint64_t hash_key) const {
+        idx = hash_key % kv_data[!backup].length;
         if (kv_data[!backup][idx].hash_key_verify(hash_key)) return NEUNET_HASH_EXIST_CURR;
         if (len[backup]) {
             idx = hash_key % kv_data[backup].length;
@@ -139,10 +134,7 @@ public:
         for (auto i = 0ull; i < elem_list.length; ++i) {
             auto curr_hash_key = hash_func(elem_list[i].key),
                  curr_idx      = curr_hash_key % kv_data[lexicon].length;
-            if (kv_data[lexicon][curr_idx].insert(curr_hash_key, std::move(elem_list[i].key), std::move(elem_list[i].value))) {
-                ++cnt;
-                if (kv_data[lexicon][curr_idx].length == 1) ++bucket_len[lexicon];
-            }
+            if (kv_data[lexicon][curr_idx].insert(curr_hash_key, std::move(elem_list[i]))) ++cnt;
         }
         len[lexicon] += cnt;
         rehash_transfer();
@@ -160,39 +152,39 @@ public:
     uint64_t insert(const k_arg &key, const arg &value) { return insert({net_kv<k_arg, arg>(key, value)}); }
 
     net_set<net_kv<k_arg, arg>> erase(const net_set<k_arg> &key_list) {
-        // erase
         net_set<net_kv<k_arg, arg>> ans;
-        if (key_list.size() == 0) return ans;
-        net_ptr_base<net_kv<k_arg, arg>> ans_ptr;
-        ans_ptr.init(key_list.size());
+        if (!key_list.length) return ans;
+        ans.init(key_list.length);
         auto cnt = 0ull;
-        for (auto k_temp : key_list) {
-            auto curr_hash_key = hash_func(k_temp),
-                 find_key_res  = hash_key_verify(curr_hash_key);
-            if (find_key_res == NEUNET_HASH_NOT_FOUND) continue;
-            auto lexicon = backup;
-            if (find_key_res == NEUNET_HASH_EXIST_CURR) lexicon = !lexicon;
-            auto curr_idx  = curr_hash_key % kv_data[lexicon].length;
-            auto curr_temp = kv_data[lexicon][curr_idx].erase(curr_hash_key);
-            if (curr_temp.valid) {
-                *(ans_ptr.ptr_base + cnt++) = std::move(curr_temp);
-                if (!kv_data[lexicon][curr_idx].length) --bucket_len[lexicon];
+        // erase
+        for (auto temp : key_list) {
+            auto curr_hash = hash_func(temp);
+            if (!rehash_leaf.is_end() && rehash_leaf.hash_key == curr_hash) {
+                ans[cnt++] = *rehash_leaf;
+                ++rehash_leaf;
+                --len[!backup];
+            }
+            else {
+                auto curr_idx  = 0ull,
+                     find_res  = hash_key_verify(curr_idx, curr_hash);
+                if (find_res == NEUNET_HASH_NOT_FOUND) continue;
+                auto lexicon = backup;
+                if (find_res == NEUNET_HASH_EXIST_CURR) lexicon = !backup;
+                ans[cnt++] = kv_data[lexicon][curr_idx].erase(curr_hash);
                 --len[lexicon];
             }
         }
-        if (cnt != ans_ptr.len) ptr_alter(ans_ptr.ptr_base, ans_ptr.len, cnt);
-        ans.pointer = std::move(ans_ptr);
+        if (ans.length != cnt) ans.init(cnt);
         // memory check
-        auto lower = size(),
-             alloc = kv_data[!backup].length;
-        if (len[backup]) alloc = kv_data[backup].length;
-        if (lower < alloc * bucket_lower) {
-            auto alloc_temp = alloc >> 1;
-            while (alloc_temp * bucket_lower > lower) {
-                alloc      = alloc_temp;
-                alloc_temp = alloc >> 1;
-            }
-            rehash_init(alloc);
+        uint64_t after_len = size(),
+                 curr_mem  = (kv_data[backup].length ? kv_data[backup].length : kv_data[!backup].length),
+                 next_mem  = curr_mem * bucket_lower;
+        if (next_mem > after_len && after_len) {
+            do {
+                curr_mem >>= 1;
+                next_mem  = curr_mem * bucket_lower;
+            } while (next_mem > after_len);
+            rehash_init(curr_mem);
         }
         rehash_transfer();
         return ans;
@@ -205,17 +197,13 @@ public:
     }
 
     arg &operator[](const k_arg &key) {
-        rehash_transfer();
-        auto curr_hash_key = hash_func(key),
-             find_key_res  = hash_key_verify(curr_hash_key);
-        assert(find_key_res != NEUNET_HASH_NOT_FOUND);
-        if (find_key_res == NEUNET_HASH_EXIST_CURR) {
-            auto idx = curr_hash_key % kv_data[!backup].length;
-            return kv_data[!backup][idx].get_value(curr_hash_key);
-        } else {
-            auto idx = curr_hash_key % kv_data[backup].length;
-            return kv_data[backup][idx].get_value(curr_hash_key);
-        }
+        // rehash_transfer();
+        auto curr_hash = hash_func(key),
+             curr_idx  = 0ull,
+             find_res  = hash_key_verify(curr_idx, curr_hash);
+        assert(find_res != NEUNET_HASH_NOT_FOUND);
+        if (find_res == NEUNET_HASH_EXIST_BACK) return kv_data[backup][curr_idx].get_value(curr_hash);
+        else return kv_data[!backup][curr_idx].get_value(curr_hash);
     }
 
     net_map &operator=(const net_map &src) {
@@ -243,8 +231,6 @@ public:
         rehash_base   = 4;
         rehash_load   = rehash_base;
         rehash_idx    = 0;
-        bucket_len[0] = 0;
-        bucket_len[1] = 0;
         len[0]        = 0;
         len[1]        = 0;
 
@@ -268,14 +254,14 @@ protected:
     uint64_t rehash_base = 4,
              rehash_load = rehash_base,
              rehash_idx  = 0,
-             bucket_len[2] {0, 0},
              len[2]        {0, 0};
 
+    net_tree<k_arg, arg>::iterator rehash_leaf;
+
 public:
-    static bool print_orderly;
+    bool print_orderly = false;
 
     __declspec(property(get=size))        uint64_t length;
-    __declspec(property(get=bucket_size)) uint64_t bucket_length;
     __declspec(property(get=mem_size))    uint64_t memory_length;
 
     friend std::ostream &operator<<(std::ostream &out, const net_map &src) {
@@ -290,6 +276,5 @@ public:
     }
 
 };
-template <typename k_arg, typename arg> bool net_map<k_arg, arg>::print_orderly = false;
 
 NEUNET_END
