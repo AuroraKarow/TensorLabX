@@ -53,7 +53,8 @@ callback_matrix net_set<neunet_vect> BNTrain (neunet_vect &vecMuBeta, neunet_vec
     vecSigmaSqr = divisor_dominate(VectElemVar(setInput, vecMuBeta), dEpsilon);
     // Bar X, normalize x
     setBarX.init(setInput.length, false);
-    for (auto i = 0ull; i < setInput.length; ++i) setBarX[i] = (setInput[i] - vecMuBeta).elem_wise_opt(vecSigmaSqr.elem_wise_opt(0.5, MATRIX_ELEM_POW), MATRIX_ELEM_DIV);
+    auto vecSigma = vecSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
+    for (auto i = 0ull; i < setInput.length; ++i) setBarX[i] = (setInput[i] - vecMuBeta).elem_wise_opt(vecSigma, MATRIX_ELEM_DIV);
     // Y, Output
     auto setY = setBarX;
     for (auto i = 0ull; i < setY.length; ++i) for (auto j = 0ull; j < setY[i].line_count; ++j) for (auto k = 0ull; k < setY[i].column_count; ++k) setY[i][j][k] = vecGamma.index(k) * setY[i][j][k] + vecBeta.index(k);
@@ -72,7 +73,8 @@ callback_matrix net_set<neunet_vect> BNGradLossToInput(const neunet_vect &vecMuB
     }
     // Gradient variant
     neunet_vect vecGradSigmaSqr(vecSigma.line_count, vecSigma.column_count);
-    for (auto i = 0ull; i < setInput.length; ++i) vecGradSigmaSqr += setGradBarX[i].elem_wise_opt((setInput[i] - vecMuBeta), MATRIX_ELEM_MULT).elem_wise_opt(vecSigmaSqrDom.elem_wise_opt(1.5l, MATRIX_ELEM_POW), MATRIX_ELEM_DIV);
+    auto vecSigmaSqrAndOne = vecSigmaSqrDom.elem_wise_opt(1.5l, MATRIX_ELEM_POW);
+    for (auto i = 0ull; i < setInput.length; ++i) vecGradSigmaSqr += setGradBarX[i].elem_wise_opt((setInput[i] - vecMuBeta), MATRIX_ELEM_MULT).elem_wise_opt(vecSigmaSqrAndOne, MATRIX_ELEM_DIV);
     vecGradSigmaSqr *= (-0.5l);
     // Gradient expextation
     neunet_vect vecDistanceSum(vecSigma.line_count, vecSigma.column_count);
@@ -80,8 +82,9 @@ callback_matrix net_set<neunet_vect> BNGradLossToInput(const neunet_vect &vecMuB
     neunet_vect vecGradMuBeta = (-1) * setGradBarX.sum.elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) + ((-2.0l) / setInput.length) * vecGradSigmaSqr.elem_wise_opt(vecDistanceSum, MATRIX_ELEM_MULT);
     // Gradient input
     net_set<neunet_vect> setGradInput(setInput.length);
+    vecGradMuBeta *= ((1.0l) / setInput.length);
     for (auto i = 0ull; i < setGradInput.length; ++i) {
-        setGradInput[i] = setGradBarX[i].elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) + ((2.0l) / setInput.length) * vecGradSigmaSqr.elem_wise_opt((setInput[i] - vecMuBeta), MATRIX_ELEM_MULT) + ((1.0l) / setInput.length) * vecGradMuBeta;
+        setGradInput[i] = setGradBarX[i].elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) + ((2.0l) / setInput.length) * vecGradSigmaSqr.elem_wise_opt((setInput[i] - vecMuBeta), MATRIX_ELEM_MULT) + vecGradMuBeta;
         if (!setGradInput[i].verify) {
             setGradInput.reset();
             break;

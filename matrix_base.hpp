@@ -143,22 +143,20 @@ callback_matrix matrix_ptr crop(uint64_t &crop_ln_cnt, uint64_t &crop_col_cnt, c
     } else return copy(src, ln_cnt * col_cnt);
 }
 
-callback_matrix matrix_elem_t extremum(net_set<pos> &elem_pos_set, bool get_max, const matrix_ptr src, uint64_t ln_cnt, uint64_t col_cnt, uint64_t from_ln, uint64_t to_ln, uint64_t from_col, uint64_t to_col, uint64_t ln_dilate = 0, uint64_t col_dilate = 0) {
+callback_matrix matrix_elem_t extremum(net_list<pos> &elem_pos_set, bool get_max, const matrix_ptr src, uint64_t ln_cnt, uint64_t col_cnt, uint64_t from_ln, uint64_t to_ln, uint64_t from_col, uint64_t to_col, uint64_t ln_dilate = 0, uint64_t col_dilate = 0) {
     matrix_elem_t ans {};
     if(src && col_cnt && ln_cnt && from_ln >= 0 && to_ln >= from_ln && ln_cnt > to_ln && from_col >= 0 && to_col >= from_col && col_cnt > to_col) {
-        net_sequence<pos> elem_pos_seq;
+        elem_pos_set.reset();
         ans = *(src + elem_pos(from_ln, from_col, col_cnt));
         for (auto i = from_ln; i <= to_ln; ++(i += ln_dilate)) for (auto j = from_col; j <= to_col; ++(j += col_dilate)) {
             auto curr_no  = elem_pos(i, j, col_cnt);
             pos  curr_pos {i, j};
             if ((get_max && src[curr_no] > ans) || (!get_max && src[curr_no] < ans)) {
                 ans = *(src + curr_no);
-                elem_pos_seq.clear();
-                elem_pos_seq.emplace_back(curr_pos);
-            } else if (*(src + curr_no) == ans) elem_pos_seq.emplace_back(curr_pos);
+                elem_pos_set.reset();
+                elem_pos_set.emplace_back(curr_pos);
+            } else if (*(src + curr_no) == ans) elem_pos_set.emplace_back(curr_pos);
         }
-        elem_pos_seq.shrink();
-        elem_pos_set = std::move(elem_pos_seq);
     }
     return ans;
 }

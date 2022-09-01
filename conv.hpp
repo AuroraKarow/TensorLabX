@@ -6,14 +6,14 @@ callback_matrix neunet_vect CaffeTransform(const neunet_vect &vecChann, uint64_t
     auto iSampChannElemCnt = iSampChannLnCnt * iSampChannColCnt,
          iFilterElemCnt    = iFilterLnCnt * iFilterColCnt;
     neunet_vect vecAns(iSampChannElemCnt, vecChann.column_count*iFilterElemCnt);
-    auto iTensorSize = iSampChannElemCnt * iFilterElemCnt,
-         iHyperSize  = vecChann.column_count * iTensorSize;
-    for (auto i = 0ull; i < iHyperSize; ++i) {
-        auto posHyper  = matrix::elem_pos(i, iTensorSize),
-             posTensor = matrix::elem_pos(posHyper.col, iFilterElemCnt),
-             posSamp   = matrix::elem_pos(posTensor.ln, iSampChannColCnt),
-             posFilter = matrix::elem_pos(posTensor.col, iFilterColCnt);
-        vecAns[posTensor.ln][posHyper.ln * iFilterElemCnt + posTensor.col] = vecChann[matrix::elem_pos(samp_trace_pos(posSamp.ln, posFilter.ln, iLnStride, iLnDilate), samp_trace_pos(posSamp.col, posFilter.col, iColStride, iColDilate), iChannColCnt)][posHyper.ln];
+    for (auto c = 0ull; c < vecChann.column_count; ++c) for (auto i = 0ull; i < iSampChannLnCnt; ++i) for (auto j = 0ull; j < iSampChannColCnt; ++j) for (auto k = 0ull; k < iFilterLnCnt; ++k) for (auto l = 0ull; l < iFilterColCnt; ++l) {
+        auto iMetaLn   = samp_trace_pos(i, k, iLnStride, iLnDilate),
+             iMetaCol  = samp_trace_pos(j, l, iColStride, iColDilate),
+             iInputLn  = matrix::elem_pos(iMetaLn, iMetaCol, iChannColCnt),
+             iInputCol = c,
+             iCaffeLn  = matrix::elem_pos(i, j, iSampChannColCnt),
+             iCaffeCol = c * iFilterElemCnt + matrix::elem_pos(k, l, iFilterColCnt);
+        vecAns[iCaffeLn][iCaffeCol] = vecChann[iInputLn][iInputCol];
     }
     return vecAns;
 }
@@ -49,24 +49,32 @@ callback_matrix neunet_vect PoolGlbAvg(const neunet_vect &vecChann) {
     return vecAns;
 }
 
-callback_matrix neunet_vect PoolMaxAvg(uint64_t iPoolType, const neunet_vect &vecCaffeInput, uint64_t iFilterLnCnt, uint64_t iFilterColCnt, net_set<net_set<matrix::pos>> &setCaffeMaxPos) {
-    auto iFilterElemCnt = iFilterLnCnt * iFilterColCnt;
-    neunet_vect vecAns(vecCaffeInput.line_count, vecCaffeInput.column_count / iFilterElemCnt);
-    for (auto i = 0ull; i < vecAns.element_count; ++i) {
-        auto posDim             = matrix::elem_pos(i, vecAns.column_count);
-        auto iCurrChannBeginCol = posDim.col * iFilterElemCnt;
-        if (iPoolType == NEUNET_POOL_AVG) vecAns.index(i) = vecCaffeInput.elem_sum(posDim.ln, posDim.ln, iCurrChannBeginCol, iCurrChannBeginCol + iFilterElemCnt - 1, 0, 0) / iFilterElemCnt;
-        else if (iPoolType == NEUNET_POOL_MAX) {
-            auto setExtmPos = vecCaffeInput.extremum_position(true, posDim.ln, posDim.ln, iCurrChannBeginCol, iCurrChannBeginCol + iFilterElemCnt - 1);
-            vecAns.index(i) = vecCaffeInput[setExtmPos[0].ln][setExtmPos[0].col];
-            if(!setCaffeMaxPos.length) setCaffeMaxPos.init(vecAns.element_count, false);
-            setCaffeMaxPos[i] = std::move(setExtmPos);
+callback_matrix neunet_vect PoolMaxAvg(uint64_t iPoolType, const neunet_vect &vecCaffeInput, uint64_t iFilterLnCnt, uint64_t iFilterColCnt, net_set<net_list<matrix::pos>> &setCaffeMaxPos) {
+    auto iFilterElemCnt = iFilterLnCnt * iFilterColCnt,
+         iChannCnt      = vecCaffeInput.column_count / iFilterElemCnt;
+    neunet_vect vecAns(vecCaffeInput.line_count, iChannCnt);
+    for (auto i = 0ull; i < iChannCnt; ++i)
+        if (iPoolType == NEUNET_POOL_AVG) {
+            // avg
+            for (auto j = 0ull; j < vecAns.line_count; ++j) {
+                matrix_elem_t curr_val = 0;
+                for (auto k = 0ull; k < iFilterElemCnt; ++k) curr_val += vecCaffeInput[j][i * iFilterElemCnt + k];
+                vecAns[j][i] = curr_val / iFilterElemCnt;
+            }
+        } else if (iPoolType == NEUNET_POOL_MAX) {
+            if (!setCaffeMaxPos.length) setCaffeMaxPos.init(vecAns.element_count, false);
+            // max
+            auto iCurrColBegin = i * iFilterElemCnt,
+                 iCurrColEnd   = iCurrColBegin + iFilterElemCnt - 1;
+            for (auto j = 0ull; j < vecAns.line_count; ++j) {
+                auto iCurrIdx = matrix::elem_pos(j, i, iChannCnt);
+                setCaffeMaxPos[iCurrIdx] = vecCaffeInput.extremum_position(true, j, j, iCurrColBegin, iCurrColEnd);
+                vecAns[j][i] = vecCaffeInput[setCaffeMaxPos[iCurrIdx][0].ln][setCaffeMaxPos[iCurrIdx][0].col];
+            }
         } else {
             vecAns.reset();
-            setCaffeMaxPos.reset();
             break;
         }
-    }
     return vecAns;
 }
 
@@ -79,7 +87,7 @@ callback_matrix neunet_vect GradLossToPoolGlbAvgChann(const neunet_vect &vecGrad
     return vecAns;
 }
 
-callback_matrix neunet_vect GradLossToPoolMaxAvgCaffeInput(uint64_t iPoolType, const neunet_vect &vecGradLossToOutput, uint64_t iFilterLnCnt, uint64_t iFilterColCnt, const net_set<net_set<matrix::pos>> &setCaffeMaxPos) {
+callback_matrix neunet_vect GradLossToPoolMaxAvgCaffeInput(uint64_t iPoolType, const neunet_vect &vecGradLossToOutput, uint64_t iFilterLnCnt, uint64_t iFilterColCnt, const net_set<net_list<matrix::pos>> &setCaffeMaxPos) {
     auto iFilterElemCnt = iFilterLnCnt * iFilterColCnt;
     neunet_vect vecAns(vecGradLossToOutput.line_count, iFilterElemCnt * vecGradLossToOutput.column_count);
     for (auto i = 0ull; i < vecGradLossToOutput.element_count; ++i) {
@@ -88,7 +96,7 @@ callback_matrix neunet_vect GradLossToPoolMaxAvgCaffeInput(uint64_t iPoolType, c
         if (iPoolType == NEUNET_POOL_AVG) {
             auto iAvgVal = vecGradLossToOutput.index(i) / iFilterElemCnt;
             for (auto j = 0ull; j < iFilterElemCnt; ++j) vecAns[posDim.ln][j + iCurrChannBeginCol] = iAvgVal;
-        } else if (iPoolType == NEUNET_POOL_MAX && setCaffeMaxPos.length) for (auto j = 0ull; j < setCaffeMaxPos[i].length; ++j) vecAns[setCaffeMaxPos[i][j].ln][setCaffeMaxPos[i][j].col] += vecGradLossToOutput.index(i);
+        } else if (iPoolType == NEUNET_POOL_MAX && setCaffeMaxPos.length) for (auto temp : setCaffeMaxPos[i]) vecAns[temp.ln][temp.col] += vecGradLossToOutput.index(i);
         else {
             vecAns.reset();
             break;
@@ -288,7 +296,7 @@ struct LayerPool : Layer {
              iFilterLnCnt  = 0,
              iFilterColCnt = 0;
 
-    net_set<net_set<net_set<matrix::pos>>> setCaffeMaxPos;
+    net_set<net_set<net_list<matrix::pos>>> setCaffeMaxPos;
 
     virtual void ValueAssign(const LayerPool &lyrSrc) {
         iPoolType     = lyrSrc.iPoolType;
@@ -353,7 +361,7 @@ struct LayerPool : Layer {
 
     callback_matrix bool Deduce(neunet_vect &vecInput) {
         if (iPoolType == NEUNET_POOL_GAG) return ForwProp(vecInput, 0);
-        net_set<net_set<matrix::pos>> setTemp;
+        net_set<net_list<matrix::pos>> setTemp;
         vecInput = conv::PoolMaxAvg(iPoolType, conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate), iFilterLnCnt, iFilterColCnt, setTemp);
         return vecInput.verify;
     }

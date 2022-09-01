@@ -80,8 +80,6 @@ callback_matrix neunet_vect chann_vec_crop(uint64_t &ans_ln_cnt, uint64_t &ans_c
     }
 }
 
-
-
 void print_train_status(int epoch, int curr_prog, int prog, long double acc, long double prec, long double rc, int dur) { std::printf("\r[Ep][%d][Prog][%d/%d][Acc/Prec/Rc][%.2f/%.2f/%.2f][Dur][%dms]", epoch, curr_prog, prog, acc, prec, rc, dur); }
 
 void print_deduce_status(int epoch, long double acc, long double prec, long double rc, int dur) {
@@ -89,7 +87,9 @@ void print_deduce_status(int epoch, long double acc, long double prec, long doub
     std::cout << std::endl;
 }
 
-void print_deduce_progress(int curr_prog, int prog) { std::printf("\r[Deducing][%d/%d]", curr_prog, prog); }
+void print_train_progress(int epoch, int curr_prog, int prog, int dur) { std::printf("\r[Train][Ep][%d][Prog][%d/%d][Dur][%dms]", epoch, curr_prog, prog, dur); }
+
+void print_deduce_progress(int curr_prog, int prog) { std::printf("\r[Deduce][%d/%d]", curr_prog, prog); }
 
 template <typename matrix_elem_t, typename matrix_elem_v> struct ada_delta final {
 private:

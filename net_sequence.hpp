@@ -33,7 +33,7 @@ public:
             ans.init(src.len + this->len);
             for (auto i = 0ull; i < this->len; ++i) *(ans.ptr + i) = *(this->ptr + i);
             for (auto i = 0ull; i < src.len; ++i) *(ans.ptr + i + this->len) = *(src.ptr + i);
-        } else if (src.len) ans = src.len;
+        } else if (src.len) ans = src;
         else if (this->len) ans = *this;
         return ans;
     }
@@ -48,7 +48,7 @@ public:
             ptr_copy(ans.ptr, this->ptr, this->len);
             for (auto i = 0ull; i < src.len; ++i) if (!*(temp + i)) *(ans.ptr + this->len + cnt++) = *(src.ptr + i);
             ptr_reset(temp);
-        } else if (src.len) ans = src.len;
+        } else if (src.len) ans = src;
         else if (this->len) ans = *this;
         return ans;
     }

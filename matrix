@@ -4,6 +4,7 @@
 #define __MATRIX__
 
 #include "net_decimal"
+#include "net_list"
 
 #define MATRIX_BEGIN        namespace neunet { namespace matrix {
 #define MATRIX_END          }}
