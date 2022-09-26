@@ -27,21 +27,22 @@ int main(int argc, char *argv[], char *envp[]) {
     std::string root = "E:\\VS Code project data\\MNIST\\";
     mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
-    NeunetMNIST net(125, 0.1);
-    auto dLearnRate = 0.4l;
-    net.AddLayer<LayerConv<mat_t>>(20, 5, 5, 1, 1, 0, 0, dLearnRate);
-    net.AddLayer<LayerBN<mat_t>>();
+    NeunetMNIST net(125, 0.1l);
+    auto dTrainLearnRate = 0.4l,
+         dBNLearnRate    = 1e-5l;
+    net.AddLayer<LayerConv<mat_t>>(20, 5, 5, 1, 1, 0, 0, dTrainLearnRate);
+    net.AddLayer<LayerBN<mat_t>>(0, 1, dBNLearnRate);
     net.AddLayer<LayerAct<mat_t>>(NEUNET_RELU);
     net.AddLayer<LayerPool>(NEUNET_POOL_AVG, 2, 2, 2, 2);
-    net.AddLayer<LayerConv<mat_t>>(50, 5, 5, 1, 1, 0, 0, dLearnRate);
-    net.AddLayer<LayerBN<mat_t>>();
+    net.AddLayer<LayerConv<mat_t>>(50, 5, 5, 1, 1, 0, 0, dTrainLearnRate);
+    net.AddLayer<LayerBN<mat_t>>(0, 1, dBNLearnRate);
     net.AddLayer<LayerAct<mat_t>>(NEUNET_RELU);
     net.AddLayer<LayerPool>(NEUNET_POOL_AVG, 2, 2, 2, 2);
     net.AddLayer<LayerTrans>();
-    net.AddLayer<LayerFC<mat_t>>(500, dLearnRate);
-    net.AddLayer<LayerBN<mat_t>>();
+    net.AddLayer<LayerFC<mat_t>>(500, dTrainLearnRate);
+    net.AddLayer<LayerBN<mat_t>>(0, 1, dBNLearnRate);
     net.AddLayer<LayerAct<mat_t>>(NEUNET_SIGMOID);
-    net.AddLayer<LayerFC<mat_t>>(10, dLearnRate);
+    net.AddLayer<LayerFC<mat_t>>(10, dTrainLearnRate);
     net.AddLayer<LayerAct<mat_t>>(NEUNET_SOFTMAX);
     std::cout << net.Run(train, test) << std::endl;
 

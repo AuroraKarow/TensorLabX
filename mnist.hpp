@@ -170,8 +170,8 @@ public:
             close_stream();
             return false;
         }
-        uint64_t cnt      = mnist_orgn_size,
-                 idx      = 0;
+        uint64_t cnt = mnist_orgn_size,
+                 idx = 0;
         net_set<uint64_t> load_qnty(mnist_orgn_size);
         if (lbl_load_distribute.length == 1) {
             load_qnty.fill_with(lbl_load_distribute[0]);
@@ -222,7 +222,7 @@ public:
 
     bool init_curr_batch(uint64_t curr_batch_idx) {
         if (!(dataset_verify() && elem_idx_seq.length)) return false;
-        auto idx_set = curr_idx_set(curr_batch_idx);
+        auto idx_set    = curr_idx_set(curr_batch_idx);
         curr_batch_elem = elem.sub_set(idx_set);
         curr_batch_lbl  = lbl.sub_set(idx_set);
         curr_batch_orgn = orgn(curr_batch_lbl);
