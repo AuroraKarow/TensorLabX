@@ -39,10 +39,13 @@ struct LayerTrans : Layer {
     LayerTrans(const LayerTrans &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerTrans(LayerTrans &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t iInputLnCnt, uint64_t iInputColCnt, uint64_t iCurrChannCnt) {
-        iLnCnt    = iInputColCnt;
-        iColCnt   = iInputColCnt;
-        iChannCnt = iCurrChannCnt;
+    void RunInit(uint64_t &iInputLnCnt, uint64_t &iInputColCnt, uint64_t &iCurrChannCnt) {
+        iLnCnt        = iInputColCnt;
+        iColCnt       = iInputColCnt;
+        iChannCnt     = iCurrChannCnt;
+        iInputLnCnt   = iInputLnCnt * iInputColCnt * iChannCnt;
+        iInputColCnt  = 1;
+        iCurrChannCnt = 1;
     }
     
     callback_matrix bool ForwProp(neunet_vect &vecInput) {
@@ -137,11 +140,12 @@ matrix_declare struct LayerFC : Layer {
     LayerFC(const LayerFC &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerFC(LayerFC &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t iCurrInputLnCnt, uint64_t iBatchSize) {
+    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t iBatchSize) {
         vecWeight = fc::InitWeight(iCurrInputLnCnt, iOutputLnCnt, dFstRng, dSndRng, iAcc);
         if (this->dLearnRate) vecNesterovWeight = advWeight.weight(vecWeight);
         setInput.init(iBatchSize, false);
         setGradWeight.init(iBatchSize, false);
+        iCurrInputLnCnt = iOutputLnCnt;
     }
 
     bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
@@ -155,9 +159,14 @@ matrix_declare struct LayerFC : Layer {
     bool BackProp(neunet_vect &vecGrad, uint64_t iIdx) {
         if (iIdx >= setInput.length) return false;
         setGradWeight[iIdx] = fc::GradLossToWeight(vecGrad, setInput[iIdx]);
+        if (!setGradWeight[iIdx].verify) return false;
+        if (++iLayerBatchCnt == setInput.length) {
+            Update();
+            iLayerBatchCnt = 0;
+        }
         if (this->dLearnRate) vecGrad = fc::GradLossToInput(vecGrad, vecNesterovWeight);
         else vecGrad = fc::GradLossToInput(vecGrad, vecWeight);
-        return setGradWeight[iIdx].verify && vecGrad.verify;
+        return vecGrad.verify;
     }
 
     bool Deduce(neunet_vect &vecInput) const {

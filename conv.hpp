@@ -194,7 +194,7 @@ matrix_declare struct LayerConv : Layer {
     LayerConv(const LayerConv &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerConv(LayerConv &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t iCurrInputLnCnt, uint64_t iCurrInputColCnt, uint64_t iCurrChannCnt, uint64_t iBatchSize) {
+    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t &iCurrInputColCnt, uint64_t &iCurrChannCnt, uint64_t iBatchSize) {
         iInputLnCnt     = iCurrInputLnCnt;
         iInputColCnt    = iCurrInputColCnt;
         iKernelChannCnt = iCurrChannCnt;
@@ -204,6 +204,9 @@ matrix_declare struct LayerConv : Layer {
         if (this->dLearnRate) vecNesterovKernel = advKernel.weight(vecKernel);
         setCaffeInput.init(iBatchSize, false);
         setGradKernel.init(iBatchSize, false);
+        iCurrInputLnCnt  = iOutputLnCnt;
+        iCurrInputColCnt = iOutputColCnt;
+        iCurrChannCnt    = iKernelAmt;
     }
 
     bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
@@ -217,10 +220,15 @@ matrix_declare struct LayerConv : Layer {
     bool BackProp(neunet_vect &vecGrad, uint64_t iIdx) {
         if (iIdx >= setCaffeInput.length) return false;
         setGradKernel[iIdx] = conv::GradLossToConvKernal(vecGrad, setCaffeInput[iIdx]);
+        if (!setGradKernel[iIdx].verify) return false;
+        if (++iLayerBatchCnt == setCaffeInput.length) {
+            Update();
+            iLayerBatchCnt = 0;
+        }
         if (this->dLearnRate) vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecNesterovKernel);
         else vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecKernel);
         vecGrad = conv::CaffeTransform(vecGrad, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate, true);
-        return vecGrad.verify && setGradKernel[iIdx].verify;
+        return vecGrad.verify;
     }
 
     bool Deduce(neunet_vect &vecInput) {
@@ -334,7 +342,7 @@ struct LayerPool : Layer {
     LayerPool(const LayerPool &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerPool(LayerPool &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t iCurrInputLnCnt, uint64_t iCurrInputColCnt, uint64_t iBatchSize) {
+    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t &iCurrInputColCnt, uint64_t iBatchSize) {
         iInputLnCnt  = iCurrInputLnCnt;
         iInputColCnt = iCurrInputColCnt;
         if (iPoolType == NEUNET_POOL_GAG) {
@@ -345,6 +353,8 @@ struct LayerPool : Layer {
             iOutputLnCnt  = samp_output_dir_cnt(iInputColCnt, iFilterColCnt, iColStride, iColDilate);
             setCaffeMaxPos.init(iBatchSize, false);
         }
+        iCurrInputLnCnt  = iOutputLnCnt;
+        iCurrInputColCnt = iOutputColCnt;
     }
 
     callback_matrix bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {

@@ -892,7 +892,13 @@ public:
         return out;
     }
 
-    explicit operator long double () const { return to_num(); }
+    template <typename exp_t> explicit operator exp_t () const {
+        static_assert(std::is_floating_point_v<exp_t> || std::is_integral_v<exp_t>);
+        if constexpr (std::is_integral_v<exp_t>) return __int_part__();
+        else return to_num();
+    }
+
+    // explicit operator long double () const { return to_num(); }
 
     std::string __to_str__() const {
         auto temp = to_str();

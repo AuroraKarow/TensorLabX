@@ -5,6 +5,7 @@
 
 #include <shared_mutex>
 #include <future>
+#include <atomic>
 #include "net_list"
 
 #define NEUNET_ASYNC_CORE   std::thread::hardware_concurrency()

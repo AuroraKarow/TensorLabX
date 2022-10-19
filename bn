@@ -3,7 +3,6 @@
 #define __BN__
 
 #include "matrix"
-
 #include "bn.hpp"
 
 #endif

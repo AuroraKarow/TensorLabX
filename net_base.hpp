@@ -5,7 +5,8 @@ NEUNET_BEGIN
 callback_arg arg *ptr_init(uint64_t len) {
     if (len == 0) return nullptr;
     auto ans = new arg [len];
-    for (auto i = 0ull; i < len; ++i) *(ans + i) = arg();
+    if constexpr (std::is_copy_assignable_v<arg>) std::fill_n(ans, len, arg{});
+    else for (auto i = 0ull; i < len; ++i) *(ans + i) = arg{};
     return ans;
 }
 
@@ -400,7 +401,7 @@ uint64_t num_bit_cnt(long long src) {
 }
 
 long double num_rand(long double fst_rng = 0, long double snd_rng = 0, uint64_t acc = 8) {
-    if (fst_rng == snd_rng) return (((long double)lib_rand_e() / (long double)lib_rand_e._Max) - 0.5) * 2.0;
+    if (fst_rng == snd_rng) return (((long double)lib_rand_e() / (long double)lib_rand_e._Max) - .5l) * 2.0l;
     else {
         // random seed
         auto curr_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now()).time_since_epoch().count();

@@ -80,16 +80,77 @@ callback_matrix neunet_vect chann_vec_crop(uint64_t &ans_ln_cnt, uint64_t &ans_c
     }
 }
 
-void print_train_status(int epoch, int curr_prog, int prog, long double acc, long double prec, long double rc, int dur) { std::printf("\r[Ep][%d][Prog][%d/%d][Acc/Prec/Rc][%.2f/%.2f/%.2f][Dur][%dms]", epoch, curr_prog, prog, acc, prec, rc, dur); }
+void print_train_progress(int curr_prog, int prog, long double acc, long double prec, long double rc, int dur) { std::printf("\r[Train][%d/%d][Acc/Prec/Rc][%.2f/%.2f/%.2f][Dur][%dms]", curr_prog, prog, acc, prec, rc, dur); }
 
-void print_deduce_status(int epoch, long double acc, long double prec, long double rc, int dur) {
+void print_deduce_progress(int curr_prog, int prog) { std::printf("\r[Deduce][%d/%d]", curr_prog, prog); }
+
+void print_epoch_status(int epoch, long double acc, long double prec, long double rc, int dur) {
     std::printf("\r[Ep][%d][Acc/Prec/Rc][%lf/%lf/%lf][Dur][%dms]", epoch, acc, prec, rc, dur);
     std::cout << std::endl;
 }
 
-void print_train_progress(int epoch, int curr_prog, int prog, int dur) { std::printf("\r[Train][Ep][%d][Prog][%d/%d][Dur][%dms]", epoch, curr_prog, prog, dur); }
+callback_matrix void print_output_status(const neunet_vect &output, uint64_t lbl) {
+    std::cout << " [No.]\t[Output]\t[Origin]\n";
+    for (auto i = 0ull; i < output.element_count; ++i) {
+        if (i == lbl) std::cout << '>';
+        else std::cout << ' ';
+        std::cout << i << '\t' << output.index(i) << '\t';
+        if (i == lbl) std::cout << 1 << '\n';
+        else std::cout << 0 << '\n';
+    }
+}
+callback_matrix void print_output_status(const net_set<neunet_vect> &output, const net_set<uint64_t> &lbl) {
+    if (output.length != lbl.length) return;
+    for (auto i = 0ull; i < output.length; ++i) {
+        output_para(output[i], lbl[i]);
+        std::cout << std::endl;
+    }
+}
 
-void print_deduce_progress(int curr_prog, int prog) { std::printf("\r[Deduce][%d/%d]", curr_prog, prog); }
+callback_matrix void print_output(const neunet_vect &output, uint64_t lbl) {
+    std::cout << " [No.]\t[Output]\t[Origin]\n";
+    for (auto i = 0ull; i < output.element_count; ++i) {
+        if (i == lbl) std::cout << '>';
+        else std::cout << ' ';
+        std::cout << i << '\t' << output.index(i) << '\t';
+        if (i == lbl) std::cout << 1 << '\n';
+        else std::cout << 0 << '\n';
+    }
+}
+callback_matrix void print_output(const net_set<neunet_vect> &output, const net_set<uint64_t> &lbl) {
+    if (output.length != lbl.length) return;
+    for (auto i = 0ull; i < output.length; ++i) {
+        print_output(output[i], lbl[i]);
+        std::cout << std::endl;
+    }
+}
+
+vect lbl_orgn(uint64_t lbl_val, uint64_t type_cnt) {
+    vect ans(type_cnt, 1);
+    ans.index(lbl_val) = 1;
+    return ans;
+}
+net_set<vect> lbl_orgn(const net_set<uint64_t> &lbl_set, uint64_t type_cnt) {
+    net_set<vect> ans(lbl_set.length);
+    for (auto i = 0ull; i < ans.length; ++i) ans[i] = lbl_orgn(lbl_set[i], type_cnt);
+    return ans;
+}
+
+callback_matrix void output_acc_prec_rc(const net_set<neunet_vect> &output, const net_set<uint64_t> &lbl, long double train_acc, long double &acc, long double &prec, long double &rc, uint64_t denominator = 1) {
+    if (output.length != lbl.length) return;
+    for (auto i = 0ull; i < output.length; ++i) {
+        prec += output[i].index(lbl[i]);
+        if (output[i].index(lbl[i]) > .5l) {
+            ++acc;
+            if (1 - output[i].index(lbl[i]) < train_acc) ++rc;
+        }
+    }
+    if (denominator > 1) {
+        acc  /= denominator;
+        prec /= denominator;
+        rc   /= denominator;
+    }
+}
 
 template <typename matrix_elem_t, typename matrix_elem_v> struct ada_delta final {
 private:
@@ -220,8 +281,7 @@ callback_matrix neunet_vect im2col_trans(const net_set<neunet_vect> &chann_vec) 
     for (auto i = 0ull; i < chann_vec.length; ++i) for (auto j = 0ull; j < chann_vec[i].element_count; ++j) ans[j][i] = chann_vec[i].index(j);
     return ans;
 }
-callback_matrix net_set<neunet_vect> im2col_trans(const neunet_vect &chann, uint64_t chann_ln_cnt, uint64_t chann_col_cnt)
-{
+callback_matrix net_set<neunet_vect> im2col_trans(const neunet_vect &chann, uint64_t chann_ln_cnt, uint64_t chann_col_cnt) {
     auto chann_elem_cnt = chann_ln_cnt * chann_col_cnt;
     net_set<neunet_vect> ans;
     if (chann.line_count != chann_elem_cnt) return ans;
@@ -241,7 +301,21 @@ struct Layer {
     const uint64_t iLayerType = NEUNET_LAYER_ACT;
     long double    dLearnRate = 0;
 
-    virtual void ValueAssign(const Layer &lyrSrc) { dLearnRate = lyrSrc.dLearnRate; }
+    // asynchronous
+
+    std::atomic_uint64_t iLayerBatchCnt = 0;
+
+    std::atomic_bool bAsyncFlag = false;
+
+    async::net_async_controller asyLayerBatchController;
+
+    virtual void ValueAssign(const Layer &lyrSrc) {
+        uint64_t iLayerBatchCntTemp = lyrSrc.iLayerBatchCnt;
+        bool     bAsyncFlagTemp     = lyrSrc.bAsyncFlag;
+        dLearnRate     = lyrSrc.dLearnRate;
+        iLayerBatchCnt = iLayerBatchCntTemp;
+        bAsyncFlag     = bAsyncFlagTemp;
+    }
 
     virtual void ValueCopy(const Layer &lyrSrc) { ValueAssign(lyrSrc); }
 
@@ -409,7 +483,7 @@ struct LayerPC : Layer {
     LayerPC(const LayerPC &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerPC(LayerPC &&lyrSrc) : Layer(lyrSrc) { ValueMove(std::move(lyrSrc)); }
     
-    void RunInit(uint64_t iCurrInputLnCnt, uint64_t iCurrInputColCnt) {
+    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t &iCurrInputColCnt) {
         iInputLnCnt  = iCurrInputLnCnt;
         iInputColCnt = iCurrInputColCnt;
         if (bPadMode) {
@@ -419,6 +493,8 @@ struct LayerPC : Layer {
             iOutputLnCnt  = matrix::crop_res_dir_cnt(iTop, iBottom, iInputLnCnt, iLnDist);
             iOutputColCnt = matrix::crop_res_dir_cnt(iLeft, iRight, iInputColCnt, iColDist);
         }
+        iCurrInputLnCnt  = iOutputLnCnt;
+        iCurrInputColCnt = iOutputColCnt;
     }
 
     callback_matrix bool PadCrop(neunet_vect &vecSrc, bool bIsPadMode) {

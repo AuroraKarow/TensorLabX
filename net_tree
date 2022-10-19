@@ -3,7 +3,6 @@
 #ifndef __NET_TREE__
 #define __NET_TREE__
 
-#include "net_set"
 #include "net_list"
 
 #define NEUNET_INSERT_SUCCESS   0x0000

@@ -7,6 +7,7 @@
 #include <iostream>
 #include "net_chrono"
 #include "neunet"
+#include "dataset"
 
 using std::cout;
 using std::endl;
@@ -14,37 +15,34 @@ using std::string;
 
 using neunet::net_set;
 using neunet::dataset::mnist;
-using neunet::NeunetMNIST;
+using neunet::Neunet;
 using neunet::vect;
-
-using namespace neunet::layer;
 
 int main(int argc, char *argv[], char *envp[]) {
     cout << "hello, world.\n" << endl;
     auto chrono_begin = NEUNET_CHRONO_TIME_POINT;
-    
-    using mat_t = long double;
+
     std::string root = "E:\\VS Code project data\\MNIST\\";
-    mnist<mat_t> train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
+    mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
-    NeunetMNIST net(125, 0.1l);
-    auto dTrainLearnRate = 0.4l,
-         dBNLearnRate    = 1e-5l;
-    net.AddLayer<LayerConv<mat_t>>(20, 5, 5, 1, 1, 0, 0, dTrainLearnRate);
-    net.AddLayer<LayerBN<mat_t>>(0, 1, dBNLearnRate);
-    net.AddLayer<LayerAct<mat_t>>(NEUNET_RELU);
-    net.AddLayer<LayerPool>(NEUNET_POOL_AVG, 2, 2, 2, 2);
-    net.AddLayer<LayerConv<mat_t>>(50, 5, 5, 1, 1, 0, 0, dTrainLearnRate);
-    net.AddLayer<LayerBN<mat_t>>(0, 1, dBNLearnRate);
-    net.AddLayer<LayerAct<mat_t>>(NEUNET_RELU);
-    net.AddLayer<LayerPool>(NEUNET_POOL_AVG, 2, 2, 2, 2);
-    net.AddLayer<LayerTrans>();
-    net.AddLayer<LayerFC<mat_t>>(500, dTrainLearnRate);
-    net.AddLayer<LayerBN<mat_t>>(0, 1, dBNLearnRate);
-    net.AddLayer<LayerAct<mat_t>>(NEUNET_SIGMOID);
-    net.AddLayer<LayerFC<mat_t>>(10, dTrainLearnRate);
-    net.AddLayer<LayerAct<mat_t>>(NEUNET_SOFTMAX);
-    std::cout << net.Run(train, test) << std::endl;
+    Neunet net(32, 16, .1l);
+    auto dLearnRate = .1l;
+    net.AddLayer<neunet::NetLayerConv>(20, 5, 5, 1, 1, 0, 0, dLearnRate);
+    net.AddLayer<neunet::NetLayerBN>(0, 1, 1e-5l);
+    net.AddLayer<neunet::NetLayerAct>(NEUNET_RELU);
+    net.AddLayer<neunet::NetLayerPool>(NEUNET_POOL_AVG, 2, 2, 2, 2);
+    net.AddLayer<neunet::NetLayerConv>(50, 5, 5, 1, 1, 0, 0, dLearnRate);
+    net.AddLayer<neunet::NetLayerBN>(0, 1, 1e-5l);
+    net.AddLayer<neunet::NetLayerAct>(NEUNET_RELU);
+    net.AddLayer<neunet::NetLayerPool>(NEUNET_POOL_AVG, 2, 2, 2, 2);
+    net.AddLayer<neunet::NetLayerTrans>();
+    net.AddLayer<neunet::NetLayerFC>(500, dLearnRate);
+    net.AddLayer<neunet::NetLayerBN>(0, 1, 1e-5l);
+    net.AddLayer<neunet::NetLayerAct>(NEUNET_SIGMOID);
+    net.AddLayer<neunet::NetLayerFC>(10, dLearnRate);
+    net.AddLayer<neunet::NetLayerAct>(NEUNET_SOFTMAX);
+    auto flag = net.Run(train.elem, train.lbl, test.elem, test.lbl, mnist_orgn_size, train.element_line_count, train.element_column_count, 1);
+    cout << flag << endl;
 
     auto chrono_end = NEUNET_CHRONO_TIME_POINT;
     cout << '\n' << (chrono_end - chrono_begin) << "ms" << endl;

@@ -395,13 +395,12 @@ public:
 
     arg &operator[](uint64_t idx) const {
         assert(idx < len);
-        if (idx == len) return tail->elem;
-        else if (!idx) return head->elem;
+        if (idx) if ((idx + 1) == len) return tail->elem;
         else {
             auto tool = head;
             for (auto i = 0ull; i < idx; ++i) tool = tool->next;
             return tool->elem;
-        }
+        } else return head->elem;
     }
 
     bool operator==(const net_list &val) const {

@@ -2,17 +2,17 @@
 #ifndef __NEUNET_NS__
 #define __NEUNET_NS__
 
+#define neunet_vect         matrix::net_matrix<matrix_elem_t>
 
 #define LAYER_BEGIN         namespace neunet { namespace layer {
 #define LAYER_END           } }
-
-#define neunet_vect         matrix::net_matrix<matrix_elem_t>
 
 #define NEUNET_SIGMOID      0x0001
 #define NEUNET_RELU         0x0002
 #define NEUNET_SOFTMAX      0x0003
 
 // Activation function
+
 #define NEUNET_LAYER_ACT    0x0000
 // Padding & cropping
 #define NEUNET_LAYER_PC     0x0001
@@ -27,23 +27,51 @@
 // BN
 #define NEUNET_LAYER_BN     0x0006
 
-#define NetTDerive          = std::enable_if_t<std::is_base_of_v<layer::Layer, NetT>>
-
+#include <concepts>
 #include "conv"
 #include "bn"
 
-NEUNET_BEGIN typedef std::shared_ptr<layer::Layer> NetLayerPtr; NEUNET_END
+// layer type
 
-#define NEUNET_STAT_DED     0x0000
-#define NEUNET_STAT_TRN     0x0001
+NEUNET_BEGIN
+
+// polymorphic pointer
+typedef std::shared_ptr<layer::Layer>   NetLayerPtr;
+// activation function
+typedef layer::LayerAct<long double>    NetLayerAct;
+// BN
+typedef layer::LayerBN<long double>     NetLayerBN;
+// convolution
+typedef layer::LayerConv<long double>   NetLayerConv;
+// fully connection
+typedef layer::LayerFC<long double>     NetLayerFC;
+// padding & cropping
+typedef layer::LayerPC                  NetLayerPC;
+// pooling
+typedef layer::LayerPool                NetLayerPool;
+// transform
+typedef layer::LayerTrans               NetLayerTrans;
+
+NEUNET_END
+
+// train
+#define NEUNET_STAT_TRN     0x0000
+// deduce
+#define NEUNET_STAT_DED     0x0001
 #define NEUNET_STAT_END     0x0002
 #define NEUNET_STAT_EXC     0x0003
-#define NEUNET_STAT_BNF     0x0004
-#define NEUNET_STAT_BNB     0x0005
-#define NEUNET_STAT_UPT     0x0006
 
-#include "async"
-#include "dataset"
+// layer verification
+
+#define neunet_layer_type_v = std::enable_if_t<\
+                            std::is_same_v<LayerType, neunet::NetLayerAct> || \
+                            std::is_same_v<LayerType, neunet::NetLayerBN> || \
+                            std::is_same_v<LayerType, neunet::NetLayerConv> || \
+                            std::is_same_v<LayerType, neunet::NetLayerFC> || \
+                            std::is_same_v<LayerType, neunet::NetLayerPC> || \
+                            std::is_same_v<LayerType, neunet::NetLayerPool> || \
+                            std::is_same_v<LayerType, neunet::NetLayerTrans>>
+
 #include "neunet.hpp"
 
 #endif

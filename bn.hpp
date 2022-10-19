@@ -224,12 +224,30 @@ matrix_declare struct LayerBN : Layer {
         return setGrad.length;
     }
 
+    bool ForwPropAsync(net_set<neunet_vect> &setInput) {
+        if (++iLayerBatchCnt == setInput.length) {
+            bAsyncFlag = ForwProp(setInput);
+            asyLayerBatchController.thread_wake_all();
+        } else asyLayerBatchController.thread_sleep();
+        return bAsyncFlag;
+    }
+
+    bool BackPropAsync(net_set<neunet_vect> &setGrad, uint64_t iBatchIdx = 0, uint64_t iBatchCnt = 1) {
+        if (--iLayerBatchCnt) asyLayerBatchController.thread_sleep();
+        else {
+            bAsyncFlag = BackProp(setGrad);
+            asyLayerBatchController.thread_wake_all();
+            Update(iBatchIdx, iBatchCnt);
+        }
+        return bAsyncFlag;
+    }
+
     bool Deduce(neunet_vect &vecInput) {
         vecInput = BNDeduce(vecExpMuBeta, vecExpSigmaSqr, vecInput, vecBeta, vecGamma, dEpsilon);
         return vecInput.verify;
     }
 
-    void Update(uint64_t iCurrBatch = 0, uint64_t iBatchCnt = 1, uint64_t iCurrBatchSize = 1) {
+    void Update(uint64_t iBatchIdx = 0, uint64_t iBatchCnt = 1) {
         if (this->dLearnRate) {
             vecBeta         -= advBeta.momentum(vecGradBeta, this->dLearnRate);
             vecGamma        -= advGamma.momentum(vecGradGamma, this->dLearnRate);
@@ -239,14 +257,14 @@ matrix_declare struct LayerBN : Layer {
             vecBeta  -= adaBeta.delta(vecGradBeta);
             vecGamma -= adaGamma.delta(vecGradGamma);
         }
-        if (iCurrBatch) {
+        if (iBatchIdx) {
             vecExpMuBeta   += vecMuBeta;
             vecExpSigmaSqr += vecSigmaSqr;
         } else {
             vecExpMuBeta   = std::move(vecMuBeta);
             vecExpSigmaSqr = std::move(vecSigmaSqr);
         }
-        if (iCurrBatch + 1 == iBatchCnt) BNDeduceInit(vecExpMuBeta, vecExpSigmaSqr, iBatchCnt, iCurrBatchSize);
+        if (iBatchIdx + 1 == iBatchCnt) BNDeduceInit(vecExpMuBeta, vecExpSigmaSqr, iBatchCnt, setInput.length);
     }
 
     virtual void Reset(bool bFull = true) {

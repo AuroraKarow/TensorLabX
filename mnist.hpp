@@ -1,34 +1,23 @@
 DATASET_BEGIN
 
-matrix_declare class mnist final {
+class mnist final {
 private:
     void value_assign(const mnist &src) {
-        elem_ln_cnt     = src.elem_ln_cnt;
-        elem_col_cnt    = src.elem_col_cnt;
-        elem_cnt        = src.elem_cnt;
-        batch_size      = src.batch_size;
-        batch_cnt       = src.batch_cnt;
-        rear_batch_size = src.rear_batch_size;
+        elem_ln_cnt  = src.elem_ln_cnt;
+        elem_col_cnt = src.elem_col_cnt;
+        elem_cnt     = src.elem_cnt;
     }
 
     void value_copy(const mnist &src) {
         value_assign(src);
-        lbl             = src.lbl;
-        elem            = src.elem;
-        elem_idx_seq    = src.elem_idx_seq;
-        curr_batch_lbl  = src.curr_batch_lbl;
-        curr_batch_elem = src.curr_batch_elem;
-        curr_batch_orgn = src.curr_batch_orgn;
+        lbl  = src.lbl;
+        elem = src.elem;
     }
 
     void value_move(mnist &&src) {
         value_assign(src);
-        lbl             = std::move(src.lbl);
-        elem            = std::move(src.elem);
-        elem_idx_seq    = std::move(src.elem_idx_seq);
-        curr_batch_lbl  = std::move(src.curr_batch_lbl);
-        curr_batch_elem = std::move(src.curr_batch_elem);
-        curr_batch_orgn = std::move(src.curr_batch_orgn);
+        lbl  = std::move(src.lbl);
+        elem = std::move(src.elem);
     }
 
     bool open_stream(const std::string &elem_dir, const std::string &lbl_dir) {
@@ -72,13 +61,13 @@ private:
         return num_swap_endian(_temp);
     }
 
-    neunet_vect read_curr_elem(bool w_flag, uint64_t padding = 0) {
+    vect read_curr_elem(bool w_flag, uint64_t padding = 0) {
         auto data_length = elem_ln_cnt * elem_col_cnt;
         auto data_ptr    = ptr_init<char>(data_length);
         strm_elem.read(data_ptr, data_length);
-        neunet_vect vec_data;
+        vect vec_data;
         if (w_flag) {
-            vec_data = neunet_vect(data_length, 1);
+            vec_data = vect(data_length, 1);
             for (auto i = 0ull; i < data_length; ++i) {
                 int curr_pt = data_ptr[i];
                 if (curr_pt) switch (elem_status) {
@@ -110,14 +99,6 @@ private:
             }
         }
         return false;
-    }
-
-    net_set<uint64_t> curr_idx_set(uint64_t curr_batch_idx) {
-        if (elem_idx_seq.size() == 0) return net_set<uint64_t>();
-        auto curr_batch_size = batch_size;
-        if (rear_batch_size && curr_batch_idx + 1 == batch_cnt) curr_batch_size = rear_batch_size;
-        // Dataset shuffled indexes for current batch
-        return elem_idx_seq.sub_set(matrix::elem_pos(curr_batch_idx, 0, batch_size), matrix::elem_pos(curr_batch_idx, curr_batch_size - 1, batch_size));
     }
 
 public:
@@ -200,35 +181,6 @@ public:
         return true;
     }
 
-    void shuffle() { if (elem_idx_seq.length) elem_idx_seq.shuffle(); }
-
-    bool init_batch(uint64_t dataset_batch_size = 1) {
-        if (!dataset_batch_size || dataset_batch_size > elem_cnt || !dataset_verify()) return false;
-        batch_size = dataset_batch_size;
-        batch_cnt  = elem.length / batch_size;
-        rear_batch_size = elem.length % batch_size;
-        if(rear_batch_size) ++batch_cnt;
-        else rear_batch_size = batch_size;
-        if (batch_size == 1 || batch_size == elem_cnt) {
-            curr_batch_lbl = lbl;
-            curr_batch_elem = elem;
-            curr_batch_orgn = orgn(lbl);
-        } else {
-            elem_idx_seq.init(elem.length, false);
-            for(auto i = 0ull; i < elem_idx_seq.length; ++i) elem_idx_seq[i] = i;
-        }
-        return true;
-    }
-
-    bool init_curr_batch(uint64_t curr_batch_idx) {
-        if (!(dataset_verify() && elem_idx_seq.length)) return false;
-        auto idx_set    = curr_idx_set(curr_batch_idx);
-        curr_batch_elem = elem.sub_set(idx_set);
-        curr_batch_lbl  = lbl.sub_set(idx_set);
-        curr_batch_orgn = orgn(curr_batch_lbl);
-        return true;
-    }
-
     bool save_as_bitmap(const ch_str dir_root, uint64_t ex_name, char backslash = '\\') {
         if (elem.length == 0) return false;
         auto save_flag     = true;
@@ -254,27 +206,17 @@ public:
     }
 
     void reset() {
-        elem_ln_cnt     = 0;
-        elem_col_cnt    = 0;
-        elem_cnt        = 0;
-        batch_size      = 0;
-        batch_cnt       = 0;
-        rear_batch_size = 0;
+        elem_ln_cnt  = 0;
+        elem_col_cnt = 0;
+        elem_cnt     = 0;
 
         lbl.reset();
-        elem.reset();   
-        elem_idx_seq.reset();
-        curr_batch_lbl.reset(); 
-        curr_batch_elem.reset();
-        curr_batch_orgn.reset();
+        elem.reset();
     }
 
     ~mnist() { reset(); }
 
 private:
-    net_set<neunet_vect> elem;
-    net_set<uint64_t>    lbl,
-                         elem_idx_seq;
 
     std::ifstream strm_elem,
                   strm_lbl;
@@ -286,20 +228,16 @@ private:
     const uint64_t elem_status;
 
 public:
-    net_set<neunet_vect> curr_batch_elem,
-                         curr_batch_orgn;
-    net_set<uint64_t>    curr_batch_lbl;
-    
-    uint64_t batch_size      = 0,
-             batch_cnt       = 0,
-             rear_batch_size = 0;
+    net_set<vect> elem;
+
+    net_set<uint64_t>    lbl;
 
     __declspec(property(get=size))           uint64_t element_count;
     __declspec(property(get=ln_cnt))         uint64_t element_line_count;
     __declspec(property(get=col_cnt))        uint64_t element_column_count;
     __declspec(property(get=dataset_verify)) bool     verify;
 
-    bool operator==(const mnist &val) const { return batch_size == val.batch_size && batch_cnt == val.batch_cnt && rear_batch_size == val.rear_batch_size && elem_status == val.elem_status && elem_ln_cnt == val.elem_ln_cnt && elem_col_cnt == val.elem_col_cnt && elem_cnt == val.elem_cnt && lbl == val.lbl && elem_idx_seq == val.elem_idx_seq && elem == val.elem; }
+    bool operator==(const mnist &val) const { return elem_status == val.elem_status && elem_ln_cnt == val.elem_ln_cnt && elem_col_cnt == val.elem_col_cnt && elem_cnt == val.elem_cnt && lbl == val.lbl && elem == val.elem; }
     
     bool operator!=(const mnist &val) const { return !(*this == val); }
 
@@ -312,50 +250,6 @@ public:
         assert(elem_status == src.elem_status);
         value_move(std::move(src));
         return *this;
-    }
-
-    static neunet_vect orgn(uint64_t lbl_val) {
-        neunet_vect ans(mnist_orgn_size, 1);
-        ans.index(lbl_val) = 1;
-        return ans;
-    }
-    static net_set<neunet_vect> orgn(const net_set<uint64_t> &lbl_set) {
-        net_set<neunet_vect> ans(lbl_set.length);
-        for (auto i = 0ull; i < ans.length; ++i) ans[i] = orgn(lbl_set[i]);
-        return ans;
-    }
-    
-    static void output_para(const neunet_vect &output, uint64_t cor_lbl) {
-        std::cout << " [No.]\t[Output]\t[Origin]\n";
-        for (auto i = 0ull; i < output.element_count; ++i) {
-            if (i == cor_lbl) std::cout << '>';
-            else std::cout << ' ';
-            std::cout << i << '\t' << output.index(i) << '\t';
-            if (i == cor_lbl) std::cout << 1 << '\n';
-            else std::cout << 0 << '\n';
-        }
-    }
-    static void output_para(const net_set<neunet_vect> &output, const net_set<uint64_t> &cor_lbl) {
-        if (output.length != cor_lbl.length) return;
-        for (auto i = 0ull; i < output.length; ++i) {
-            output_para(output[i], cor_lbl[i]);
-            std::cout << std::endl;
-        }
-    }
-    static void output_para(const net_set<neunet_vect> &output, const net_set<uint64_t> &cor_lbl, long double axis_acc, long double &acc, long double &prec, long double &rc, bool rate = false, uint64_t denominator = 1) {
-        if (output.length != cor_lbl.length) return;
-        for (auto i = 0ull; i < output.length; ++i) {
-            prec += output[i].index(cor_lbl[i]);
-            if (output[i].index(cor_lbl[i]) > 0.5) {
-                ++acc;
-                if (1 - output[i].index(cor_lbl[i]) < axis_acc) ++rc;
-            }
-        }
-        if (rate) {
-            acc  /= denominator;
-            prec /= denominator;
-            rc   /= denominator;
-        }
     }
 };
 
