@@ -11,12 +11,12 @@
                 "/Zi",
                 "/EHsc",
                 "/Fe:",
-                "${fileDirname}\\.vscode\\debug\\bin\\${fileBasenameNoExtension}.exe",
+                "${workspaceFolder}\\.vscode\\debug\\bin\\${fileBasenameNoExtension}.exe",
                 "${file}",
                 "/Fd:",
-                "${fileDirname}\\.vscode\\debug\\bin\\vc140.pdb",
+                "${workspaceFolder}\\.vscode\\debug\\bin\\vc140.pdb",
                 "/Fo:",
-                "${fileDirname}\\.vscode\\debug\\obj\\${fileBasenameNoExtension}.obj"
+                "${workspaceFolder}\\.vscode\\debug\\obj\\${fileBasenameNoExtension}.obj"
             ],
             "problemMatcher": [
                 "$msCompile"
