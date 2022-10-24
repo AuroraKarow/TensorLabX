@@ -25,19 +25,19 @@ int main(int argc, char *argv[], char *envp[]) {
     std::string root = "E:\\VS Code project data\\MNIST\\";
     mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
-    Neunet net(32, 16, .1l);
-    auto dLearnRate = .1l;
+    Neunet net(125, 125, .1l);
+    auto dLearnRate = .8l;
     net.AddLayer<neunet::NetLayerConv>(20, 5, 5, 1, 1, 0, 0, dLearnRate);
-    net.AddLayer<neunet::NetLayerBN>(0, 1, 1e-5l);
+    net.AddLayer<neunet::NetLayerBN>(); // 0, 1, 1e-5l
     net.AddLayer<neunet::NetLayerAct>(NEUNET_RELU);
     net.AddLayer<neunet::NetLayerPool>(NEUNET_POOL_AVG, 2, 2, 2, 2);
     net.AddLayer<neunet::NetLayerConv>(50, 5, 5, 1, 1, 0, 0, dLearnRate);
-    net.AddLayer<neunet::NetLayerBN>(0, 1, 1e-5l);
+    net.AddLayer<neunet::NetLayerBN>();
     net.AddLayer<neunet::NetLayerAct>(NEUNET_RELU);
     net.AddLayer<neunet::NetLayerPool>(NEUNET_POOL_AVG, 2, 2, 2, 2);
     net.AddLayer<neunet::NetLayerTrans>();
     net.AddLayer<neunet::NetLayerFC>(500, dLearnRate);
-    net.AddLayer<neunet::NetLayerBN>(0, 1, 1e-5l);
+    net.AddLayer<neunet::NetLayerBN>();
     net.AddLayer<neunet::NetLayerAct>(NEUNET_SIGMOID);
     net.AddLayer<neunet::NetLayerFC>(10, dLearnRate);
     net.AddLayer<neunet::NetLayerAct>(NEUNET_SOFTMAX);

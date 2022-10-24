@@ -80,12 +80,12 @@ callback_matrix neunet_vect chann_vec_crop(uint64_t &ans_ln_cnt, uint64_t &ans_c
     }
 }
 
-void print_train_progress(int curr_prog, int prog, long double acc, long double prec, long double rc, int dur) { std::printf("\r[Train][%d/%d][Acc/Prec/Rc][%.2f/%.2f/%.2f][Dur][%dms]", curr_prog, prog, acc, prec, rc, dur); }
+void print_train_progress(int curr_prog, int prog, long double acc, long double rc, int dur) { std::printf("\r[Train][%d/%d][Acc/Rc][%.2f/%.2f][%dms]", curr_prog, prog, acc, rc, dur); }
 
 void print_deduce_progress(int curr_prog, int prog) { std::printf("\r[Deduce][%d/%d]", curr_prog, prog); }
 
-void print_epoch_status(int epoch, long double acc, long double prec, long double rc, int dur) {
-    std::printf("\r[Ep][%d][Acc/Prec/Rc][%lf/%lf/%lf][Dur][%dms]", epoch, acc, prec, rc, dur);
+void print_epoch_status(int epoch, long double acc, long double rc, int dur) {
+    std::printf("\r[Epoch][%d][Acc/Rc][%.4f/%.4f][%dms]", epoch, acc, rc, dur);
     std::cout << std::endl;
 }
 
@@ -136,20 +136,9 @@ net_set<vect> lbl_orgn(const net_set<uint64_t> &lbl_set, uint64_t type_cnt) {
     return ans;
 }
 
-callback_matrix void output_acc_prec_rc(const net_set<neunet_vect> &output, const net_set<uint64_t> &lbl, long double train_acc, long double &acc, long double &prec, long double &rc, uint64_t denominator = 1) {
-    if (output.length != lbl.length) return;
-    for (auto i = 0ull; i < output.length; ++i) {
-        prec += output[i].index(lbl[i]);
-        if (output[i].index(lbl[i]) > .5l) {
-            ++acc;
-            if (1 - output[i].index(lbl[i]) < train_acc) ++rc;
-        }
-    }
-    if (denominator > 1) {
-        acc  /= denominator;
-        prec /= denominator;
-        rc   /= denominator;
-    }
+callback_matrix void output_acc_rc(const neunet_vect &output, long double train_acc, uint64_t lbl, std::atomic_uint64_t &acc_cnt, std::atomic_uint64_t &rc_cnt) {
+    if (output.index(lbl) > 0.5) ++acc_cnt;
+    if (output.index(lbl) > (1-train_acc)) ++rc_cnt;
 }
 
 template <typename matrix_elem_t, typename matrix_elem_v> struct ada_delta final {
@@ -303,18 +292,11 @@ struct Layer {
 
     // asynchronous
 
-    std::atomic_uint64_t iLayerBatchCnt = 0;
-
-    std::atomic_bool bAsyncFlag = false;
-
-    async::net_async_controller asyLayerBatchController;
+    std::atomic_uint64_t iLayerBatchSizeIdx = 0;
 
     virtual void ValueAssign(const Layer &lyrSrc) {
-        uint64_t iLayerBatchCntTemp = lyrSrc.iLayerBatchCnt;
-        bool     bAsyncFlagTemp     = lyrSrc.bAsyncFlag;
-        dLearnRate     = lyrSrc.dLearnRate;
-        iLayerBatchCnt = iLayerBatchCntTemp;
-        bAsyncFlag     = bAsyncFlagTemp;
+        dLearnRate         = lyrSrc.dLearnRate;
+        iLayerBatchSizeIdx = (uint64_t)lyrSrc.iLayerBatchSizeIdx;
     }
 
     virtual void ValueCopy(const Layer &lyrSrc) { ValueAssign(lyrSrc); }

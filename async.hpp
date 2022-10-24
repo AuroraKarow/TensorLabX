@@ -4,7 +4,7 @@ template<typename r_arg, typename ... args> constexpr std::function<r_arg(args..
 
 template<typename f_arg, typename ... args> constexpr auto function_package(f_arg &&func, args &&...paras) { return std::make_shared<std::packaged_task<std::invoke_result_t<f_arg, args...>()>>(std::bind(std::forward<f_arg>(func), std::forward<args>(paras)...)); }
 
-struct net_async_controller final {
+struct async_controller final {
 public:
     void thread_sleep() {
         std::unique_lock<std::mutex> lk(td_mtx);
@@ -20,16 +20,16 @@ private:
     std::condition_variable cond;
 };
 
-struct net_async_concurrent final {
+struct async_concurrent final {
 public:
-    net_async_concurrent(uint64_t batch_size = NEUNET_ASYNC_CORE) :
+    async_concurrent(uint64_t batch_size = NEUNET_ASYNC_CORE) :
         batch_cnt(batch_size) {}
 
     void set_batch_size(uint64_t batch_size) { batch_cnt = batch_size; }
 
     void batch_thread_attach() {
         if ((++ready_cnt) == batch_cnt) ctrl_main.thread_wake_one();
-        ctrl_batch.thread_sleep();
+        if (ready_cnt) ctrl_batch.thread_sleep();
     }
 
     void batch_thread_detach(std::function<void()> concurr_opt = []{ return; }) {
@@ -55,20 +55,14 @@ private:
     std::atomic_uint64_t proc_cnt  = 0,
                          ready_cnt = 0;
 
-    net_async_controller ctrl_batch,
-                         ctrl_main;
+    async_controller ctrl_batch,
+                     ctrl_main;
 };
 
 // Multi-thread safe queue
 template<typename arg> class net_queue final {
 public:
     net_queue() {}
-    net_queue(net_queue &&src) = delete;
-    net_queue(const net_queue &src) {
-        std::unique_lock<std::mutex> lck(td_mtx);
-        std::unique_lock<std::mutex> src_lck(src.td_mtx);
-        elem_ls = src.elem_ls;
-    }
     
     uint64_t size() const {
         std::unique_lock<std::mutex> lck(td_mtx);
@@ -94,44 +88,22 @@ public:
 
     arg de_queue() {
         std::unique_lock<std::mutex> lck(td_mtx);
-        td_cond.wait(lck, [this] { return elem_ls.length; });
+        if (!elem_ls.length) td_cond.wait(lck);
         return elem_ls.erase(0);
     }
 
-    void reset() {
-        std::unique_lock<std::mutex> lck(td_mtx);
-        elem_ls.reset();
-    }
-
-    ~net_queue () { reset(); }
+    ~net_queue () = default;
 
 private:
     net_list<arg> elem_ls;
     mutable std::mutex td_mtx;
     std::condition_variable td_cond;
-     
-public:
-    net_queue &operator=(net_queue &&src) = delete;
-    net_queue &operator=(const net_queue &src) {
-        std::unique_lock<std::mutex> lck(td_mtx);
-        std::unique_lock<std::mutex> src_lck(src.td_mtx);
-        elem_ls = src.elem_ls;
-        return *this;
-    }
-
-    bool operator==(const net_queue &src) const {
-        std::unique_lock<std::mutex> lck(td_mtx);
-        std::unique_lock<std::mutex> src_lck(src.td_mtx);
-        return src.elem_ls == elem_ls;
-    }
-
-    bool operator!=(const net_queue &src) const { return !(*this == src); }
 };
 
 // Thread pool. This class should be used in the thread for contolling only.
-class net_async_pool final {
+class async_pool final {
 public:
-    net_async_pool(uint64_t thread_size = NEUNET_ASYNC_CORE) :
+    async_pool(uint64_t thread_size = NEUNET_ASYNC_CORE) :
         stop(false), td_set(thread_size) {
         for (auto i  =0ull; i < td_set.size(); ++i) td_set[i] = std::thread([this] { while(true) {
             std::function<void()> curr_tsk;
@@ -160,7 +132,7 @@ public:
         return res;
     }
 
-    ~net_async_pool()
+    ~async_pool()
     {
         stop = true;
         cond.notify_all();

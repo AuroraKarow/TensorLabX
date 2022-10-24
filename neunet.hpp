@@ -2,30 +2,6 @@ NEUNET_BEGIN
 
 class Neunet {
 protected:
-    virtual void BatchTrainDataInit(const net_set<vect> &setTrainData, const net_set<uint64_t> &setTrainLbl) {
-        if (setCurrData.length != iTrainBatchSize) setCurrData.init(iTrainBatchSize, false);
-        if (setCurrLbl.length != iTrainBatchSize) setCurrLbl.init(iTrainBatchSize, false);
-        for (auto i = 0ull; i < iTrainBatchSize; ++i, ++iTrainDataIdx) {
-            setCurrData[i] = setTrainData[setTrainDataIdx[iTrainDataIdx]];
-            setCurrLbl[i]  = setTrainLbl[setTrainDataIdx[iTrainDataIdx]];
-        }
-        setCurrOrgn = lbl_orgn(setCurrLbl, iLblTypeCnt);
-        if (iTrainDataIdx == setTrainData.length) {
-            iTrainDataIdx = 0;
-            setTrainDataIdx.shuffle();
-        }
-    }
-
-    virtual void BatchDeduceDataInit(const net_set<vect> &setDeduceData, const net_set<uint64_t> &setDeduceLbl) {
-        if (setCurrData.length != iDeduceBatchSize) setCurrData.init(iDeduceBatchSize, false);
-        if (setCurrLbl.length != iDeduceBatchSize) setCurrLbl.init(iDeduceBatchSize, false);
-        for (auto i = 0ull; i < iDeduceBatchSize; ++i, ++iDeduceDataIdx) {
-            setCurrData[i] = setDeduceData[iDeduceDataIdx];
-            setCurrLbl[i]  = setDeduceLbl[iDeduceDataIdx];
-        }
-        if (iDeduceDataIdx == setDeduceData.length) iDeduceDataIdx = 0;
-    }
-
     virtual bool RunInit(uint64_t iNetTrainDataCnt, uint64_t iNetDeduceDataCnt, uint64_t iDataLblTypeCnt, uint64_t iInputLnCnt, uint64_t iInputColCnt, uint64_t iChannCnt) {
         iLblTypeCnt = iDataLblTypeCnt;
         // data initialize
@@ -33,6 +9,7 @@ protected:
         iTrainDataCnt  = iNetTrainDataCnt;
         iTrainBatchCnt = iTrainDataCnt / iTrainBatchSize;
         iTrainDataIdx  = 0;
+        setCurrOrgn.init(iTrainBatchSize);
         setTrainDataIdx.init(iTrainDataCnt);
         for (auto i = 0ull; i < setTrainDataIdx.length; ++i) setTrainDataIdx[i] = i;
         if (iDeduceDataCnt % iDeduceBatchSize) return false;
@@ -70,7 +47,7 @@ protected:
             }
             if (!bFPFlag) return false;
         }
-        setCurrTrainOutput[iIdx] = setCurrData[iIdx];
+        output_acc_rc(setCurrData[iIdx], dTrainAcc, setCurrLbl[iIdx], iTrainDeduceAccCnt, iTrainDeduceRcCnt);
         return true;
     }
 
@@ -108,64 +85,81 @@ protected:
             }
             if (!bDdFlag) return false;
         }
+        output_acc_rc(setCurrData[iIdx], dTrainAcc, setCurrLbl[iIdx], iTrainDeduceAccCnt, iTrainDeduceRcCnt);
         return true;
     }
 
-    virtual bool ThreadTrainDeduceExitCheck() {
-        if (iCurrNetStat == NEUNET_STAT_EXC || iCurrNetStat == NEUNET_STAT_END) {
-            asyConcurr.main_thread_exception();
-            return true;
-        } else return false;
-    }
-
     // thread size - batch size
-    virtual void ThreadBatchProcess() { for (auto i = 0ull; i < iRunBatchSize; ++i) asyPool.add_task([this, i] { while (true) {
+    virtual void ThreadBatchProcess(const net_set<vect> &setTrainData, const net_set<uint64_t> &setTrainLbl, const net_set<vect> &setDeduceData, const net_set<uint64_t> &setDeduceLbl) { for (auto i = 0ull; i < iRunBatchSize; ++i) asyPool.add_task([this, i, &setTrainData, &setTrainLbl, &setDeduceData, &setDeduceLbl] { while (true) {
         // batch process mode
         asyConcurr.batch_thread_attach();
         if (iCurrNetStat == NEUNET_STAT_END || iCurrNetStat == NEUNET_STAT_EXC) break;
         // train
-        if (iCurrNetStat == NEUNET_STAT_TRN && i < iTrainBatchSize) if (!(ForwProp(i) && BackProp(i))) iCurrNetStat = NEUNET_STAT_EXC;
+        if (iCurrNetStat == NEUNET_STAT_TRN && i < iTrainBatchSize) {
+            // load data
+            setCurrData[i] = setTrainData[setTrainDataIdx[i + iTrainDataIdx]];
+            setCurrLbl[i]  = setTrainLbl[setTrainDataIdx[i + iTrainDataIdx]];
+            setCurrOrgn[i] = lbl_orgn(setCurrLbl[i], iLblTypeCnt);
+            if (!(ForwProp(i) && BackProp(i))) iCurrNetStat = NEUNET_STAT_EXC;
+        }
         // deduce
-        if (iCurrNetStat == NEUNET_STAT_DED && i < iDeduceBatchSize) if (!Deduce(i)) iCurrNetStat = NEUNET_STAT_EXC;
+        if (iCurrNetStat == NEUNET_STAT_DED && i < iDeduceBatchSize) {
+            // load data
+            setCurrData[i] = setDeduceData[i + iDeduceDataIdx];
+            setCurrLbl[i]  = setDeduceLbl[i + iDeduceDataIdx];
+            if (!Deduce(i)) iCurrNetStat = NEUNET_STAT_EXC;
+        }
         asyConcurr.batch_thread_detach();
     } }); }
 
-    virtual void ThreadTrainDeduce(const net_set<vect> &setTrainData, const net_set<uint64_t> &setTrainLbl, const net_set<vect> &setDeduceData, const net_set<uint64_t> &setDeduceLbl, async::net_queue<net_set<vect>> &queTrainOutput, async::net_queue<net_set<uint64_t>> &queTrainLbl, async::net_queue<net_set<vect>> &queDeduceOutput, async::net_queue<net_set<uint64_t>> &queDeduceLbl) { asyPool.add_task([this, &setTrainData, &setTrainLbl, &setDeduceData, &setDeduceLbl, &queTrainOutput, &queTrainLbl, &queDeduceOutput, &queDeduceLbl] { while (true) {
+    virtual void ThreadTrainDeduce(async::net_queue<uint64_t> &queTrainAcc, async::net_queue<uint64_t> &queTrainRc, async::net_queue<uint64_t> &queDeduceAcc, async::net_queue<uint64_t> &queDeduceRc) { asyPool.add_task([this, &queTrainAcc, &queTrainRc, &queDeduceAcc, &queDeduceRc] { while (true) {
         // train
         iCurrNetStat = NEUNET_STAT_TRN;
+        setCurrData.init(iTrainBatchSize, false);
+        setCurrLbl.init(iTrainBatchSize, false);
         for (iCurrTrainBatchIdx = 0; iCurrTrainBatchIdx < iTrainBatchCnt; ++iCurrTrainBatchIdx) {
-            // load data;
-            BatchTrainDataInit(setTrainData, setTrainLbl);
-            setCurrTrainOutput.init(iTrainBatchSize);
+            iTrainDeduceAccCnt = 0;
+            iTrainDeduceRcCnt  = 0;
             asyConcurr.main_thread_deploy_batch_thread();
             if (iCurrNetStat == NEUNET_STAT_EXC) break;
             // output data
-            queTrainOutput.en_queue(std::move(setCurrTrainOutput));
-            queTrainLbl.en_queue(std::move(setCurrLbl));
+            queTrainAcc.en_queue((uint64_t)iTrainDeduceAccCnt);
+            queTrainRc.en_queue((uint64_t)(iTrainDeduceRcCnt));
+            // next batch
+            iTrainDataIdx += iTrainBatchSize;
         }
-        if (ThreadTrainDeduceExitCheck()) break;
+        if (iCurrNetStat == NEUNET_STAT_EXC || iCurrNetStat == NEUNET_STAT_END) {
+            asyConcurr.main_thread_exception();
+            break;
+        }
+        iTrainDataIdx = 0;
+        setTrainDataIdx.shuffle();
         // deduce
         iCurrNetStat = NEUNET_STAT_DED;
+        iTrainDeduceAccCnt = 0;
+        iTrainDeduceRcCnt  = 0;
+        setCurrData.init(iDeduceBatchSize, false);
+        setCurrLbl.init(iDeduceBatchSize, false);
         for (iCurrDeduceBatchIdx = 0; iCurrDeduceBatchIdx < iDeduceBatchCnt; ++iCurrDeduceBatchIdx) {
-            // load data
-            BatchDeduceDataInit(setDeduceData, setDeduceLbl);
             asyConcurr.main_thread_deploy_batch_thread();
             if (iCurrNetStat == NEUNET_STAT_EXC) break;
-            // output data
-            queDeduceOutput.en_queue(std::move(setCurrData));
-            queDeduceLbl.en_queue(std::move(setCurrLbl));
+            // next batch
+            iDeduceDataIdx += iDeduceBatchSize;
         }
-        if (ThreadTrainDeduceExitCheck()) break;
+        if (iCurrNetStat == NEUNET_STAT_EXC || iCurrNetStat == NEUNET_STAT_END) {
+            asyConcurr.main_thread_exception();
+            break;
+        }
+        // output data
+        queDeduceAcc.en_queue((uint64_t)iTrainDeduceAccCnt);
+        queDeduceRc.en_queue((uint64_t)iTrainDeduceRcCnt);
+        iDeduceDataIdx = 0;
     } }); }
 
-    virtual void ThreadDataShow(async::net_queue<net_set<vect>> &queTrainOutput, async::net_queue<net_set<uint64_t>> &queTrainLbl, async::net_queue<net_set<vect>> &queDeduceOutput, async::net_queue<net_set<uint64_t>> &queDeduceLbl) {
+    virtual void ThreadDataShow(async::net_queue<uint64_t> &queTrainAcc, async::net_queue<uint64_t> &queTrainRc, async::net_queue<uint64_t> &queDeduceAcc, async::net_queue<uint64_t> &queDeduceRc) {
         // train & deduce parameter
-                    // Accuracy
-        long double dAcc  = .0l,
-                    // Precision
-                    dPrec = .0l,
-                    // Recall rate
-                    dRc   = .0l;
+        long double dAcc = 0,
+                    dRc  = 0;
         // epoch
         uint64_t iEp = 0ull;
         while (dRc < 1) {
@@ -174,32 +168,21 @@ protected:
             // train
             for (auto i = 0ull; i < iTrainBatchCnt; ++i) {
                 auto iTrnBgTp = NEUNET_CHRONO_TIME_POINT;
-                dAcc  = .0l;
-                dPrec = .0l;
-                dRc   = .0l;
                 if (iCurrNetStat == NEUNET_STAT_EXC) return;
-                auto setCurrOutput = queTrainOutput.de_queue();
-                auto setCurrLbl    = queTrainLbl.de_queue();
-                output_acc_prec_rc(setCurrOutput, setCurrLbl, dTrainAcc, dAcc, dPrec, dRc, iTrainBatchSize);
+                dAcc = (1.l * queTrainAcc.de_queue()) / iTrainBatchSize;
+                dRc  = (1.l * queTrainRc.de_queue()) / iTrainBatchSize;
                 auto iTrnEdTP = NEUNET_CHRONO_TIME_POINT;
-                print_train_progress((i + 1), iTrainBatchCnt, dAcc, dPrec, dRc, (iTrnEdTP - iTrnBgTp));
+                print_train_progress((i + 1), iTrainBatchCnt, dAcc, dRc, (iTrnEdTP - iTrnBgTp));
             }
             // deduce
-            dAcc  = .0l;
-            dPrec = .0l;
-            dRc   = .0l;
             for (auto i = 0ull; i < iDeduceBatchCnt; ++i) {
                 if (iCurrNetStat == NEUNET_STAT_EXC) return;
-                auto setCurrOutput = queDeduceOutput.de_queue();
-                auto setCurrLbl    = queDeduceLbl.de_queue();
-                output_acc_prec_rc(setCurrOutput, setCurrLbl, dTrainAcc, dAcc, dPrec, dRc);
                 print_deduce_progress((i + 1), iDeduceBatchCnt);
             }
-            dAcc  /= iDeduceDataCnt;
-            dPrec /= iDeduceDataCnt;
-            dRc   /= iDeduceDataCnt;
+            dAcc = (1.l * queDeduceAcc.de_queue()) / iDeduceDataCnt;
+            dRc  = (1.l * queDeduceRc.de_queue()) / iDeduceDataCnt;
             auto iEpEdTP = NEUNET_CHRONO_TIME_POINT;
-            print_epoch_status(iEp, dAcc, dPrec, dRc, iEpEdTP - iEpBgTP);
+            print_epoch_status(iEp, dAcc, dRc, iEpEdTP - iEpBgTP);
         }
         iCurrNetStat = NEUNET_STAT_END;
     }
@@ -285,14 +268,14 @@ public:
         // initialization
         if (!RunInit(setIm2ColTrainData.length, setIm2ColTestData.length, iDataLblTypeCnt, iDataLnCnt, iDataColCnt, iDataChannCnt)) return false;
         // data queue for data show
-        async::net_queue<net_set<vect>> queTrainOutput,
-                                        queDeduceOutput;
-        async::net_queue<net_set<uint64_t>> queTrainLbl,
-                                            queDeduceLbl;
+        async::net_queue<uint64_t> queTrainAcc,
+                                   queTrainRc,
+                                   queDeduceAcc,
+                                   queDeduceRc;
         // net thread
-        ThreadBatchProcess();
-        ThreadTrainDeduce(setIm2ColTrainData, setTrainLbl, setIm2ColTestData, setTestLbl, queTrainOutput, queTrainLbl, queDeduceOutput, queDeduceLbl);
-        ThreadDataShow(queTrainOutput, queTrainLbl, queDeduceOutput, queDeduceLbl);
+        ThreadBatchProcess(setIm2ColTrainData, setTrainLbl, setIm2ColTestData, setTestLbl);
+        ThreadTrainDeduce(queTrainAcc, queTrainRc, queDeduceAcc, queDeduceRc);
+        ThreadDataShow(queTrainAcc, queTrainRc, queDeduceAcc, queDeduceRc);
         return iCurrNetStat == NEUNET_STAT_END;
     }
 
@@ -311,6 +294,8 @@ public:
         iCurrNetStat        = 0;
         iCurrTrainBatchIdx  = 0;
         iCurrDeduceBatchIdx = 0;
+        iTrainDeduceAccCnt  = 0;
+        iTrainDeduceRcCnt   = 0;
         dTrainAcc           = 1e-8l;
 
         seqLayer.reset();
@@ -319,7 +304,6 @@ public:
         setTrainDataIdx.reset();
         setCurrLbl.reset();
         setCurrData.reset();
-        setCurrTrainOutput.reset();
     }
 
     virtual ~Neunet() { Reset(false); }
@@ -341,29 +325,30 @@ protected:
 
     std::atomic_uint64_t iCurrNetStat        = 0,
                          iCurrTrainBatchIdx  = 0,
-                         iCurrDeduceBatchIdx = 0;
+                         iCurrDeduceBatchIdx = 0,
+                         iTrainDeduceAccCnt  = 0,
+                         iTrainDeduceRcCnt   = 0;
 
     long double dTrainAcc = 1e-8l;
 
     net_sequence<NetLayerPtr> seqLayer;
+
     // data
     net_set<vect> setCurrData,
                   // label vector
-                  setCurrOrgn,
-                  // train output
-                  setCurrTrainOutput;
+                  setCurrOrgn;
     
     // data index
     net_set<uint64_t> setTrainDataIdx,
                       // label
                       setCurrLbl;
 
-    async::net_async_concurrent asyConcurr;
+    async::async_concurrent asyConcurr;
 
-    async::net_async_controller asyTrainCtrl,
-                                asyDeduceCtrl;
+    async::async_controller asyTrainCtrl,
+                            asyDeduceCtrl;
 
-    async::net_async_pool asyPool;
+    async::async_pool asyPool;
 };
 
 NEUNET_END

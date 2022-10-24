@@ -27,6 +27,7 @@
 // BN
 #define NEUNET_LAYER_BN     0x0006
 
+#include <concepts>
 #include "conv"
 #include "bn"
 

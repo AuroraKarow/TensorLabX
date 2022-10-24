@@ -145,8 +145,15 @@ matrix_declare struct LayerBN : Layer {
 
     net_set<neunet_vect> setInput,
                          setBarX;
+
+    async::async_controller asyBNCtrl;
+    std::atomic_bool bBNFlag = false;
     
-    virtual void ValueAssign(const LayerBN &lyrSrc) { dEpsilon = lyrSrc.dEpsilon; }
+    virtual void ValueAssign(const LayerBN &lyrSrc) {
+        bool bBNFlagTemp = lyrSrc.bBNFlag;
+        bBNFlag  = bBNFlagTemp;
+        dEpsilon = lyrSrc.dEpsilon;
+    }
 
     virtual void ValueCopy(const LayerBN &lyrSrc) {
         ValueAssign(lyrSrc);
@@ -225,21 +232,21 @@ matrix_declare struct LayerBN : Layer {
     }
 
     bool ForwPropAsync(net_set<neunet_vect> &setInput) {
-        if (++iLayerBatchCnt == setInput.length) {
-            bAsyncFlag = ForwProp(setInput);
-            asyLayerBatchController.thread_wake_all();
-        } else asyLayerBatchController.thread_sleep();
-        return bAsyncFlag;
+        if (++iLayerBatchSizeIdx == setInput.length) {
+            bBNFlag = ForwProp(setInput);
+            asyBNCtrl.thread_wake_all();
+        } else asyBNCtrl.thread_sleep();
+        return bBNFlag;
     }
 
     bool BackPropAsync(net_set<neunet_vect> &setGrad, uint64_t iBatchIdx = 0, uint64_t iBatchCnt = 1) {
-        if (--iLayerBatchCnt) asyLayerBatchController.thread_sleep();
+        if (--iLayerBatchSizeIdx) asyBNCtrl.thread_sleep();
         else {
-            bAsyncFlag = BackProp(setGrad);
-            asyLayerBatchController.thread_wake_all();
+            bBNFlag = BackProp(setGrad);
+            asyBNCtrl.thread_wake_all();
             Update(iBatchIdx, iBatchCnt);
         }
-        return bAsyncFlag;
+        return bBNFlag;
     }
 
     bool Deduce(neunet_vect &vecInput) {
