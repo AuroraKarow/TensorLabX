@@ -3,6 +3,78 @@ NEUNET_BEGIN
 /* map */
 
 template <typename k_arg, typename arg> class net_map {
+public:
+    struct iterator final : net_iterator_base<net_kv<k_arg, arg>, net_map<k_arg, arg>> {
+    public:
+        iterator(const net_map *src = nullptr) : net_iterator_base<net_kv<k_arg, arg>, net_map<k_arg, arg>>(src) {
+            if (this->ptr) {
+                for (curr_idx = 0ull; curr_idx < this->ptr->kv_data[!this->ptr->backup].length; ++curr_idx) if (this->ptr->kv_data[!this->ptr->backup][curr_idx].length) break;
+                itr_leaf = this->ptr->kv_data[!this->ptr->backup][curr_idx].begin();
+            }
+        }
+
+        virtual bool operator!=(const iterator &val) const { return !(*this == val); }
+
+        virtual net_kv<k_arg, arg> operator*() const {
+            if (this->ptr) return net_kv(*itr_leaf);
+            else return net_kv<k_arg, arg>();
+        }
+
+        virtual iterator &operator++() {
+            if (this->ptr) {
+                ++itr_leaf;
+                if (itr_leaf.is_end()) {
+                    ++curr_idx;
+                    while (curr_idx != this->ptr->kv_data[!this->ptr->backup].length && !this->ptr->kv_data[!this->ptr->backup][curr_idx].length) ++curr_idx;
+                }
+                if (curr_idx == this->ptr->kv_data[!this->ptr->backup].length) this->ptr = nullptr;
+                else itr_leaf = this->ptr->kv_data[!this->ptr->backup][curr_idx].begin();
+            }
+            return *this;
+        }
+        virtual iterator operator++(int) {
+            auto temp = *this;
+            ++*this;
+            return temp;
+        }
+
+        virtual iterator &operator--() {
+            if (this->ptr) {
+                --itr_leaf;
+                auto flag = true;
+                if (itr_leaf.is_end()) {
+                    --curr_idx;
+                    while (!this->ptr->kv_data[!this->ptr->backup][curr_idx].length) if (curr_idx) --curr_idx;
+                    else {
+                        flag = false;
+                        break;
+                    }
+                }
+                if (flag) {
+                    itr_leaf = this->ptr->kv_data[!this->ptr->backup][curr_idx].begin();
+                    auto curr_iter_leaf = itr_leaf;
+                    ++curr_iter_leaf;
+                    while (!curr_iter_leaf.is_end()) {
+                        itr_leaf = curr_iter_leaf;
+                        ++curr_iter_leaf;
+                    }
+                } else this->ptr = nullptr;
+            }
+            return *this;
+        }
+        virtual iterator operator--(int) {
+            auto temp = *this;
+            --*this;
+            return temp;
+        }
+
+        virtual ~iterator() { curr_idx = 0; }
+
+    private:
+        net_tree<k_arg, arg>::iterator itr_leaf;
+
+        uint64_t curr_idx = 0;
+    };
 protected:
     void value_assign(const net_map &src) {
         backup       = src.backup;

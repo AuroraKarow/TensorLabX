@@ -221,9 +221,9 @@ matrix_declare struct LayerConv : Layer {
         if (iIdx >= setCaffeInput.length) return false;
         setGradKernel[iIdx] = conv::GradLossToConvKernal(vecGrad, setCaffeInput[iIdx]);
         if (!setGradKernel[iIdx].verify) return false;
-        if (++iLayerBatchCnt == setCaffeInput.length) {
+        if (++iLayerBatchSizeIdx == setCaffeInput.length) {
             Update();
-            iLayerBatchCnt = 0;
+            iLayerBatchSizeIdx = 0;
         }
         if (this->dLearnRate) vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecNesterovKernel);
         else vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecKernel);

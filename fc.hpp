@@ -160,9 +160,9 @@ matrix_declare struct LayerFC : Layer {
         if (iIdx >= setInput.length) return false;
         setGradWeight[iIdx] = fc::GradLossToWeight(vecGrad, setInput[iIdx]);
         if (!setGradWeight[iIdx].verify) return false;
-        if (++iLayerBatchCnt == setInput.length) {
+        if (++iLayerBatchSizeIdx == setInput.length) {
             Update();
-            iLayerBatchCnt = 0;
+            iLayerBatchSizeIdx = 0;
         }
         if (this->dLearnRate) vecGrad = fc::GradLossToInput(vecGrad, vecNesterovWeight);
         else vecGrad = fc::GradLossToInput(vecGrad, vecWeight);
