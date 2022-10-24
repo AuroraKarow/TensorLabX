@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <typeinfo>
 #include <cstdint>
+#include <concepts>
 
 typedef int32_t i32;
 typedef int64_t i64;

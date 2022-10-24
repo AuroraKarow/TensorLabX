@@ -1,0 +1,6 @@
+.vs
+Modernization
+*.exe
+*.pdb
+x64
+x86
