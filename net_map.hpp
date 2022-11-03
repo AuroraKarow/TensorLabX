@@ -43,10 +43,10 @@ public:
                 --itr_leaf;
                 auto flag = true;
                 if (itr_leaf.is_end()) {
-                    --curr_idx;
-                    while (!this->ptr->kv_data[!this->ptr->backup][curr_idx].length) if (curr_idx) --curr_idx;
+                    if (flag) while (!this->ptr->kv_data[!this->ptr->backup][curr_idx].length) if (curr_idx) --curr_idx;
                     else {
-                        flag = false;
+                        flag      = false;
+                        this->ptr = nullptr;
                         break;
                     }
                 }
@@ -268,8 +268,15 @@ public:
         return ans;
     }
 
+    iterator begin() const {
+        if (len[0] + len[1]) return iterator(this);
+        else return end();
+    }
+
+    iterator end() const { return iterator(nullptr); }
+
     arg &operator[](const k_arg &key) {
-        // rehash_transfer();
+        rehash_transfer();
         auto curr_hash = hash_func(key),
              curr_idx  = 0ull,
              find_res  = hash_key_verify(curr_idx, curr_hash);

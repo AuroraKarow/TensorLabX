@@ -33,7 +33,7 @@
 
 // layer type
 
-NEUNET_BEGIN
+LAYER_BEGIN
 
 // polymorphic pointer
 typedef std::shared_ptr<layer::Layer>   NetLayerPtr;
@@ -52,7 +52,7 @@ typedef layer::LayerPool                NetLayerPool;
 // transform
 typedef layer::LayerTrans               NetLayerTrans;
 
-NEUNET_END
+LAYER_END
 
 // train
 #define NEUNET_STAT_TRN     0x0000
@@ -64,13 +64,14 @@ NEUNET_END
 // layer verification
 
 #define neunet_layer_type_v = std::enable_if_t<\
-                            std::is_same_v<LayerType, neunet::NetLayerAct> || \
-                            std::is_same_v<LayerType, neunet::NetLayerBN> || \
-                            std::is_same_v<LayerType, neunet::NetLayerConv> || \
-                            std::is_same_v<LayerType, neunet::NetLayerFC> || \
-                            std::is_same_v<LayerType, neunet::NetLayerPC> || \
-                            std::is_same_v<LayerType, neunet::NetLayerPool> || \
-                            std::is_same_v<LayerType, neunet::NetLayerTrans>>
+                            std::is_same_v<LayerType, neunet::layer::NetLayerAct> || \
+                            std::is_same_v<LayerType, neunet::layer::NetLayerBN> || \
+                            std::is_same_v<LayerType, neunet::layer::NetLayerConv> || \
+                            std::is_same_v<LayerType, neunet::layer::NetLayerFC> || \
+                            std::is_same_v<LayerType, neunet::layer::NetLayerPC> || \
+                            std::is_same_v<LayerType, neunet::layer::NetLayerPool> || \
+                            std::is_same_v<LayerType, neunet::layer::NetLayerTrans>>
+#define neunet_layer_cast   std::dynamic_pointer_cast
 
 #include "neunet.hpp"
 

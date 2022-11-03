@@ -194,7 +194,7 @@ matrix_declare struct LayerConv : Layer {
     LayerConv(const LayerConv &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerConv(LayerConv &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t &iCurrInputColCnt, uint64_t &iCurrChannCnt, uint64_t iBatchSize) {
+    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t &iCurrInputColCnt, uint64_t &iCurrChannCnt, uint64_t iTrainBatchSize) {
         iInputLnCnt     = iCurrInputLnCnt;
         iInputColCnt    = iCurrInputColCnt;
         iKernelChannCnt = iCurrChannCnt;
@@ -202,8 +202,8 @@ matrix_declare struct LayerConv : Layer {
         iOutputColCnt   = samp_output_dir_cnt(iInputColCnt, iKernelColCnt, iColStride, iColDilate);
         vecKernel       = conv::InitKernel(iKernelAmt, iKernelChannCnt, iKernelLnCnt, iKernelColCnt, dFstRng, dSndRng, iAcc);
         if (this->dLearnRate) vecNesterovKernel = advKernel.weight(vecKernel);
-        setCaffeInput.init(iBatchSize, false);
-        setGradKernel.init(iBatchSize, false);
+        setCaffeInput.init(iTrainBatchSize, false);
+        setGradKernel.init(iTrainBatchSize, false);
         iCurrInputLnCnt  = iOutputLnCnt;
         iCurrInputColCnt = iOutputColCnt;
         iCurrChannCnt    = iKernelAmt;

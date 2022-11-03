@@ -23,40 +23,38 @@ private:
 struct async_concurrent final {
 public:
     async_concurrent(uint64_t batch_size = NEUNET_ASYNC_CORE) :
-        batch_cnt(batch_size) {}
-
-    void set_batch_size(uint64_t batch_size) { batch_cnt = batch_size; }
+        batch_size(batch_size) {}
 
     void batch_thread_attach() {
-        if ((++ready_cnt) == batch_cnt) ctrl_main.thread_wake_one();
+        if ((++ready_cnt) == batch_size) ctrl_main.thread_wake_one();
         if (ready_cnt) ctrl_batch.thread_sleep();
     }
 
     void batch_thread_detach(std::function<void()> concurr_opt = []{ return; }) {
-        if ((++proc_cnt) == batch_cnt) {
+        if ((++proc_cnt) == batch_size) {
             concurr_opt();
             ctrl_main.thread_wake_one();
         }
     }
 
     void main_thread_deploy_batch_thread() {
-        if (ready_cnt != batch_cnt) ctrl_main.thread_sleep();
+        if (ready_cnt != batch_size) ctrl_main.thread_sleep();
         proc_cnt  = 0;
         ready_cnt = 0;
         ctrl_batch.thread_wake_all();
-        if (proc_cnt != batch_cnt) ctrl_main.thread_sleep();
+        if (proc_cnt != batch_size) ctrl_main.thread_sleep();
     }
 
     void main_thread_exception() { ctrl_batch.thread_wake_all(); }
 
 private:
-    uint64_t batch_cnt = 0;
-
     std::atomic_uint64_t proc_cnt  = 0,
                          ready_cnt = 0;
 
     async_controller ctrl_batch,
                      ctrl_main;
+
+public: uint64_t batch_size = 0;
 };
 
 // Multi-thread safe queue
@@ -89,12 +87,19 @@ public:
     arg de_queue() {
         std::unique_lock<std::mutex> lck(td_mtx);
         if (!elem_ls.length) td_cond.wait(lck);
+        if (exc_sgn) return arg{};
         return elem_ls.erase(0);
+    }
+
+    void except_abort() {
+        exc_sgn = true;
+        td_cond.notify_all();
     }
 
     ~net_queue () = default;
 
 private:
+    std::atomic_bool exc_sgn = false;
     net_list<arg> elem_ls;
     mutable std::mutex td_mtx;
     std::condition_variable td_cond;

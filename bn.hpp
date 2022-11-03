@@ -118,7 +118,11 @@ NEUNET_END
 LAYER_BEGIN
 
 matrix_declare struct LayerBN : Layer {
-    long double dEpsilon = 1e-8l;
+    uint64_t iTrainBatchCnt = 0,
+             iTrainBatchIdx = 0;
+
+    long double dEpsilon = 1e-8l,
+                dDecay   = 0.9l;
 
     matrix_elem_t dBeta  = 0,
                   dGamma = 1;
@@ -150,9 +154,11 @@ matrix_declare struct LayerBN : Layer {
     std::atomic_bool bBNFlag = false;
     
     virtual void ValueAssign(const LayerBN &lyrSrc) {
-        bool bBNFlagTemp = lyrSrc.bBNFlag;
-        bBNFlag  = bBNFlagTemp;
-        dEpsilon = lyrSrc.dEpsilon;
+        bBNFlag          = (bool)lyrSrc.bBNFlag;
+        dEpsilon         = lyrSrc.dEpsilon;
+        dDecay           = lyrSrc.dDecay;
+        iTrainBatchCnt   = lyrSrc.iTrainBatchCnt;
+        iTrainBatchIdx   = lyrSrc.iTrainBatchIdx;
     }
 
     virtual void ValueCopy(const LayerBN &lyrSrc) {
@@ -200,20 +206,22 @@ matrix_declare struct LayerBN : Layer {
         lyrSrc.Reset(false);
     }
 
-    LayerBN(const matrix_elem_t &dShift = 0, const matrix_elem_t &dScale = 1, long double dInitLearnRate = 0, long double dDmt = 1e-8l) : Layer(NEUNET_LAYER_BN, dInitLearnRate),
+    LayerBN(const matrix_elem_t &dShift = 0, const matrix_elem_t &dScale = 1, long double dInitLearnRate = 0, long double dDeduceDecay = 0.9l, long double dDmt = 1e-8l) : Layer(NEUNET_LAYER_BN, dInitLearnRate),
         dGamma(dScale),
         dBeta(dShift),
+        dDecay(dDeduceDecay),
         dEpsilon(dDmt) {}
     LayerBN(const LayerBN &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerBN(LayerBN &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t iChannCnt) {
+    void RunInit(uint64_t iChannCnt, uint64_t iTrainBatchCnt) {
         vecBeta  = BNInitBetaGamma(iChannCnt, dBeta);
         vecGamma = BNInitBetaGamma(iChannCnt, dGamma);
         if (this->dLearnRate) {
             vecNesterovBeta  = advBeta.weight(vecBeta);
             vecNesterovGamma = advGamma.weight(vecGamma);
         }
+        this->iTrainBatchCnt = iTrainBatchCnt;
     }
 
     bool ForwProp(net_set<neunet_vect> &setInput) {
@@ -239,22 +247,22 @@ matrix_declare struct LayerBN : Layer {
         return bBNFlag;
     }
 
-    bool BackPropAsync(net_set<neunet_vect> &setGrad, uint64_t iBatchIdx = 0, uint64_t iBatchCnt = 1) {
+    bool BackPropAsync(net_set<neunet_vect> &setGrad) {
         if (--iLayerBatchSizeIdx) asyBNCtrl.thread_sleep();
         else {
             bBNFlag = BackProp(setGrad);
             asyBNCtrl.thread_wake_all();
-            Update(iBatchIdx, iBatchCnt);
+            Update();
         }
         return bBNFlag;
     }
 
     bool Deduce(neunet_vect &vecInput) {
-        vecInput = BNDeduce(vecExpMuBeta, vecExpSigmaSqr, vecInput, vecBeta, vecGamma, dEpsilon);
+        vecInput = BNDeduce(vecExpMuBeta, vecSigmaSqr, vecInput, vecBeta, vecGamma, dEpsilon);
         return vecInput.verify;
     }
 
-    void Update(uint64_t iBatchIdx = 0, uint64_t iBatchCnt = 1) {
+    void Update() {
         if (this->dLearnRate) {
             vecBeta         -= advBeta.momentum(vecGradBeta, this->dLearnRate);
             vecGamma        -= advGamma.momentum(vecGradGamma, this->dLearnRate);
@@ -264,21 +272,29 @@ matrix_declare struct LayerBN : Layer {
             vecBeta  -= adaBeta.delta(vecGradBeta);
             vecGamma -= adaGamma.delta(vecGradGamma);
         }
-        if (iBatchIdx) {
-            vecExpMuBeta   += vecMuBeta;
-            vecExpSigmaSqr += vecSigmaSqr;
+        // moving average
+        if (vecExpMuBeta.verify && vecExpSigmaSqr.verify) {
+            vecExpMuBeta   = dDecay * vecExpMuBeta + (1 - dDecay) * vecMuBeta;
+            vecExpSigmaSqr = dDecay * vecExpSigmaSqr + (1 - dDecay) * vecSigmaSqr;
         } else {
             vecExpMuBeta   = std::move(vecMuBeta);
-            vecExpSigmaSqr = std::move(vecSigmaSqr);
+            vecExpSigmaSqr = std::move(vecSigmaSqr);            
         }
-        if (iBatchIdx + 1 == iBatchCnt) BNDeduceInit(vecExpMuBeta, vecExpSigmaSqr, iBatchCnt, setInput.length);
+        if (++iTrainBatchIdx == iTrainBatchCnt) {
+            iTrainBatchIdx = 0;
+            vecSigmaSqr    = vecExpSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
+        }
     }
 
     virtual void Reset(bool bFull = true) {
         if (bFull) Layer::Reset(true);
-        dEpsilon = 1e-8l,
-        dBeta    = 0;
-        dGamma   = 1;
+        iTrainBatchCnt = 0;
+        iTrainBatchIdx = 0;
+        dEpsilon       = 1e-8l;
+        dBeta          = 0;
+        dGamma         = 1;
+        dDecay         = 0.9l;
+        bBNFlag        = false;
         setInput.reset();        
         vecBeta.reset();
         vecGamma.reset();
