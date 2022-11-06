@@ -131,6 +131,7 @@ matrix_declare struct LayerConv : Layer {
                   dSndRng = 0;
 
     neunet_vect vecKernel,
+                vecTpKernel,
                 vecNesterovKernel;
 
     ada_nesterov<matrix_elem_t> advKernel;
@@ -160,11 +161,12 @@ matrix_declare struct LayerConv : Layer {
         dFstRng           = lyrSrc.dFstRng;
         dSndRng           = lyrSrc.dSndRng;
         vecKernel         = lyrSrc.vecKernel;
-        vecNesterovKernel = lyrSrc.vecNesterovKernel;
         advKernel         = lyrSrc.advKernel;
         adaKernel         = lyrSrc.adaKernel;
+        vecTpKernel       = lyrSrc.vecTpKernel;
         setCaffeInput     = lyrSrc.setCaffeInput;
         setGradKernel     = lyrSrc.setGradKernel;
+        vecNesterovKernel = lyrSrc.vecNesterovKernel;
     }
 
     virtual void ValueMove(LayerConv &&lyrSrc) {
@@ -172,11 +174,12 @@ matrix_declare struct LayerConv : Layer {
         dFstRng           = std::move(lyrSrc.dFstRng);
         dSndRng           = std::move(lyrSrc.dSndRng);
         vecKernel         = std::move(lyrSrc.vecKernel);
-        vecNesterovKernel = std::move(lyrSrc.vecNesterovKernel);
         advKernel         = std::move(lyrSrc.advKernel);
         adaKernel         = std::move(lyrSrc.adaKernel);
+        vecTpKernel       = std::move(lyrSrc.vecTpKernel);
         setCaffeInput     = std::move(lyrSrc.setCaffeInput);
         setGradKernel     = std::move(lyrSrc.setGradKernel);
+        vecNesterovKernel = std::move(lyrSrc.vecNesterovKernel);
         lyrSrc.Reset(false);
     }
 
@@ -201,7 +204,10 @@ matrix_declare struct LayerConv : Layer {
         iOutputLnCnt    = samp_output_dir_cnt(iInputLnCnt, iKernelLnCnt, iLnStride, iLnDilate);
         iOutputColCnt   = samp_output_dir_cnt(iInputColCnt, iKernelColCnt, iColStride, iColDilate);
         vecKernel       = conv::InitKernel(iKernelAmt, iKernelChannCnt, iKernelLnCnt, iKernelColCnt, dFstRng, dSndRng, iAcc);
-        if (this->dLearnRate) vecNesterovKernel = advKernel.weight(vecKernel);
+        if (this->dLearnRate) {
+            vecNesterovKernel = advKernel.weight(vecKernel);
+            vecTpKernel       = vecNesterovKernel.transpose;
+        } else vecTpKernel = vecKernel.transpose;
         setCaffeInput.init(iTrainBatchSize, false);
         setGradKernel.init(iTrainBatchSize, false);
         iCurrInputLnCnt  = iOutputLnCnt;
@@ -212,27 +218,25 @@ matrix_declare struct LayerConv : Layer {
     bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
         if (iIdx >= setCaffeInput.length) return false;
         setCaffeInput[iIdx] = conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
-        if (this->dLearnRate) vecInput = conv::Conv(setCaffeInput[iIdx], vecNesterovKernel);
-        else vecInput = conv::Conv(setCaffeInput[iIdx], vecKernel);
+        if (this->dLearnRate) vecInput = setCaffeInput[iIdx] * vecNesterovKernel;
+        else vecInput = setCaffeInput[iIdx] * vecKernel;
         return vecInput.verify;
     }
 
     bool BackProp(neunet_vect &vecGrad, uint64_t iIdx) {
         if (iIdx >= setCaffeInput.length) return false;
-        setGradKernel[iIdx] = conv::GradLossToConvKernal(vecGrad, setCaffeInput[iIdx]);
+        setGradKernel[iIdx] = setCaffeInput[iIdx].transpose * vecGrad;
         if (!setGradKernel[iIdx].verify) return false;
+        vecGrad = conv::CaffeTransform(vecGrad * vecTpKernel, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate, true);
         if (++iLayerBatchSizeIdx == setCaffeInput.length) {
             Update();
             iLayerBatchSizeIdx = 0;
         }
-        if (this->dLearnRate) vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecNesterovKernel);
-        else vecGrad = conv::GradLossToConvCaffeInput(vecGrad, vecKernel);
-        vecGrad = conv::CaffeTransform(vecGrad, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate, true);
         return vecGrad.verify;
     }
 
     bool Deduce(neunet_vect &vecInput) {
-        vecInput = conv::Conv(conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate), vecKernel);
+        vecInput = conv::CaffeTransform(vecInput, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate) *  vecKernel;
         return vecInput.verify;
     }
 
@@ -241,8 +245,11 @@ matrix_declare struct LayerConv : Layer {
         if (this->dLearnRate) {
             vecKernel        -= advKernel.momentum(vecGrad, this->dLearnRate);
             vecNesterovKernel = advKernel.weight(vecKernel);
+            vecTpKernel       = vecNesterovKernel.transpose;
+        } else {
+            vecKernel  -= adaKernel.delta(vecGrad);
+            vecTpKernel = vecKernel.transpose;
         }
-        else vecKernel -= adaKernel.delta(vecGrad);
     }
 
     virtual void Reset(bool bFull = true) {

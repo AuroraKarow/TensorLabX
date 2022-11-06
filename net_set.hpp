@@ -162,17 +162,20 @@ public:
     }
 
     arg sigma() const {
-        arg ans = *ptr;
-        for (auto temp = ++begin(); temp != end(); ++temp) ans += (*temp);
+        arg ans {};
+        if (len) ans = *ptr;
+        else return ans;
+        for (auto i = 1ull; i < len; ++i) ans += (*(ptr + i));
         return ans;
     }
     arg sigma(uint64_t fst_rng, uint64_t snd_rng) const { return sub_set(fst_rng, snd_rng).sigma(); }
     arg sigma(const net_set<uint64_t> &idx_set) const { return sub_set(idx_set).sigma(); }
 
     arg pi() const {
-        
-        arg ans = *ptr;
-        for (auto temp = ++begin(); temp != end(); ++temp) ans *= (*temp);
+        arg ans {};
+        if (len) ans = *ptr;
+        else return ans;
+        for (auto i = 1ull; i < len; ++i) ans *= (*(ptr + i));
         return ans;
     }
     arg pi(uint64_t fst_rng, uint64_t snd_rng) const { return sub_set(fst_rng, snd_rng).pi(); }

@@ -45,7 +45,7 @@ public:
         if (proc_cnt != batch_size) ctrl_main.thread_sleep();
     }
 
-    void main_thread_exception() { ctrl_batch.thread_wake_all(); }
+    void main_thread_err() { ctrl_batch.thread_wake_all(); }
 
 private:
     std::atomic_uint64_t proc_cnt  = 0,
@@ -91,7 +91,7 @@ public:
         return elem_ls.erase(0);
     }
 
-    void except_abort() {
+    void err_abort() {
         exc_sgn = true;
         td_cond.notify_all();
     }

@@ -59,7 +59,7 @@ LAYER_END
 // deduce
 #define NEUNET_STAT_DED     0x0001
 #define NEUNET_STAT_END     0x0002
-#define NEUNET_STAT_EXC     0x0003
+#define NEUNET_STAT_ERR     0x0003
 
 // layer verification
 

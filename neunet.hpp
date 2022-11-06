@@ -48,7 +48,7 @@ struct NeunetCore {
         setOrgn(iTrainBatchSize),
         setLbl(iTrainBatchSize),
         pool(iTrainBatchSize > iDeduceBatchSize ? iTrainBatchSize + 1 : iDeduceBatchSize + 1),
-        iNetStatCode(iTrainBatchSize && iDeduceBatchSize && dTrainAcc > 0 && dTrainAcc < 1 ? NEUNET_STAT_TRN : NEUNET_STAT_EXC)  { asyConcurr.batch_size = pool.size() - 1; }
+        iNetStatCode(iTrainBatchSize && iDeduceBatchSize && dTrainAcc > 0 && dTrainAcc < 1 ? NEUNET_STAT_TRN : NEUNET_STAT_ERR)  { asyConcurr.batch_size = pool.size() - 1; }
 };
 
 // build-in function
@@ -116,10 +116,10 @@ template<typename LayerType, typename ... Args,  typename neunet_layer_type_v> b
 
 // initialization of neural network running
 bool RunInit(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduceDataCnt, uint64_t iInputLnCnt, uint64_t iInputColCnt, uint64_t iChannCnt) {
-    if (netCore.iNetStatCode == NEUNET_STAT_EXC) return false;
+    if (netCore.iNetStatCode == NEUNET_STAT_ERR) return false;
     // data initialize
     if (iTrainDataCnt % netCore.iTrainBatchSize || iDeduceDataCnt % netCore.iDeduceBatchSize) {
-        netCore.iNetStatCode = NEUNET_STAT_EXC;
+        netCore.iNetStatCode = NEUNET_STAT_ERR;
         return false;
     }
     netCore.setTrainDataIdx.init(iTrainDataCnt);
@@ -140,7 +140,7 @@ bool RunInit(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduceDataCn
 
 // forward propagation
 bool ForwProp(NeunetCore &netCore, uint64_t iIdx) {
-    if (netCore.iNetStatCode == NEUNET_STAT_EXC) return false;
+    if (netCore.iNetStatCode == NEUNET_STAT_ERR) return false;
     for (auto i = 0ull; i < netCore.seqLayer.length; ++i) {
         auto bFPFlag = true;
         switch (netCore.seqLayer[i]->iLayerType) {
@@ -161,7 +161,7 @@ bool ForwProp(NeunetCore &netCore, uint64_t iIdx) {
 
 // backward propagation
 bool BackProp(NeunetCore &netCore, uint64_t iIdx) {
-    if (netCore.iNetStatCode == NEUNET_STAT_EXC) return false;
+    if (netCore.iNetStatCode == NEUNET_STAT_ERR) return false;
     if (netCore.iNetStatCode == NEUNET_STAT_END) return true;
     for (auto i = netCore.seqLayer.length; i; --i) {
         auto bBPFlag = true;
@@ -183,7 +183,7 @@ bool BackProp(NeunetCore &netCore, uint64_t iIdx) {
 
 // deduce
 bool Deduce(NeunetCore &netCore, uint64_t iIdx) {
-    if (netCore.iNetStatCode == NEUNET_STAT_EXC) return false;
+    if (netCore.iNetStatCode == NEUNET_STAT_ERR) return false;
     for (auto i = 0ull; i < netCore.seqLayer.length; ++i) {
         auto bDdFlag = true;
         switch (netCore.seqLayer[i]->iLayerType) {
@@ -205,32 +205,32 @@ bool Deduce(NeunetCore &netCore, uint64_t iIdx) {
 // network running
 
 // exception abortion
-bool ExceptionAbortion(NeunetCore &netCore) {
-    if (netCore.iNetStatCode != NEUNET_STAT_EXC) return false;
-    netCore.asyConcurr.main_thread_exception();
-    netCore.queDeduceAcc.except_abort();
-    netCore.queDeduceRc.except_abort();
-    netCore.queTrainAcc.except_abort();
-    netCore.queTrainRc.except_abort();
+bool ErrAbort(NeunetCore &netCore) {
+    if (netCore.iNetStatCode != NEUNET_STAT_ERR) return false;
+    netCore.asyConcurr.main_thread_err();
+    netCore.queDeduceAcc.err_abort();
+    netCore.queDeduceRc.err_abort();
+    netCore.queTrainAcc.err_abort();
+    netCore.queTrainRc.err_abort();
     return true;
 }
 
 // train & deduce process thread
 void TrainDeduceThread(NeunetCore &netCore, const net_set<vect> &setTrainData, const net_set<uint64_t> &setTrainLbl, const net_set<vect> &setDeduceData, const net_set<uint64_t> &setDeduceLbl, uint64_t iLblTypeCnt) { for (auto i = 0ull; i < netCore.asyConcurr.batch_size; ++i) netCore.pool.add_task([&netCore, &setTrainData, &setTrainLbl, &setDeduceData, &setDeduceLbl, iLblTypeCnt, i]{ while (true) {
     netCore.asyConcurr.batch_thread_attach();
-    if (netCore.iNetStatCode == NEUNET_STAT_END || netCore.iNetStatCode == NEUNET_STAT_EXC) break;
+    if (netCore.iNetStatCode == NEUNET_STAT_END || netCore.iNetStatCode == NEUNET_STAT_ERR) break;
     // train
     if (netCore.iNetStatCode == NEUNET_STAT_TRN && i < netCore.iTrainBatchSize) {
         netCore.setInput[i] = setTrainData[netCore.setTrainDataIdx[i + netCore.iTrainDataIdx]];
         netCore.setLbl[i]   = setTrainLbl[netCore.setTrainDataIdx[i + netCore.iTrainDataIdx]];
         netCore.setOrgn[i]  = lbl_orgn(netCore.setLbl[i], iLblTypeCnt);
-        if (!(ForwProp(netCore, i) && BackProp(netCore, i))) netCore.iNetStatCode = NEUNET_STAT_EXC;
+        if (!(ForwProp(netCore, i) && BackProp(netCore, i))) netCore.iNetStatCode = NEUNET_STAT_ERR;
     }
     // deduce
     if (netCore.iNetStatCode == NEUNET_STAT_DED && i < netCore.iDeduceBatchSize) {
         netCore.setInput[i] = setDeduceData[i + netCore.iDeduceDataIdx];
         netCore.setLbl[i]   = setDeduceLbl[i + netCore.iDeduceDataIdx];
-        if (!Deduce(netCore, i)) netCore.iNetStatCode = NEUNET_STAT_EXC;
+        if (!Deduce(netCore, i)) netCore.iNetStatCode = NEUNET_STAT_ERR;
     }
     netCore.asyConcurr.batch_thread_detach();
 } }); netCore.pool.add_task([&netCore](uint64_t iTrainDataCnt, uint64_t iDeduceDataCnt){ while (true) {
@@ -242,23 +242,23 @@ void TrainDeduceThread(NeunetCore &netCore, const net_set<vect> &setTrainData, c
     netCore.setLbl.init(netCore.iTrainBatchSize, false);
     while (netCore.iTrainDataIdx != iTrainDataCnt) {
         netCore.asyConcurr.main_thread_deploy_batch_thread();
-        if (ExceptionAbortion(netCore)) break;
+        if (ErrAbort(netCore)) break;
         netCore.queTrainAcc.en_queue((uint64_t)netCore.iAccCnt);
         netCore.queTrainRc.en_queue((uint64_t)netCore.iRcCnt);
         netCore.iAccCnt = 0;
         netCore.iRcCnt  = 0;
         netCore.iTrainDataIdx += netCore.iTrainBatchSize;
     }
-    if (netCore.iNetStatCode == NEUNET_STAT_EXC) break;
+    if (netCore.iNetStatCode == NEUNET_STAT_ERR) break;
     // deduce
     netCore.iNetStatCode   = NEUNET_STAT_DED;
     netCore.iDeduceDataIdx = 0;
     while (netCore.iDeduceDataIdx != iDeduceDataCnt) {
         netCore.asyConcurr.main_thread_deploy_batch_thread();
-        if (ExceptionAbortion(netCore)) break;
+        if (ErrAbort(netCore)) break;
         netCore.iDeduceDataIdx += netCore.iDeduceBatchSize;
     }
-    if (netCore.iNetStatCode == NEUNET_STAT_EXC) break;
+    if (netCore.iNetStatCode == NEUNET_STAT_ERR) break;
     netCore.queDeduceAcc.en_queue((uint64_t)netCore.iAccCnt);
     netCore.queDeduceRc.en_queue((uint64_t)netCore.iRcCnt);
     netCore.iAccCnt = 0;
@@ -278,7 +278,7 @@ void DataShowThread(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduc
         // train
         for (auto i = 0ull; i < iTrainBatchCnt; ++i) {
             auto iTrnBgTP = NEUNET_CHRONO_TIME_POINT;
-            if (netCore.iNetStatCode == NEUNET_STAT_EXC) return;
+            if (netCore.iNetStatCode == NEUNET_STAT_ERR) return;
             dAcc = (1.l * netCore.queTrainAcc.de_queue()) / netCore.iTrainBatchSize;
             dRc = (1.l * netCore.queTrainRc.de_queue()) / netCore.iTrainBatchSize;
             auto iTrnEdTP = NEUNET_CHRONO_TIME_POINT;
