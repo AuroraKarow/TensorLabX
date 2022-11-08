@@ -34,8 +34,7 @@ callback_matrix matrix_ptr init(uint64_t elem_cnt) {
         auto ans = new matrix_elem_t[elem_cnt];
         std::fill_n(ans, elem_cnt, 0);
         return ans;
-    }
-    else return nullptr;
+    } else return nullptr;
 }
 callback_matrix_n auto init(std::initializer_list<std::initializer_list<matrix_elem_t>> src, uint64_t &ln_cnt, uint64_t &col_cnt) {
     ln_cnt   = src.size(),
@@ -197,13 +196,18 @@ callback_matrix matrix_ptr add(const matrix_ptr fst, const matrix_ptr snd, uint6
 
 /* ans_ln_cnt  = fst_ln_cnt
  * ans_col_cnt = snd_col_cnt
+ * array packing
  */
 callback_matrix matrix_ptr mult(const matrix_ptr fst, uint64_t fst_ln_cnt, uint64_t fst_col_cnt, const matrix_ptr snd, uint64_t snd_col_cnt) {
     if (fst && snd && fst_ln_cnt && fst_col_cnt && snd_col_cnt) {
         auto ans = init<matrix_elem_t>(fst_ln_cnt * snd_col_cnt);
-        for (auto i = 0ull; i < fst_ln_cnt; ++i) for (auto j = 0ull; j < fst_col_cnt; ++j) {
+        #if OMP_MATRIX_MODE
+        // openmp on/off
+        #pragma omp parallel for schedule(dynamic)
+        #endif
+        for (auto i = 0ll; i < fst_ln_cnt; ++i) for (auto j = 0ll; j < fst_col_cnt; ++j) {
             auto coe = *(fst + elem_pos(i, j, fst_col_cnt));
-            for (auto k = 0ull; k < snd_col_cnt; ++k) *(ans + elem_pos(i, k, snd_col_cnt)) += coe * (*(snd + elem_pos(j, k, snd_col_cnt)));
+            for (auto k = 0ll; k < snd_col_cnt; ++k) *(ans + elem_pos(i, k, snd_col_cnt)) += coe * (*(snd + elem_pos(j, k, snd_col_cnt)));
         }
         return ans;
     }
@@ -273,8 +277,7 @@ callback_matrix matrix_ptr broadcast_add(const matrix_ptr val, uint64_t elem_cnt
                      minuend    = para;
                 if (para_fst) std::swap(subtrahend, minuend);
                 *(ans + i) = subtrahend - minuend;
-            }
-            else *(ans + i) = *(val + i) + para;
+            } else *(ans + i) = *(val + i) + para;
     }
     return ans;
 }
@@ -323,19 +326,16 @@ callback_matrix uint64_t rank(const matrix_ptr src, uint64_t ln_cnt, uint64_t co
                         if (j != i) ans = ln_col_swap(ans, ln_cnt, col_cnt, i, j);
                         ++ rank_val;
                         elim_flag = false;
-                    }
-                    else for(auto k = i; k < col_cnt; ++k) *(ans + elem_pos(j, k, col_cnt)) -= *(ans + elem_pos(i, k, col_cnt)) * elim_val;
+                    } else for(auto k = i; k < col_cnt; ++k) *(ans + elem_pos(j, k, col_cnt)) -= *(ans + elem_pos(i, k, col_cnt)) * elim_val;
                 }
             }
         }
         recycle(ans);
         return rank_val;
-    }
-    else return NAN;
+    } else return NAN;
 }
 
-callback_matrix matrix_elem_t det(const matrix_ptr src, uint64_t dim_cnt)
-{
+callback_matrix matrix_elem_t det(const matrix_ptr src, uint64_t dim_cnt) {
     if(src && dim_cnt) {
         if (dim_cnt == 1) return *src;
         auto ac = init<matrix_elem_t>((dim_cnt - 1) * (dim_cnt - 1));
@@ -352,8 +352,7 @@ callback_matrix matrix_elem_t det(const matrix_ptr src, uint64_t dim_cnt)
         }
         recycle(ac);
         return sum;
-    }
-    else return NAN;
+    } else return NAN;
 }
 
 // ans_dim_cnt = dim_cnt - 1

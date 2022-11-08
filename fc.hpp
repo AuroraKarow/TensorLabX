@@ -4,14 +4,15 @@ callback_matrix neunet_vect InitWeight(uint64_t iInputLnCnt, uint64_t iOutputLnC
 
 callback_matrix neunet_vect Output(const neunet_vect &vecInput, const neunet_vect &vecWeight) { return vecWeight * vecInput; }
 
-callback_matrix neunet_vect GradLossToInput(const neunet_vect &vecGradLossToOutput, const neunet_vect &vecWeight) { return vecWeight.transpose * vecGradLossToOutput; }
+callback_matrix neunet_vect GradLossToInput(const neunet_vect &vecGradLossToOutput, const neunet_vect &vecWeightTranspose) { return vecWeightTranspose * vecGradLossToOutput; }
 
-/* @brief Get gradient from loss to weight vector
+/** [FCN BP gradient]
+ * @brief Get gradient from loss to weight vector
  * @param vecGradLossToOutput Gradient from loss to FC output vector.
- * @param vecInput FC input vector
+ * @param vecInputTranspose   Transposition of FC input vector
  * @warning Call this function at last.
  */
-callback_matrix neunet_vect GradLossToWeight(const neunet_vect &vecGradLossToOutput, const neunet_vect &vecInput) { return vecGradLossToOutput * vecInput.transpose; }
+callback_matrix neunet_vect GradLossToWeight(const neunet_vect &vecGradLossToOutput, const neunet_vect &vecInputTranspose) { return vecGradLossToOutput * vecInputTranspose; }
 
 FC_END
 
@@ -143,20 +144,21 @@ matrix_declare struct LayerFC : Layer {
     LayerFC(const LayerFC &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerFC(LayerFC &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t iBatchSize) {
+    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t iTrainBatchSize, uint64_t iTrainBatchCnt) {
         vecWeight = fc::InitWeight(iCurrInputLnCnt, iOutputLnCnt, dFstRng, dSndRng, iAcc);
         if (this->dLearnRate) {
             vecNesterovWeight = advWeight.weight(vecWeight);
             vecTpWeight       = vecNesterovWeight.transpose;
-        }
-        else vecTpWeight = vecWeight.transpose;
-        setInput.init(iBatchSize, false);
-        setGradWeight.init(iBatchSize, false);
-        iCurrInputLnCnt = iOutputLnCnt;
+        } else vecTpWeight = vecWeight.transpose;
+        setInput.init(iTrainBatchSize, false);
+        setGradWeight.init(iTrainBatchSize, false);
+        iCurrInputLnCnt      = iOutputLnCnt;
+        this->iTrainBatchCnt = iTrainBatchCnt;
     }
 
-    bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
+    bool ForwProp(neunet_vect &vecInput, uint64_t iIdx, uint64_t iEpoch, uint64_t iTrainBatchIdx) {
         if (iIdx >= setInput.length) return false;
+        if (iTrainBatchIdx != this->iTrainBatchIdx && iEpoch != iEpochCnt) asyTrainCtrl.thread_sleep();
         setInput[iIdx] = std::move(vecInput);
         if (this->dLearnRate) vecInput = vecNesterovWeight * setInput[iIdx];
         else vecInput = vecWeight * setInput[iIdx];
@@ -175,7 +177,8 @@ matrix_declare struct LayerFC : Layer {
         return vecGrad.verify;
     }
 
-    bool Deduce(neunet_vect &vecInput) const {
+    bool Deduce(neunet_vect &vecInput, uint64_t iEpoch) {
+        if (iEpoch != iEpochCnt) asyDeduceCtrl.thread_sleep();
         vecInput = vecWeight * vecInput;
         return vecInput.verify;
     }
@@ -187,9 +190,14 @@ matrix_declare struct LayerFC : Layer {
             vecNesterovWeight = advWeight.weight(vecWeight);
             vecTpWeight       = vecNesterovWeight.transpose;
         } else {
-            vecWeight  -= adaWeight.delta(vecGrad);
+            vecWeight -= adaWeight.delta(vecGrad);
             vecTpWeight = vecWeight.transpose;
-        } 
+        }
+        if (++iTrainBatchIdx == iTrainBatchCnt) {
+            ++iEpochCnt;
+            iTrainBatchIdx = 0;
+            asyDeduceCtrl.thread_wake_all();
+        } else asyTrainCtrl.thread_wake_all();
     }
 
     virtual void Reset(bool bFull = true) {

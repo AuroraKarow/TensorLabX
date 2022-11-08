@@ -169,11 +169,15 @@ public:
     neunet_vect delta(const neunet_vect &curr_grad) {
         if (!exp_grad.verify) exp_grad = neunet_vect(curr_grad.line_count, curr_grad.column_count);
         if (!exp_delta.verify) exp_delta = neunet_vect(curr_grad.line_count, curr_grad.column_count);
-             exp_grad      = rho * exp_grad + (1 - rho) * curr_grad.elem_wise_opt(2, MATRIX_ELEM_POW);
-        auto rms_exp_delta = divisor_dominate(exp_delta, epsilon).elem_wise_opt(0.5, MATRIX_ELEM_POW),
-             rms_exp_grad  = divisor_dominate(exp_grad, epsilon).elem_wise_opt(0.5, MATRIX_ELEM_POW),
-             curr_delta    = rms_exp_delta.elem_wise_opt(rms_exp_grad, MATRIX_ELEM_DIV).elem_wise_opt(curr_grad, MATRIX_ELEM_MULT);
-             exp_delta     = rho * exp_delta + (1 - rho) * curr_delta.elem_wise_opt(2, MATRIX_ELEM_POW);
+        auto curr_grad_pow = curr_grad;
+        for (auto i = 0ull; i < curr_grad.element_count; ++i) curr_grad_pow.index(i) *= curr_grad.index(i);
+             exp_grad       = rho * exp_grad + (1 - rho) * curr_grad_pow;
+        auto rms_exp_delta  = divisor_dominate(exp_delta, epsilon).elem_wise_opt(0.5, MATRIX_ELEM_POW),
+             rms_exp_grad   = divisor_dominate(exp_grad, epsilon).elem_wise_opt(0.5, MATRIX_ELEM_POW),
+             curr_delta     = rms_exp_delta.elem_wise_opt(rms_exp_grad, MATRIX_ELEM_DIV).elem_wise_opt(curr_grad, MATRIX_ELEM_MULT);
+        auto curr_delta_pow = curr_delta;
+        for (auto i = 0ull; i < curr_delta.element_count; ++i) curr_delta_pow.index(i) *= curr_delta.index(i);
+        exp_delta = rho * exp_delta + (1 - rho) * curr_delta_pow;
         return curr_delta;
     }
 
@@ -199,7 +203,7 @@ public:
         value_copy(src);
         return *this;
     }
-    ada_delta &operator=(ada_delta &&src) {
+    ada_delta &operator=(ada_delta &&src) noexcept {
         value_move(std::move(src));
         return *this;
     }
@@ -250,7 +254,7 @@ private: neunet_vect velocity;
 public: 
     long double rho = 0.9;
 
-    ada_nesterov &operator=(ada_nesterov &&src) {
+    ada_nesterov &operator=(ada_nesterov &&src) noexcept {
         value_move(std::move(src));
         return *this;
     }
@@ -292,11 +296,20 @@ struct Layer {
 
     // asynchronous
 
-    std::atomic_uint64_t iLayerBatchSizeIdx = 0;
+    std::atomic_uint64_t iLayerBatchSizeIdx = 0,
+                         iEpochCnt          = 0,
+                         iTrainBatchCnt     = 0,
+                         iTrainBatchIdx     = 0;
+
+    async::async_controller asyTrainCtrl,
+                            asyDeduceCtrl;
 
     virtual void ValueAssign(const Layer &lyrSrc) {
         dLearnRate         = lyrSrc.dLearnRate;
+        iEpochCnt          = (uint64_t)lyrSrc.iEpochCnt;
         iLayerBatchSizeIdx = (uint64_t)lyrSrc.iLayerBatchSizeIdx;
+        iTrainBatchCnt     = (uint64_t)lyrSrc.iTrainBatchCnt;
+        iTrainBatchIdx     = (uint64_t)lyrSrc.iTrainBatchIdx;
     }
 
     virtual void ValueCopy(const Layer &lyrSrc) { ValueAssign(lyrSrc); }
@@ -314,7 +327,12 @@ struct Layer {
     Layer(Layer &&lyrSrc) :
         iLayerType(lyrSrc.iLayerType) { ValueMove(std::move(lyrSrc)); }
 
-    virtual void Reset(bool bFull = true) { dLearnRate = 0; }
+    virtual void Reset(bool bFull = true) {
+        dLearnRate         = 0;
+        iTrainBatchCnt     = 0;
+        iTrainBatchIdx     = 0;
+        iLayerBatchSizeIdx = 0;
+    }
 
     virtual ~Layer() { Reset(false); }
 
@@ -352,7 +370,7 @@ matrix_declare struct LayerAct : Layer {
     LayerAct(const LayerAct &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerAct(LayerAct &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t iBatchSize) { setInput.init(iBatchSize); }
+    void RunInit(uint64_t iTrainBatchSize) { setInput.init(iTrainBatchSize); }
 
     bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
         if (iIdx >= setInput.length) return false;

@@ -20,43 +20,6 @@ private:
     std::condition_variable cond;
 };
 
-struct async_concurrent final {
-public:
-    async_concurrent(uint64_t batch_size = NEUNET_ASYNC_CORE) :
-        batch_size(batch_size) {}
-
-    void batch_thread_attach() {
-        if ((++ready_cnt) == batch_size) ctrl_main.thread_wake_one();
-        if (ready_cnt) ctrl_batch.thread_sleep();
-    }
-
-    void batch_thread_detach(std::function<void()> concurr_opt = []{ return; }) {
-        if ((++proc_cnt) == batch_size) {
-            concurr_opt();
-            ctrl_main.thread_wake_one();
-        }
-    }
-
-    void main_thread_deploy_batch_thread() {
-        if (ready_cnt != batch_size) ctrl_main.thread_sleep();
-        proc_cnt  = 0;
-        ready_cnt = 0;
-        ctrl_batch.thread_wake_all();
-        if (proc_cnt != batch_size) ctrl_main.thread_sleep();
-    }
-
-    void main_thread_err() { ctrl_batch.thread_wake_all(); }
-
-private:
-    std::atomic_uint64_t proc_cnt  = 0,
-                         ready_cnt = 0;
-
-    async_controller ctrl_batch,
-                     ctrl_main;
-
-public: uint64_t batch_size = 0;
-};
-
 // Multi-thread safe queue
 template<typename arg> class net_queue final {
 public:
@@ -91,7 +54,7 @@ public:
         return elem_ls.erase(0);
     }
 
-    void err_abort() {
+    void except_abort() {
         exc_sgn = true;
         td_cond.notify_all();
     }

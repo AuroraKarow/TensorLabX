@@ -9,6 +9,11 @@
 #include "neunet"
 #include "dataset"
 
+#define OMP_MATRIX_ON   1
+#define OMP_MATRIX_OFF  0
+
+#define OMP_MATRIX_MODE OMP_OFF
+
 using namespace neunet::layer;
 
 using std::cout;
@@ -41,16 +46,16 @@ int main(int argc, char *argv[], char *envp[]) {
     // layers adding
     
     AddLayer<NetLayerConv>(net_core, 20, 5, 5, 1, 1, 0, 0, dLearnRate);
-    AddLayer<NetLayerBN>(net_core); // 0, 1, 1e-5l
+    AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l); // 0, 1, 1e-5l
     AddLayer<NetLayerAct>(net_core, NEUNET_RELU);
     AddLayer<NetLayerPool>(net_core, NEUNET_POOL_AVG, 2, 2, 2, 2);
     AddLayer<NetLayerConv>(net_core, 50, 5, 5, 1, 1, 0, 0, dLearnRate);
-    AddLayer<NetLayerBN>(net_core);
+    AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
     AddLayer<NetLayerAct>(net_core, NEUNET_RELU);
     AddLayer<NetLayerPool>(net_core, NEUNET_POOL_AVG, 2, 2, 2, 2);
     AddLayer<NetLayerTrans>(net_core);
     AddLayer<NetLayerFC>(net_core, 500, dLearnRate);
-    AddLayer<NetLayerBN>(net_core);
+    AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
     AddLayer<NetLayerAct>(net_core, NEUNET_SIGMOID);
     AddLayer<NetLayerFC>(net_core, 10, dLearnRate);
     AddLayer<NetLayerAct>(net_core, NEUNET_SOFTMAX);

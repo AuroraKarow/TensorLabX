@@ -6,6 +6,7 @@
             "label": "shell: cl.exe build active file",
             "command": "cl.exe",
             "args": [
+                "/openmp",
                 "/O2",
                 "/std:c++20",
                 "/Zi",

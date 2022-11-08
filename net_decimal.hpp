@@ -44,7 +44,7 @@ net_set<uint64_t> dec_polynomial_mult(const net_set<uint8_t> &coe_a, const net_s
     {
         auto curr_a = coe_a[i],
              curr_b = coe_b[j];
-        ans[i + j] += curr_a * curr_b;
+        ans[i + j] += (uint64_t)curr_a * curr_b;
     }
     return ans;
 }

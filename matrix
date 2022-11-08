@@ -28,6 +28,7 @@
 
 #define callback_matrices   template<typename ... args>
 
+#include "omp.h"
 #include "matrix_base.hpp"
 
 #define matrix_elem_para    i_arg
