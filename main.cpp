@@ -4,15 +4,15 @@
 
 #pragma once
 
+#define OMP_MATRIX_ON   1
+#define OMP_MATRIX_OFF  0
+
+#define OMP_MATRIX_MODE OMP_MATRIX_ON
+
 #include <iostream>
 #include "net_chrono"
 #include "neunet"
 #include "dataset"
-
-#define OMP_MATRIX_ON   1
-#define OMP_MATRIX_OFF  0
-
-#define OMP_MATRIX_MODE OMP_OFF
 
 using namespace neunet::layer;
 
