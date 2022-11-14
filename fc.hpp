@@ -145,7 +145,7 @@ matrix_declare struct LayerFC : Layer {
     LayerFC(LayerFC &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
     void RunInit(uint64_t &iCurrInputLnCnt, uint64_t iTrainBatchSize, uint64_t iTrainBatchCnt) {
-        vecWeight = fc::InitWeight(iCurrInputLnCnt, iOutputLnCnt, dFstRng, dSndRng, iAcc);
+        if (!vecWeight.verify) vecWeight = fc::InitWeight(iCurrInputLnCnt, iOutputLnCnt, dFstRng, dSndRng, iAcc);
         if (this->dLearnRate) {
             vecNesterovWeight = advWeight.weight(vecWeight);
             vecTpWeight       = vecNesterovWeight.transpose;

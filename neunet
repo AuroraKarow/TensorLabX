@@ -9,10 +9,11 @@
 
 #define NEUNET_SIGMOID      0x0001
 #define NEUNET_RELU         0x0002
-#define NEUNET_SOFTMAX      0x0003
+#define NEUNET_ARELU        0x0003
+#define NEUNET_ARELU_LOSS   0x0004
+#define NEUNET_SOFTMAX      0x0005
 
 // Activation function
-
 #define NEUNET_LAYER_ACT    0x0000
 // Padding & cropping
 #define NEUNET_LAYER_PC     0x0001
@@ -26,6 +27,8 @@
 #define NEUNET_LAYER_POOL   0x0005
 // BN
 #define NEUNET_LAYER_BN     0x0006
+// Bias
+#define NEUNET_LAYER_BIAS   0x0007
 
 #include "conv"
 #include "bn"
@@ -35,21 +38,23 @@
 LAYER_BEGIN
 
 // polymorphic pointer
-typedef std::shared_ptr<layer::Layer>   NetLayerPtr;
+typedef std::shared_ptr<Layer>  NetLayerPtr;
 // activation function
-typedef layer::LayerAct<long double>    NetLayerAct;
+typedef LayerAct<long double>   NetLayerAct;
 // BN
-typedef layer::LayerBN<long double>     NetLayerBN;
+typedef LayerBN<long double>    NetLayerBN;
 // convolution
-typedef layer::LayerConv<long double>   NetLayerConv;
+typedef LayerConv<long double>  NetLayerConv;
 // fully connection
-typedef layer::LayerFC<long double>     NetLayerFC;
+typedef LayerFC<long double>    NetLayerFC;
+// bias
+typedef LayerBias<long double>  NetLayerBias;
 // padding & cropping
-typedef layer::LayerPC                  NetLayerPC;
+typedef LayerPC                 NetLayerPC;
 // pooling
-typedef layer::LayerPool                NetLayerPool;
+typedef LayerPool               NetLayerPool;
 // transform
-typedef layer::LayerTrans               NetLayerTrans;
+typedef LayerTrans              NetLayerTrans;
 
 LAYER_END
 
@@ -67,7 +72,8 @@ LAYER_END
                             std::is_same_v<LayerType, neunet::layer::NetLayerFC> || \
                             std::is_same_v<LayerType, neunet::layer::NetLayerPC> || \
                             std::is_same_v<LayerType, neunet::layer::NetLayerPool> || \
-                            std::is_same_v<LayerType, neunet::layer::NetLayerTrans>>
+                            std::is_same_v<LayerType, neunet::layer::NetLayerTrans> || \
+                            std::is_same_v<LayerType, neunet::layer::NetLayerBias>>
 #define neunet_layer_cast   std::dynamic_pointer_cast
 
 #include "neunet.hpp"

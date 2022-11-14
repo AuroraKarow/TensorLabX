@@ -196,11 +196,71 @@ callback_matrix matrix_ptr add(const matrix_ptr fst, const matrix_ptr snd, uint6
 
 /* ans_ln_cnt  = fst_ln_cnt
  * ans_col_cnt = snd_col_cnt
+ * cache blocking
+ */
+void mult_block_reg(double *&ans, const double *fst, uint64_t fst_ln_cnt, uint64_t fst_col_cnt, const double *snd, uint64_t snd_col_cnt, uint64_t fst_ln, uint64_t snd_col, uint64_t fst_col) {
+    auto fst_ln_blk  = fst_ln + MATRIX_BLOCKSIZE,
+         fst_col_blk = fst_col + MATRIX_BLOCKSIZE,
+         snd_col_blk = snd_col + MATRIX_BLOCKSIZE;
+    auto blk_flag = true;
+    if (fst_ln_blk > fst_ln_cnt) {
+        fst_ln_blk = fst_ln_cnt;
+        blk_flag   = false;
+    }
+    if (fst_col_blk > fst_col_cnt) {
+        fst_col_blk = fst_col_cnt;
+        blk_flag    = false;
+    }
+    if (snd_col_blk > snd_col_cnt) {
+        snd_col_blk = snd_col_cnt;
+        blk_flag    = false;
+    }
+	if (blk_flag) for (auto i = fst_ln; i < fst_ln_blk; ++i) for (auto j = snd_col; j < snd_col_blk; j += MATRIX_UNROLL * MATRIX_REGSIZE) {
+		__m256d ans_reg[MATRIX_UNROLL];
+		for (auto x = 0; x < MATRIX_UNROLL; ++x) ans_reg[x] = _mm256_load_pd(ans + i * snd_col_cnt + j + x * MATRIX_REGSIZE);
+
+		for (auto k = fst_col; k < fst_col_blk; ++k) {
+			__m256d fst_reg = _mm256_broadcast_sd(fst + i * fst_col_cnt + k);
+			for (auto x = 0; x < MATRIX_UNROLL; ++x) ans_reg[x] = _mm256_add_pd(ans_reg[x], _mm256_mul_pd( fst_reg, _mm256_load_pd(snd + k * snd_col_cnt + j + x * MATRIX_REGSIZE)));
+		}
+
+		for (auto x = 0; x < MATRIX_UNROLL; ++x) _mm256_store_pd(ans + i * snd_col_cnt + j + x * MATRIX_REGSIZE, ans_reg[x]);
+	} else for (auto i = fst_ln; i < fst_ln_blk; ++i) for (auto j = fst_col; j < fst_col_blk; ++j) {
+        auto coe = *(fst + i * fst_col_cnt + j);
+        for (auto k = snd_col; k < snd_col_blk; ++k) {
+            *(ans + i * snd_col_cnt + k) += coe * (*(snd + j * snd_col_cnt + k));
+        }
+    }
+}
+double *mult_reg(const double *fst, uint64_t fst_ln_cnt, uint64_t fst_col_cnt, const double *snd, uint64_t snd_col_cnt) {
+    if (fst && snd && fst_ln_cnt && fst_col_cnt && snd_col_cnt) {
+        auto ans = init<double>(fst_ln_cnt * snd_col_cnt);
+        for (auto i = 0ull; i < fst_ln_cnt; i += MATRIX_BLOCKSIZE) for (auto j = 0ull; j < snd_col_cnt; j += MATRIX_BLOCKSIZE) for (auto k = 0ull; k < fst_col_cnt; k += MATRIX_BLOCKSIZE) mult_block_reg(ans, fst, fst_ln_cnt, fst_col_cnt, snd, snd_col_cnt, i, j, k);
+        return ans;
+    }
+    return nullptr;
+}
+/* ans_ln_cnt  = fst_ln_cnt
+ * ans_col_cnt = snd_col_cnt
  * array packing
  */
 callback_matrix matrix_ptr mult(const matrix_ptr fst, uint64_t fst_ln_cnt, uint64_t fst_col_cnt, const matrix_ptr snd, uint64_t snd_col_cnt) {
     if (fst && snd && fst_ln_cnt && fst_col_cnt && snd_col_cnt) {
-        auto ans = init<matrix_elem_t>(fst_ln_cnt * snd_col_cnt);
+        auto ans_elem_cnt = fst_ln_cnt * snd_col_cnt;
+        if constexpr (std::is_same_v<matrix_elem_t, double>) return mult_reg(fst, fst_ln_cnt, fst_col_cnt, snd, snd_col_cnt);
+        if constexpr (std::is_same_v<matrix_elem_t, long double>) {
+            if constexpr (sizeof(double) == sizeof(long double)) return (long double *) mult_reg((double*)fst, fst_ln_cnt, fst_col_cnt, (double*)snd, snd_col_cnt);
+            else {
+                auto fst_temp = ptr_narr_float(fst, fst_ln_cnt * fst_col_cnt),
+                     snd_temp = ptr_narr_float(snd, fst_col_cnt * snd_col_cnt),
+                     ans_temp = mult_reg(fst_temp, fst_ln_cnt, fst_col_cnt, snd_temp, snd_col_cnt);
+                auto ans = init<matrix_elem_t>(ans_elem_cnt);
+                for (auto i = 0ull; i < ans_elem_cnt; ++i) *(ans + i) = (*(ans_temp + i));
+                ptr_reset(fst_temp, snd_temp, ans_temp);
+                return ans;
+            }
+        }
+        auto ans = init<matrix_elem_t>(ans_elem_cnt);
         #if OMP_MATRIX_MODE
         // openmp on/off
         #pragma omp parallel for schedule(dynamic)

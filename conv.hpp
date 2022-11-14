@@ -1,20 +1,20 @@
 CONV_BEGIN
 
-net_set<uint64_t> CaffeTransformData(uint64_t iIm2ColLnCnt, uint64_t iIm2ColColCnt, uint64_t &iCaffeLnCnt, uint64_t &iCaffeColCnt, uint64_t iChannLnCnt, uint64_t iChannColCnt, uint64_t &iSampChannLnCnt, uint64_t &iSampChannColCnt, uint64_t iFilterLnCnt, uint64_t iFilterColCnt, uint64_t iLnStride, uint64_t iColStride, uint64_t iLnDilate, uint64_t iColDilate) {
+net_set<uint64_t> CaffeTransformData(uint64_t iChannCnt, uint64_t &iCaffeLnCnt, uint64_t &iCaffeColCnt, uint64_t iChannLnCnt, uint64_t iChannColCnt, uint64_t &iSampChannLnCnt, uint64_t &iSampChannColCnt, uint64_t iFilterLnCnt, uint64_t iFilterColCnt, uint64_t iLnStride, uint64_t iColStride, uint64_t iLnDilate, uint64_t iColDilate) {
     auto iFilterElemCnt   = iFilterLnCnt * iFilterColCnt;
          iSampChannLnCnt  = samp_output_dir_cnt(iChannLnCnt, iFilterLnCnt, iLnStride, iLnDilate);
          iSampChannColCnt = samp_output_dir_cnt(iChannColCnt, iFilterColCnt, iColStride, iColDilate);
          iCaffeLnCnt      = iSampChannLnCnt * iSampChannColCnt;
-         iCaffeColCnt     = iIm2ColColCnt * iFilterElemCnt;
+         iCaffeColCnt     = iChannCnt * iFilterElemCnt;
     net_set<uint64_t> setAns(iCaffeLnCnt * iCaffeColCnt);
-    for (auto c = 0ull; c < iIm2ColColCnt; ++c) for (auto i = 0ull; i < iSampChannLnCnt; ++i) for (auto j = 0ull; j < iSampChannColCnt; ++j) for (auto k = 0ull; k < iFilterLnCnt; ++k) for (auto l = 0ull; l < iFilterColCnt; ++l) {
+    for (auto c = 0ull; c < iChannCnt; ++c) for (auto i = 0ull; i < iSampChannLnCnt; ++i) for (auto j = 0ull; j < iSampChannColCnt; ++j) for (auto k = 0ull; k < iFilterLnCnt; ++k) for (auto l = 0ull; l < iFilterColCnt; ++l) {
         auto iMetaLn   = samp_trace_pos(i, k, iLnStride, iLnDilate),
              iMetaCol  = samp_trace_pos(j, l, iColStride, iColDilate),
              iInputLn  = matrix::elem_pos(iMetaLn, iMetaCol, iChannColCnt),
              iInputCol = c,
              iCaffeLn  = matrix::elem_pos(i, j, iSampChannColCnt),
              iCaffeCol = c * iFilterElemCnt + matrix::elem_pos(k, l, iFilterColCnt);
-        setAns[matrix::elem_pos(iCaffeLn, iCaffeCol, iCaffeColCnt)] = matrix::elem_pos(iInputLn, iInputCol, iIm2ColColCnt);
+        setAns[matrix::elem_pos(iCaffeLn, iCaffeCol, iCaffeColCnt)] = matrix::elem_pos(iInputLn, iInputCol, iChannCnt);
     }
     return setAns;
 }
@@ -124,7 +124,6 @@ matrix_declare struct LayerConv : Layer {
              iKernelLnCnt    = 0,
              iKernelColCnt   = 0,
              
-             iIm2ColLnCnt    = 0,
              iCaffeLnCnt     = 0,
              iCaffeColCnt    = 0,
 
@@ -160,7 +159,6 @@ matrix_declare struct LayerConv : Layer {
         iKernelColCnt   = lyrSrc.iKernelColCnt;
         iCaffeLnCnt     = lyrSrc.iCaffeLnCnt;
         iCaffeColCnt    = lyrSrc.iCaffeColCnt;
-        iIm2ColLnCnt    = lyrSrc.iIm2ColLnCnt;
         iAcc            = lyrSrc.iAcc;
     }
 
@@ -211,9 +209,8 @@ matrix_declare struct LayerConv : Layer {
         iInputLnCnt     = iCurrInputLnCnt;
         iInputColCnt    = iCurrInputColCnt;
         iKernelChannCnt = iCurrChannCnt;
-        iIm2ColLnCnt    = iInputLnCnt * iInputColCnt;
-        vecKernel       = conv::InitKernel(iKernelAmt, iKernelChannCnt, iKernelLnCnt, iKernelColCnt, dFstRng, dSndRng, iAcc);
-        setCaffeData    = conv::CaffeTransformData(iIm2ColLnCnt, iCurrChannCnt, iCaffeLnCnt, iCaffeColCnt, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
+        setCaffeData    = conv::CaffeTransformData(iKernelChannCnt, iCaffeLnCnt, iCaffeColCnt, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
+        if (!vecKernel.verify) vecKernel = conv::InitKernel(iKernelAmt, iKernelChannCnt, iKernelLnCnt, iKernelColCnt, dFstRng, dSndRng, iAcc);
         if (this->dLearnRate) {
             vecNesterovKernel = advKernel.weight(vecKernel);
             vecTpKernel       = vecNesterovKernel.transpose;
@@ -239,7 +236,7 @@ matrix_declare struct LayerConv : Layer {
         if (iIdx >= setCaffeInput.length) return false;
         setGradKernel[iIdx] = setCaffeInput[iIdx].transpose * vecGrad;
         if (!setGradKernel[iIdx].verify) return false;
-        vecGrad = conv::CaffeTransform(vecGrad * vecTpKernel, setCaffeData, iIm2ColLnCnt, iKernelChannCnt, true);
+        vecGrad = conv::CaffeTransform(vecGrad * vecTpKernel, setCaffeData, iInputLnCnt * iInputColCnt, iKernelChannCnt, true);
         if (++iLayerBatchSizeIdx == setCaffeInput.length) {
             Update();
             iLayerBatchSizeIdx = 0;
@@ -289,7 +286,6 @@ matrix_declare struct LayerConv : Layer {
         dSndRng         = 0;
         iCaffeLnCnt     = 0;
         iCaffeColCnt    = 0;
-        iIm2ColLnCnt    = 0;
         vecKernel.reset();
         vecTpKernel.reset();
         vecNesterovKernel.reset();
@@ -336,8 +332,8 @@ struct LayerPool : Layer {
 
              iCaffeLnCnt   = 0,
              iCaffeColCnt  = 0,
-             iIm2ColLnCnt  = 0,
-             iIm2ColColCnt = 0;
+
+             iChannCnt     = 0;
 
     net_set<net_set<net_list<matrix::pos>>> setCaffeMaxPos;
 
@@ -357,8 +353,7 @@ struct LayerPool : Layer {
         iFilterColCnt = lyrSrc.iFilterColCnt;
         iCaffeLnCnt   = lyrSrc.iCaffeLnCnt;
         iCaffeColCnt  = lyrSrc.iCaffeColCnt;
-        iIm2ColLnCnt  = lyrSrc.iIm2ColLnCnt;
-        iIm2ColColCnt = lyrSrc.iIm2ColColCnt;
+        iChannCnt     = lyrSrc.iChannCnt;
     }
 
     virtual void ValueCopy(const LayerPool &lyrSrc) {
@@ -388,13 +383,12 @@ struct LayerPool : Layer {
     void RunInit(uint64_t &iCurrInputLnCnt, uint64_t &iCurrInputColCnt, uint64_t iCurrChannCnt, uint64_t iTrainBatchSize) {
         iInputLnCnt   = iCurrInputLnCnt;
         iInputColCnt  = iCurrInputColCnt;
-        iIm2ColLnCnt  = iInputLnCnt * iInputColCnt;
-        iIm2ColColCnt = iCurrChannCnt;
+        iChannCnt     = iCurrChannCnt;
         if (iPoolType == NEUNET_POOL_GAG) {
             iOutputColCnt = 1;
             iOutputLnCnt  = 1;
         } else {
-            setCaffeData = conv::CaffeTransformData(iIm2ColLnCnt, iIm2ColColCnt, iCaffeLnCnt, iCaffeColCnt, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
+            setCaffeData = conv::CaffeTransformData(iChannCnt, iCaffeLnCnt, iCaffeColCnt, iInputLnCnt, iInputColCnt, iOutputLnCnt, iOutputColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
             setCaffeMaxPos.init(iTrainBatchSize, false);
         }
         iCurrInputLnCnt  = iOutputLnCnt;
@@ -409,7 +403,7 @@ struct LayerPool : Layer {
 
     callback_matrix bool BackProp(neunet_vect &vecGrad, uint64_t iIdx) {
         if (iPoolType == NEUNET_POOL_GAG) vecGrad = conv::GradLossToPoolGlbAvgChann(vecGrad, iInputLnCnt, iInputColCnt);
-        else vecGrad = conv::CaffeTransform(conv::GradLossToPoolMaxAvgCaffeInput(iPoolType, vecGrad, iFilterLnCnt, iFilterColCnt, setCaffeMaxPos[iIdx]), setCaffeData, iIm2ColLnCnt, iIm2ColColCnt, true);
+        else vecGrad = conv::CaffeTransform(conv::GradLossToPoolMaxAvgCaffeInput(iPoolType, vecGrad, iFilterLnCnt, iFilterColCnt, setCaffeMaxPos[iIdx]), setCaffeData, iInputLnCnt * iInputColCnt, iChannCnt, true);
         return vecGrad.verify;
     }
 
@@ -435,8 +429,7 @@ struct LayerPool : Layer {
         iFilterColCnt = 0;
         iCaffeLnCnt   = 0;
         iCaffeColCnt  = 0;
-        iIm2ColLnCnt  = 0;
-        iIm2ColColCnt = 0;
+        iChannCnt     = 0;
         setCaffeMaxPos.reset();
         setCaffeData.reset();
     }

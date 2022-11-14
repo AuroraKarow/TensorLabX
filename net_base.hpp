@@ -20,16 +20,12 @@ callback_arg arg *ptr_init(uint64_t &len, std::initializer_list<arg> init_list) 
     return ans;
 }
 
-void ptr_reset() {}
-callback_arg void ptr_reset(arg *&src) {
-    while (src) {
-        delete [] src;
-        src = nullptr;
-    }
-}
 callback_args void ptr_reset(arg *&first, args *&...others) {
-    ptr_reset(first);
-    ptr_reset(others...);
+    while (first) {
+        delete [] first;
+        first = nullptr;
+    }
+    if constexpr (sizeof...(others) > 0) ptr_reset(others...);
 }
 
 callback_arg bool ptr_elem_equal(const arg *fst_src, uint64_t fst_len, const arg *snd_src, uint64_t snd_len) {
@@ -274,6 +270,14 @@ callback_arg ul_ptr ptr_find(uint64_t &ans_len, const arg *src, uint64_t src_len
     auto sub_temp = ptr_sub(arr_len, src, src_len, idx_arr, arr_len);
     auto ans      = ptr_find(ans_len, sub_temp, arr_len, tgt);
     for(auto i = 0ull; i < ans_len; ++i) *(ans + i) = *(idx_arr + (*(ans + i)));
+    return ans;
+}
+
+double *ptr_narr_float(long double *src, uint64_t len) {
+    if (!(len && src)) return nullptr;
+    auto ans = ptr_init<double>(len);
+    if constexpr (sizeof(double) == sizeof(long double)) std::copy(src, src + len, ans);
+    else for (auto i = 0ull; i < len; ++i) *(ans + i) = (*(src + i));
     return ans;
 }
 

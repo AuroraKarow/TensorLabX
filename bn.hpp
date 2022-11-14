@@ -66,6 +66,7 @@ callback_matrix net_set<neunet_vect> BNGradLossToInput(const neunet_vect &vecMuB
     auto vecSigmaSqrDom = divisor_dominate(vecSigmaSqr, dEpsilon),
          vecSigma       = vecSigmaSqrDom.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
     auto setGradBarX    = setGradLossToOutput;
+    auto dBatchSizeRate = 2.0l / setInput.length;
     // Gradient bar x
     for (auto i = 0ull; i<setInput.length; ++i) for (auto j = 0ull; j < setBarX[i].element_count; ++j) {
         uint64_t iCurrChann = 0;
@@ -80,12 +81,12 @@ callback_matrix net_set<neunet_vect> BNGradLossToInput(const neunet_vect &vecMuB
     // Gradient expextation
     neunet_vect vecDistanceSum(vecSigma.line_count, vecSigma.column_count);
     for (auto i = 0ull; i < setInput.length; ++i) vecDistanceSum += (setInput[i] - vecMuBeta);
-    neunet_vect vecGradMuBeta = (-1) * setGradBarX.sum.elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) + ((-2.0l) / setInput.length) * vecGradSigmaSqr.elem_wise_opt(vecDistanceSum, MATRIX_ELEM_MULT);
+    neunet_vect vecGradMuBeta = (-1) * setGradBarX.sum.elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) - dBatchSizeRate * vecGradSigmaSqr.elem_wise_opt(vecDistanceSum, MATRIX_ELEM_MULT);
     // Gradient input
     net_set<neunet_vect> setGradInput(setInput.length);
     vecGradMuBeta *= ((1.0l) / setInput.length);
     for (auto i = 0ull; i < setGradInput.length; ++i) {
-        setGradInput[i] = setGradBarX[i].elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) + ((2.0l) / setInput.length) * vecGradSigmaSqr.elem_wise_opt((setInput[i] - vecMuBeta), MATRIX_ELEM_MULT) + vecGradMuBeta;
+        setGradInput[i] = setGradBarX[i].elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) + dBatchSizeRate * vecGradSigmaSqr.elem_wise_opt((setInput[i] - vecMuBeta), MATRIX_ELEM_MULT) + vecGradMuBeta;
         if (!setGradInput[i].verify) {
             setGradInput.reset();
             break;
@@ -214,8 +215,8 @@ matrix_declare struct LayerBN : Layer {
     LayerBN(LayerBN &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
     void RunInit(uint64_t iChannCnt, uint64_t iTrainBatchSize, uint64_t iTrainBatchCnt) {
-        vecBeta  = BNInitBetaGamma(iChannCnt, dBeta);
-        vecGamma = BNInitBetaGamma(iChannCnt, dGamma);
+        if (!vecBeta.verify) vecBeta  = BNInitBetaGamma(iChannCnt, dBeta);
+        if (!vecGamma.verify) vecGamma = BNInitBetaGamma(iChannCnt, dGamma);
         if (this->dLearnRate) {
             vecNesterovBeta  = advBeta.weight(vecBeta);
             vecNesterovGamma = advGamma.weight(vecGamma);

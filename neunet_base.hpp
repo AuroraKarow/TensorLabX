@@ -24,6 +24,14 @@ callback_matrix neunet_vect ReLU(const neunet_vect &src) { return vec_travel(src
 callback_matrix matrix_elem_t ReLU_dv(const matrix_elem_t &src) { return src < 0 ? 0 : 1; }
 callback_matrix neunet_vect ReLU_dv(const neunet_vect &src) { return vec_travel(src, ReLU_dv); }
 
+callback_matrix matrix_elem_t AReLU(const matrix_elem_t &src) { return src < 1 ? 0 : src; }
+callback_matrix neunet_vect AReLU(const neunet_vect &src) { return vec_travel(src, AReLU); }
+
+callback_matrix matrix_elem_t AReLU_dv(const matrix_elem_t &src) { return src < 1 ? 0 : 1; }
+callback_matrix neunet_vect AReLU_dv(const neunet_vect &src) { return vec_travel(src, AReLU_dv); }
+
+callback_matrix neunet_vect AReLU_loss_grad(const neunet_vect &AReLU_input, const neunet_vect &AReLU_output, const neunet_vect &origin) { return (origin - AReLU_output).abs.elem_wise_opt(AReLU_dv(AReLU_input), MATRIX_ELEM_MULT); }
+
 callback_matrix neunet_vect softmax(const neunet_vect &src) {
     neunet_vect ans(src.line_count, src.column_count);
     matrix_elem_t sum = 0;
@@ -378,6 +386,8 @@ matrix_declare struct LayerAct : Layer {
         switch(iActType) {
         case NEUNET_SIGMOID: vecInput = sigmoid(setInput[iIdx]); break;
         case NEUNET_RELU: vecInput = ReLU(setInput[iIdx]); break;
+        case NEUNET_ARELU_LOSS:
+        case NEUNET_ARELU: vecInput = AReLU(setInput[iIdx]); break;
         case NEUNET_SOFTMAX: vecInput = softmax(setInput[iIdx]); break;
         default: vecInput = setInput[iIdx]; break;
         }
@@ -389,6 +399,8 @@ matrix_declare struct LayerAct : Layer {
         switch (iActType) {
         case NEUNET_SIGMOID: vecGrad = sigmoid_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
         case NEUNET_RELU: vecGrad = ReLU_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
+        case NEUNET_ARELU: vecGrad = AReLU_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
+        case NEUNET_ARELU_LOSS: AReLU_loss_grad(setInput[iIdx], vecGrad, vecOrgn); break;
         case NEUNET_SOFTMAX: vecGrad = softmax_cec_grad(vecGrad, vecOrgn); break;
         default: return true;
         }
@@ -399,6 +411,8 @@ matrix_declare struct LayerAct : Layer {
         switch(iActType) {
         case NEUNET_SIGMOID: vecInput = sigmoid(vecInput); break;
         case NEUNET_RELU: vecInput = ReLU(vecInput); break;
+        case NEUNET_ARELU_LOSS:
+        case NEUNET_ARELU: vecInput = AReLU(vecInput); break;
         case NEUNET_SOFTMAX: vecInput = softmax(vecInput); break;
         default: return true;
         }
@@ -547,6 +561,93 @@ struct LayerPC : Layer {
         return *this;
     }
 
+};
+
+matrix_declare struct LayerBias : Layer {
+    matrix_elem_t dFstRng = 0,
+                  dSndRng = 0;
+
+    uint64_t iAcc       = 0,
+             iBatchSize = 0;
+
+    ada_nesterov<matrix_elem_t> advBias;
+    ada_delta<matrix_elem_t>    adaBias;
+
+
+    neunet_vect vecBias,
+                vecNesterovBias;
+
+    void ValueAssign(const LayerBias &lyrSrc) {
+        dFstRng    = lyrSrc.dFstRng;
+        dSndRng    = lyrSrc.dSndRng;
+        iAcc       = lyrSrc.iAcc;
+        iBatchSize = lyrSrc.iBatchSize;
+    }
+
+    void ValueCopy(const LayerBias &lyrSrc) {
+        ValueAssign(lyrSrc);
+        vecBias         = lyrSrc.vecBias;
+        vecNesterovBias = lyrSrc.vecNesterovBias;
+        advBias         = lyrSrc.advBias;
+        adaBias         = lyrSrc.adaBias;
+    }
+
+    void ValueMove(LayerBias &&lyrSrc) {
+        ValueAssign(lyrSrc);
+        vecBias         = std::move(lyrSrc.vecBias);
+        vecNesterovBias = std::move(lyrSrc.vecNesterovBias);
+        advBias         = std::move(lyrSrc.advBias);
+        adaBias         = std::move(lyrSrc.adaBias);
+        Reset(false);
+    }
+
+    LayerBias(long double dInitLearnRate = 0, const matrix_elem_t &dRandFstRng = 0, const matrix_elem_t &dRandSndRng = 0, uint64_t iRandAcc = 8) : Layer(NEUNET_LAYER_BIAS, dInitLearnRate),
+        dFstRng(dRandFstRng),
+        dSndRng(dRandSndRng),
+        iAcc(iRandAcc) {}
+    LayerBias(const LayerBias &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
+    LayerBias(LayerBias &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
+
+    void RunInit(uint64_t iCurrInputLnCnt, uint64_t iCurrInputColCnt, uint64_t iCurrChannCnt, uint64_t iTrainBatchSize) {
+        iBatchSize = iTrainBatchSize;
+        vecBias    = neunet_vect(iCurrInputLnCnt * iCurrInputColCnt, iCurrChannCnt, true, dFstRng, dSndRng, iAcc);
+        if (dLearnRate) vecNesterovBias = advBias.weight(vecBias);
+    }
+
+    bool ForwProp(neunet_vect &vecInput) {
+        if (dLearnRate) {
+            vecInput += vecNesterovBias;
+            return vecInput.verify;
+        } else return Deduce(vecInput);
+    }
+
+    bool BackProp(neunet_vect &vecGrad) {
+        if (++iLayerBatchSizeIdx == iBatchSize) {
+            iLayerBatchSizeIdx = 0;
+            if (dLearnRate) vecBias -= advBias.momentum(vecGrad, dLearnRate);
+            else vecBias -= adaBias.delta(vecGrad);
+            return vecBias.verify;
+        } else return true;
+    }
+
+    callback_matrix bool Deduce(neunet_vect &vecInput) {
+        vecInput += vecBias;
+        return vecInput.verify;
+    }
+
+    virtual void Reset(bool bFull = true) {
+        if (bFull) Layer::Reset(true);
+        iAcc       = 0;
+        dFstRng    = 0;
+        dSndRng    = 0;
+        iBatchSize = 0;
+        vecBias.reset();
+        advBias.reset();
+        adaBias.reset();
+        vecNesterovBias.reset();
+    }
+
+    virtual ~LayerBias() { Reset(false); }
 };
 
 LAYER_END

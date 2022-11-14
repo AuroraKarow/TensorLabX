@@ -103,6 +103,13 @@ struct NeunetCore {
  * const matrix_elem_t &dScale = 1
  * long double dInitLearnRate  = 0
  * long double dDmt            = 1e-8l
+ * 
+ * **Bias (LayerBias)**
+ * 
+ * long double dInitLearnRate       = 0
+ * const matrix_elem_t &dRandFstRng = 0
+ * const matrix_elem_t &dRandSndRng = 0
+ * uint64_t iRandAcc                = 8
  */
 template<typename LayerType, typename ... Args,  typename neunet_layer_type_v> bool AddLayer(NeunetCore &netCore, Args &&... argsLayerInit) { return netCore.seqLayer.emplace_back(std::make_shared<LayerType>(std::forward<Args>(argsLayerInit)...)); }
 
@@ -126,6 +133,11 @@ bool RunInit(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduceDataCn
     case NEUNET_LAYER_CONV: neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt, netCore.iTrainBatchSize, iTrainBatchCnt); break;
     case NEUNET_LAYER_POOL: neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt, netCore.iTrainBatchSize); break;
     case NEUNET_LAYER_BN: neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->RunInit(iChannCnt, netCore.iTrainBatchSize, iTrainBatchCnt); break;
+    case NEUNET_LAYER_BIAS: if (i) {
+        // Bias layer could not be the first layer
+        neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt, netCore.iTrainBatchSize);
+        break;
+    } else return false;
     default: break;
     }
     return true;
@@ -144,6 +156,7 @@ bool ForwProp(NeunetCore &netCore, vect &vecInput, uint64_t iLbl, uint64_t iIdx,
         case NEUNET_LAYER_CONV: bFPFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx, iEpoch, iTrainBatchIdx); break;
         case NEUNET_LAYER_POOL: bFPFlag = neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
         case NEUNET_LAYER_BN: bFPFlag = neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->ForwPropAsync(vecInput, iIdx, iEpoch, iTrainBatchIdx); break;
+        case NEUNET_LAYER_BIAS: bFPFlag = neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->ForwProp(vecInput); break;
         default: break;
         }
         if (!bFPFlag) return false;
@@ -167,6 +180,7 @@ bool BackProp(NeunetCore &netCore, vect &vecFPOutput, const vect &vecOrgn, uint6
         case NEUNET_LAYER_CONV: bBPFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput, iIdx); break;
         case NEUNET_LAYER_POOL: bBPFlag = neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput, iIdx); break;
         case NEUNET_LAYER_BN: bBPFlag = neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[iLyrIdx])->BackPropAsync(vecFPOutput, iIdx); break;
+        case NEUNET_LAYER_BIAS: bBPFlag = neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->BackProp(vecFPOutput); break;
         default: break;
         }
         if (!bBPFlag) return false;
@@ -187,6 +201,7 @@ bool Deduce(NeunetCore &netCore, vect &vecInput, uint64_t iLbl, uint64_t iIdx, u
         case NEUNET_LAYER_CONV: bDdFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->Deduce(vecInput, iEpoch); break;
         case NEUNET_LAYER_POOL: bDdFlag = neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_BN: neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->Deduce(vecInput, iEpoch); break;
+        case NEUNET_LAYER_BIAS: neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->Deduce(vecInput); break;
         default: break;
         }
         if (!bDdFlag) return false;
@@ -288,9 +303,10 @@ void DataShowThread(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduc
 }
 
 bool TestShow(NeunetCore &netSrc, vect &vecInput, uint64_t iLbl, uint64_t iInputLnCnt, uint64_t iInputColCnt) {
-    RunInit(netSrc, 1, 1, iInputLnCnt, iInputColCnt, 1);
-    Deduce(netSrc, vecInput, iLbl, 0, 0);
-    print_output(vecInput, iLbl);
+    if (RunInit(netSrc, 32, 32, iInputLnCnt, iInputColCnt, 1) && Deduce(netSrc, vecInput, iLbl, 0, 0)) {
+        print_output(vecInput, iLbl);
+        return true;
+    } else return false;
 }
 
 NEUNET_END

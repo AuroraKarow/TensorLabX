@@ -4,10 +4,13 @@
 
 #pragma once
 
-#define OMP_MATRIX_ON   1
-#define OMP_MATRIX_OFF  0
+#define OMP_MATRIX_ON       1
+#define OMP_MATRIX_OFF      0
 
-#define OMP_MATRIX_MODE OMP_MATRIX_ON
+#define OMP_MATRIX_MODE     OMP_MATRIX_OFF
+
+#define MATRIX_BLOCKSIZE    32
+#define MATRIX_UNROLL       4
 
 #include <iostream>
 #include "net_chrono"
