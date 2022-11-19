@@ -320,16 +320,20 @@ public:
     iterator end() const { return iterator(nullptr); }
 
     arg sigma() {
-        arg ans = head->elem;
-        for (auto temp = ++begin(); temp != end(); ++temp) ans += *temp;
+        arg ans {};
+        if (len) ans = head->elem;
+        else return ans;
+        for (auto tool = head->next; tool; tool = tool->next) ans += tool->elem;
         return ans;
     }
     arg sigma(uint64_t fst_rng, uint64_t snd_rng) { return sub_list(fst_rng, snd_rng).sigma(); }
     arg sigma(const net_set<uint64_t> &idx_set) { return sub_list(idx_set).sigma(); }
 
     arg pi() {
-        arg ans = head->elem;
-        for (auto temp = ++begin(); temp != end(); ++temp) ans *= *temp;
+        arg ans {};
+        if (len) ans = head->elem;
+        else return ans;
+        for (auto tool = head->next; tool; tool = tool->next) ans *= tool->elem;
         return ans;
     }
     arg pi(uint64_t fst_rng, uint64_t snd_rng) { return sub_list(fst_rng, snd_rng).pi(); }

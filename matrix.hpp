@@ -271,10 +271,10 @@ public:
         }
     }
     net_matrix(const net_matrix &src) { value_copy(src); }
-    net_matrix(net_matrix &&src) noexcept { value_move(std::move(src)); }
+    net_matrix(net_matrix &&src) { value_move(std::move(src)); }
     template<typename s_arg> net_matrix(const net_matrix<s_arg> &src) { value_copy(src); }
 
-    bool is_matrix() const { return ptr != nullptr; }
+    bool is_matrix() const { return ptr && (ln_cnt * col_cnt == elem_cnt) && ln_cnt && col_cnt; }
 
     template<typename matrix_elem_para, typename matrix_elem_para_v> void fill_elem(const matrix_elem_para &src) {
         if constexpr (!std::is_same_v<matrix_elem_para, matrix_elem_t> && std::is_same_v<matrix_elem_para, net_decimal>) fill(ptr, elem_cnt, src.number_format);
@@ -479,13 +479,13 @@ public:
         return ans;
     }
     template<typename matrix_elem_para, typename matrix_elem_para_v> friend net_matrix operator*(const matrix_elem_para &para, const net_matrix &src) { return src * net_matrix(para); }
-    void operator *=(const net_matrix &src) { *this = *this * src; }
+    void operator*=(const net_matrix &src) { *this = *this * src; }
 
     net_matrix &operator=(const net_matrix &src) {
         value_copy(src);
         return *this;
     }
-    net_matrix &operator=(net_matrix &&src) noexcept {
+    net_matrix &operator=(net_matrix &&src) {
         value_move(std::move(src));
         return *this;
     }

@@ -19,6 +19,7 @@
 #define mnist_elem_orgn     0x0000
 #define mnist_elem_bool     0x0001
 #define mnist_elem_gray     0x0002
+#define mnist_elem_norm     0x0003
 
 #include "mnist.hpp"
 

@@ -64,7 +64,7 @@ public:
     net_set(net_ptr_base<arg> &&src) :
         len(src.len) { ptr_move(ptr, std::move(src.ptr_base)); src.len = 0; }
     net_set(const net_set &src) { value_copy(src); }
-    net_set(net_set &&src) noexcept { value_move(std::move(src)); }
+    net_set(net_set &&src) { value_move(std::move(src)); }
     
     void init(uint64_t alloc_size, bool remain = true) {
         if (alloc_size == 0) {
@@ -220,7 +220,7 @@ public:
     bool operator!=(const net_set &src) const { return !(*this == src); }
     
     net_set &operator=(const net_set &src) { value_copy(src); return *this; }
-    net_set &operator=(net_set &&src) noexcept { value_move(std::move(src)); return *this; }
+    net_set &operator=(net_set &&src) { value_move(std::move(src)); return *this; }
 
     template <typename seq> explicit operator seq () const {
         seq ans;

@@ -14,15 +14,9 @@
 #define MATRIX_ELEM_POW     0x0002
 
 #define MATRIX_REGSIZE      0x0004
-
-#ifndef MATRIX_UNROLL
 #define MATRIX_UNROLL       MATRIX_REGSIZE
-#endif
-
-#ifndef MATRIX_BLOCKSIZE
-#define MATRIX_BLOCKSIZE 32
-#endif
-
+#define MATRIX_UNROLL_UNIT  0x0010
+#define MATRIX_BLOCKSIZE    MATRIX_UNROLL_UNIT
 
 #define matrix_elem_t       arg
 #define matrix_elem_t_v     std::is_same_v<matrix_elem_t, neunet::net_decimal> ||\
@@ -39,7 +33,6 @@
 
 #define callback_matrices   template<typename ... args>
 
-#include "omp.h"
 #include "matrix_base.hpp"
 
 #define matrix_elem_para    i_arg

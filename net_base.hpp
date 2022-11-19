@@ -20,12 +20,16 @@ callback_arg arg *ptr_init(uint64_t &len, std::initializer_list<arg> init_list) 
     return ans;
 }
 
-callback_args void ptr_reset(arg *&first, args *&...others) {
-    while (first) {
-        delete [] first;
-        first = nullptr;
+void ptr_reset() {}
+callback_arg void ptr_reset(arg *&src) {
+    while (src) {
+        delete [] src;
+        src = nullptr;
     }
-    if constexpr (sizeof...(others) > 0) ptr_reset(others...);
+}
+callback_args void ptr_reset(arg *&first, args *&...others) {
+    ptr_reset(first);
+    ptr_reset(others...);
 }
 
 callback_arg bool ptr_elem_equal(const arg *fst_src, uint64_t fst_len, const arg *snd_src, uint64_t snd_len) {
@@ -223,7 +227,8 @@ callback_arg arg *ptr_intersect(uint64_t &ans_len, const arg *src_fst, uint64_t 
     return ans;
 }
 
-/* @brief Find common element between two arrays
+/** [Arrays common elements index]
+ * @brief Find common element in two arrays
  * @param comm_cnt  [Out]   Common elements count
  * @param axis      [In]    Axis array, at rest array for comparing.
  * @param axis_len  [In]    Axis array length.
@@ -273,7 +278,7 @@ callback_arg ul_ptr ptr_find(uint64_t &ans_len, const arg *src, uint64_t src_len
     return ans;
 }
 
-double *ptr_narr_float(long double *src, uint64_t len) {
+double *ptr_narr_float(const long double *src, uint64_t len) {
     if (!(len && src)) return nullptr;
     auto ans = ptr_init<double>(len);
     if constexpr (sizeof(double) == sizeof(long double)) std::copy(src, src + len, ans);

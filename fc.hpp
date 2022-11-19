@@ -49,17 +49,17 @@ struct LayerTrans : Layer {
         iCurrChannCnt = 1;
     }
     
-    callback_matrix bool ForwProp(neunet_vect &vecInput) {
-        vecInput = vecInput.reshape(iLnCnt * iColCnt * iChannCnt, 1);
-        return vecInput.verify;
-    }
+    callback_matrix bool ForwProp(neunet_vect &vecInput) { return Deduce(vecInput); }
 
     callback_matrix bool BackProp(neunet_vect &vecGrad) {
         vecGrad = vecGrad.reshape(iLnCnt * iColCnt, iChannCnt);
         return vecGrad.verify;
     }
 
-    callback_matrix bool Deduce(neunet_vect &vecInput) { return ForwProp(vecInput); }
+    callback_matrix bool Deduce(neunet_vect &vecInput) {
+        vecInput = vecInput.reshape(iLnCnt * iColCnt * iChannCnt, 1);  
+        return vecInput.verify;  
+    }
 
     virtual void Reset(bool bFull = true) {
         if (bFull) Layer::Reset(true);
@@ -71,14 +71,14 @@ struct LayerTrans : Layer {
     virtual ~LayerTrans() { Reset(false); }
 
     LayerTrans &operator=(const LayerTrans &lyrSrc) {
-        if (this->iLayerType == lyrSrc.iLayerType) {
+        if (iLayerType == lyrSrc.iLayerType) {
             Layer::operator=(lyrSrc);
             ValueCopy(lyrSrc);
         }
         return *this;
     }
     LayerTrans &operator=(LayerTrans &&lyrSrc) {
-        if (this->iLayerType == lyrSrc.iLayerType) {
+        if (iLayerType == lyrSrc.iLayerType) {
             Layer::operator=(std::move(lyrSrc));
             ValueMove(std::move(lyrSrc));
         }
@@ -144,23 +144,21 @@ matrix_declare struct LayerFC : Layer {
     LayerFC(const LayerFC &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
     LayerFC(LayerFC &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t iTrainBatchSize, uint64_t iTrainBatchCnt) {
+    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t iTrainBatchSize) {
         if (!vecWeight.verify) vecWeight = fc::InitWeight(iCurrInputLnCnt, iOutputLnCnt, dFstRng, dSndRng, iAcc);
-        if (this->dLearnRate) {
+        if (dLearnRate) {
             vecNesterovWeight = advWeight.weight(vecWeight);
             vecTpWeight       = vecNesterovWeight.transpose;
         } else vecTpWeight = vecWeight.transpose;
         setInput.init(iTrainBatchSize, false);
         setGradWeight.init(iTrainBatchSize, false);
-        iCurrInputLnCnt      = iOutputLnCnt;
-        this->iTrainBatchCnt = iTrainBatchCnt;
+        iCurrInputLnCnt = iOutputLnCnt;
     }
 
-    bool ForwProp(neunet_vect &vecInput, uint64_t iIdx, uint64_t iEpoch, uint64_t iTrainBatchIdx) {
+    bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
         if (iIdx >= setInput.length) return false;
-        if (iTrainBatchIdx != this->iTrainBatchIdx && iEpoch != iEpochCnt) asyTrainCtrl.thread_sleep();
         setInput[iIdx] = std::move(vecInput);
-        if (this->dLearnRate) vecInput = vecNesterovWeight * setInput[iIdx];
+        if (dLearnRate) vecInput = vecNesterovWeight * setInput[iIdx];
         else vecInput = vecWeight * setInput[iIdx];
         return vecInput.verify;
     }
@@ -177,27 +175,21 @@ matrix_declare struct LayerFC : Layer {
         return vecGrad.verify;
     }
 
-    bool Deduce(neunet_vect &vecInput, uint64_t iEpoch) {
-        if (iEpoch != iEpochCnt) asyDeduceCtrl.thread_sleep();
+    bool Deduce(neunet_vect &vecInput) const {
         vecInput = vecWeight * vecInput;
         return vecInput.verify;
     }
 
     void Update() {
         auto vecGrad = setGradWeight.sum.elem_wise_opt(setGradWeight.length, MATRIX_ELEM_DIV);
-        if (this->dLearnRate) {
-            vecWeight        -= advWeight.momentum(vecGrad, this->dLearnRate);
+        if (dLearnRate) {
+            vecWeight        -= advWeight.momentum(vecGrad, dLearnRate);
             vecNesterovWeight = advWeight.weight(vecWeight);
             vecTpWeight       = vecNesterovWeight.transpose;
         } else {
-            vecWeight -= adaWeight.delta(vecGrad);
+            vecWeight  -= adaWeight.delta(vecGrad);
             vecTpWeight = vecWeight.transpose;
         }
-        if (++iTrainBatchIdx == iTrainBatchCnt) {
-            ++iEpochCnt;
-            iTrainBatchIdx = 0;
-            asyDeduceCtrl.thread_wake_all();
-        } else asyTrainCtrl.thread_wake_all();
     }
 
     virtual void Reset(bool bFull = true) {
@@ -218,14 +210,14 @@ matrix_declare struct LayerFC : Layer {
     virtual ~LayerFC() { Reset(false); }
 
     virtual LayerFC &operator=(const LayerFC &lyrSrc) {
-        if (this->iLayerType == lyrSrc.iLayerType) {
+        if (iLayerType == lyrSrc.iLayerType) {
             Layer::operator=(lyrSrc);
             ValueCopy(lyrSrc);
         }
         return *this;
     }
     virtual LayerFC &operator=(LayerFC &&lyrSrc) {
-        if (this->iLayerType == lyrSrc.iLayerType) {
+        if (iLayerType == lyrSrc.iLayerType) {
             Layer::operator=(std::move(lyrSrc));
             ValueMove(std::move(lyrSrc));
         }

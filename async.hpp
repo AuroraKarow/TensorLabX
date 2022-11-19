@@ -30,16 +30,6 @@ public:
         return elem_ls.length;
     }
 
-    // arg front() {
-    //     std::shared_lock<std::shared_mutex> lck(td_mtx);
-    //     return elem_ls[0];
-    // }
-
-    // arg rear() {
-    //     std::shared_lock<std::shared_mutex> lck(td_mtx);
-    //     return elem_ls[elem_ls.length - 1];
-    // }
-
     template<typename...args> bool en_queue(args &&...paras) {
         std::unique_lock<std::mutex> lck(td_mtx);
         auto flag = elem_ls.emplace_back(std::forward<args>(paras)...);
@@ -54,7 +44,7 @@ public:
         return elem_ls.erase(0);
     }
 
-    void except_abort() {
+    void err_abort() {
         exc_sgn = true;
         td_cond.notify_all();
     }
@@ -73,13 +63,13 @@ class async_pool final {
 public:
     async_pool(uint64_t thread_size = NEUNET_ASYNC_CORE) :
         stop(false), td_set(thread_size) {
-        for (auto i  =0ull; i < td_set.size(); ++i) td_set[i] = std::thread([this] { while(true) {
+        for (auto i = 0ull; i < td_set.size(); ++i) td_set[i] = std::thread([this] { while(true) {
             std::function<void()> curr_tsk;
             {
                 std::unique_lock<std::mutex> lck(td_mtx);
-                while (!(this->tsk_set.size() || stop)) cond.wait(lck);
-                if (this->stop && !this->tsk_set.size()) return;
-                curr_tsk = std::move(this->tsk_set.de_queue());
+                while (!(tsk_set.size() || stop)) cond.wait(lck);
+                if (stop && !tsk_set.size()) return;
+                curr_tsk = std::move(tsk_set.de_queue());
             }
             curr_tsk();
         }});

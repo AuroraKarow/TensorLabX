@@ -1,20 +1,5 @@
 NEUNET_BEGIN
 
-callback_matrix neunet_vect VectElemExp(const net_set<neunet_vect> &setSrc) { return (1.0l / setSrc.length) * setSrc.sum; }
-
-callback_matrix neunet_vect VectElemVar(const net_set<neunet_vect> &setSrc, const neunet_vect &vecExp) {
-    neunet_vect vecAns; 
-    for (auto i = 0ull; i < setSrc.length; ++i) {
-        auto vecDistSqr = setSrc[i] - vecExp;
-        for (auto i = 0ull; i < vecDistSqr.element_count; ++i) vecDistSqr.index(i) = vecDistSqr.index(i) * vecDistSqr.index(i);
-        if (i) vecAns += vecDistSqr;
-        else vecAns = std::move(vecDistSqr);
-    }
-    vecAns *= (1.0l / setSrc.length);
-    return vecAns;
-}
-callback_matrix neunet_vect VectElemVar(const net_set<neunet_vect> &setSrc) { return VectElemVar(setSrc, VectElemExp(setSrc)); }
-
 /* Batch normalization */
 
 // BN parameters
@@ -27,11 +12,11 @@ callback_matrix neunet_vect BNInitBetaGamma(uint64_t iChannCnt, const matrix_ele
 /* Expectation Average, Expectation MiuBeta
  * Variance mini-batch variance, Variance SigmaSqr
  */
-callback_matrix void BNDeduceInit(neunet_vect &vecMuBeta, neunet_vect &vecSigmaSqr, uint64_t iBatchCnt, uint64_t iBatchSize, long double dEpsilon = 1e-8l) {
+callback_matrix void BNDeduceInit(neunet_vect &vecMuBeta, neunet_vect &vecSigmaSqr, uint64_t iBatchCnt, uint64_t iTrainBatchSize, long double dEpsilon = 1e-8l) {
     if(iBatchCnt) {
         vecMuBeta   = vecMuBeta.elem_wise_opt(iBatchCnt, MATRIX_ELEM_DIV);
         vecSigmaSqr = vecSigmaSqr.elem_wise_opt(iBatchCnt, MATRIX_ELEM_DIV);
-        if(iBatchSize > 1) vecSigmaSqr *= (iBatchSize / (iBatchSize - 1.0l));
+        if(iTrainBatchSize > 1) vecSigmaSqr *= (iTrainBatchSize / (iTrainBatchSize - 1.0l));
         vecSigmaSqr = divisor_dominate(vecSigmaSqr, dEpsilon);
         vecSigmaSqr = vecSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
     }
@@ -47,72 +32,78 @@ callback_matrix neunet_vect BNDeduce(const neunet_vect &vecMuBeta, const neunet_
     return vecAns;
 }
 
-callback_matrix net_set<neunet_vect> BNTrain (neunet_vect &vecMuBeta, neunet_vect &vecSigmaSqr, net_set<neunet_vect> &setBarX, const net_set<neunet_vect> &setInput, const neunet_vect &vecBeta, const neunet_vect &vecGamma, const matrix_elem_t &dEpsilon = 1e-8l) {
+matrix_declare struct BNData final {
+    neunet_vect vecMuBeta;
+    neunet_vect vecSigmaSqr;
+    neunet_vect vecSigma;
+    neunet_vect vecSigmaDom;
+    net_set<neunet_vect> setBarX;
+    net_set<neunet_vect> setDist;
+    long double dCoeBatchSize   = 0,
+                dCoeDbBatchSize = 0;
+};
+
+callback_matrix net_set<neunet_vect> BNTrain (BNData<matrix_elem_t> &BdData, const net_set<neunet_vect> &setInput, const neunet_vect &vecBeta, const neunet_vect &vecGamma, const matrix_elem_t &dEpsilon = 1e-8l) {
     // Average, miu
-    vecMuBeta   = VectElemExp(setInput);
+    BdData.vecMuBeta = BdData.dCoeBatchSize * setInput.sum;
     // Variance, sigma square
-    vecSigmaSqr = divisor_dominate(VectElemVar(setInput, vecMuBeta), dEpsilon);
+    BdData.setDist.init(setInput.length, false);
+    BdData.vecSigmaSqr = neunet_vect(BdData.vecMuBeta.line_count, BdData.vecMuBeta.column_count);
+    for (auto i = 0ull; i < setInput.length; ++i) {
+        BdData.setDist[i]   = setInput[i] - BdData.vecMuBeta;
+        BdData.vecSigmaSqr += BdData.setDist[i].elem_wise_opt(BdData.setDist[i], MATRIX_ELEM_MULT);
+    }
+    BdData.vecSigmaSqr *= BdData.dCoeBatchSize;
+    BdData.vecSigma     = BdData.vecSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
+    BdData.vecSigmaDom  = BdData.vecSigma;
+    for (auto i = 0ull; i < BdData.vecSigmaDom.element_count; ++i) if (BdData.vecSigmaDom.index(i) == 0) BdData.vecSigmaDom.index(i) = dEpsilon;
     // Bar X, normalize x
-    setBarX.init(setInput.length, false);
-    auto vecSigma = vecSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
-    for (auto i = 0ull; i < setInput.length; ++i) setBarX[i] = (setInput[i] - vecMuBeta).elem_wise_opt(vecSigma, MATRIX_ELEM_DIV);
+    BdData.setBarX.init(setInput.length, false);
+    for (auto i = 0ull; i < setInput.length; ++i) BdData.setBarX[i] = BdData.setDist[i].elem_wise_opt(BdData.vecSigmaDom, MATRIX_ELEM_DIV);
     // Y, Output
-    auto setY = setBarX;
-    for (auto i = 0ull; i < setY.length; ++i) for (auto j = 0ull; j < setY[i].line_count; ++j) for (auto k = 0ull; k < setY[i].column_count; ++k) setY[i][j][k] = vecGamma.index(k) * setY[i][j][k] + vecBeta.index(k);
+    auto setY = BdData.setBarX;
+    // Y = gamma * bar x + beta
+    for (auto i = 0ull; i < setY.length; ++i) for (auto j = 0ull; j < setY[i].line_count; ++j) for (auto k = 0ull; k < setY[i].column_count; ++k) {
+        setY[i][j][k] *= vecGamma.index(k);
+        setY[i][j][k] += vecBeta.index(k);
+    }
     return setY;
 }
 
-callback_matrix net_set<neunet_vect> BNGradLossToInput(const neunet_vect &vecMuBeta, const neunet_vect &vecSigmaSqr, const net_set<neunet_vect> &setBarX, const net_set<neunet_vect> &setInput, const net_set<neunet_vect> &setGradLossToOutput, const neunet_vect &vecGamma, const matrix_elem_t &dEpsilon = 1e-8l) {
-    auto vecSigmaSqrDom = divisor_dominate(vecSigmaSqr, dEpsilon),
-         vecSigma       = vecSigmaSqrDom.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
-    auto setGradBarX    = setGradLossToOutput;
-    auto dBatchSizeRate = 2.0l / setInput.length;
-    // Gradient bar x
-    for (auto i = 0ull; i<setInput.length; ++i) for (auto j = 0ull; j < setBarX[i].element_count; ++j) {
-        uint64_t iCurrChann = 0;
-        if (vecGamma.element_count > 1) iCurrChann = matrix::elem_pos(j, setGradBarX[i].column_count).col;
-        setGradBarX[i].index(j) *= vecGamma.index(iCurrChann);
+callback_matrix net_set<neunet_vect> BNGradLossToInputGammaBeta(neunet_vect &vecGradGamma, neunet_vect &vecGradBeta, net_set<neunet_vect> &setGradLossToOutput, const BNData<matrix_elem_t> &BdData, const neunet_vect &vecGamma, const matrix_elem_t &dEpsilon = 1e-8l) {
+    // Gradient gamma & beta
+    vecGradGamma = neunet_vect(BdData.vecSigma.column_count, 1);
+    vecGradBeta  = vecGradGamma;
+    for (auto i = 0ull; i < BdData.setBarX.length; ++i) BdData.setBarX[i] = BdData.setBarX[i].elem_wise_opt(setGradLossToOutput[i], MATRIX_ELEM_MULT);
+    auto vecGradGammaTensor = BdData.setBarX.sum,
+         vecGradBetaTensor  = setGradLossToOutput.sum;
+    for (auto i = 0ull; i < vecGradGammaTensor.line_count; ++i) for (auto j = 0ull; j < vecGradBetaTensor.column_count; ++j) {
+        vecGradGamma.index(j) += vecGradGammaTensor[i][j];
+        vecGradBeta.index(j)  += vecGradBetaTensor[i][j];
     }
+    // Gradient bar x
+    auto setGradBarX = std::move(setGradLossToOutput);
+    for (auto i = 0ull; i < setGradBarX.length; ++i) for (auto j = 0ull; j < setGradBarX[i].line_count; ++j) for (auto k = 0ull; k < setGradBarX[i].column_count; ++k) setGradBarX[i][j][k] *= vecGamma.index(k);
     // Gradient variant
-    neunet_vect vecGradSigmaSqr(vecSigma.line_count, vecSigma.column_count);
-    auto vecSigmaSqrAndOne = vecSigmaSqrDom.elem_wise_opt(vecSigma, MATRIX_ELEM_MULT);
-    for (auto i = 0ull; i < setInput.length; ++i) vecGradSigmaSqr += setGradBarX[i].elem_wise_opt((setInput[i] - vecMuBeta), MATRIX_ELEM_MULT).elem_wise_opt(vecSigmaSqrAndOne, MATRIX_ELEM_DIV);
-    vecGradSigmaSqr *= (-0.5l);
-    // Gradient expextation
-    neunet_vect vecDistanceSum(vecSigma.line_count, vecSigma.column_count);
-    for (auto i = 0ull; i < setInput.length; ++i) vecDistanceSum += (setInput[i] - vecMuBeta);
-    neunet_vect vecGradMuBeta = (-1) * setGradBarX.sum.elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) - dBatchSizeRate * vecGradSigmaSqr.elem_wise_opt(vecDistanceSum, MATRIX_ELEM_MULT);
+    auto vecSigmaSqOnePtFive = BdData.vecSigmaSqr.elem_wise_opt(BdData.vecSigma, MATRIX_ELEM_MULT);
+    for (auto i = 0ull; i < vecSigmaSqOnePtFive.element_count; ++i) if (vecSigmaSqOnePtFive.index(i) == 0) vecSigmaSqOnePtFive.index(i) = dEpsilon;
+    neunet_vect vecGradSigmaSqr(BdData.vecSigma.line_count, BdData.vecSigma.column_count);
+    for (auto i = 0ull; i < BdData.setBarX.length; ++i) vecGradSigmaSqr += setGradBarX[i].elem_wise_opt(BdData.setDist[i], MATRIX_ELEM_MULT);
+    vecGradSigmaSqr  = vecGradSigmaSqr.elem_wise_opt(vecSigmaSqOnePtFive, MATRIX_ELEM_DIV);
+    vecGradSigmaSqr *= (-.5l);
+    // Gradient expectation
+    auto vecGradMuBeta = setGradBarX.sum.elem_wise_opt(BdData.vecSigmaDom, MATRIX_ELEM_DIV) + BdData.dCoeDbBatchSize * vecGradSigmaSqr.elem_wise_opt(BdData.setDist.sum, MATRIX_ELEM_MULT);
+    vecGradMuBeta *= BdData.dCoeBatchSize;
     // Gradient input
-    net_set<neunet_vect> setGradInput(setInput.length);
-    vecGradMuBeta *= ((1.0l) / setInput.length);
+    net_set<neunet_vect> setGradInput(BdData.setBarX.length);
     for (auto i = 0ull; i < setGradInput.length; ++i) {
-        setGradInput[i] = setGradBarX[i].elem_wise_opt(vecSigma, MATRIX_ELEM_DIV) + dBatchSizeRate * vecGradSigmaSqr.elem_wise_opt((setInput[i] - vecMuBeta), MATRIX_ELEM_MULT) + vecGradMuBeta;
+        setGradInput[i] = setGradBarX[i].elem_wise_opt(BdData.vecSigmaDom, MATRIX_ELEM_DIV) + BdData.dCoeDbBatchSize * vecGradSigmaSqr.elem_wise_opt(BdData.setDist[i], MATRIX_ELEM_MULT) - vecGradMuBeta;
         if (!setGradInput[i].verify) {
             setGradInput.reset();
             break;
         }
     }
     return setGradInput;
-}
-
-callback_matrix neunet_vect BNGradLossToScale(const net_set<neunet_vect> &setBarX, const net_set<neunet_vect> &setGradLossToOutput) {
-    neunet_vect vecGrad(setGradLossToOutput[0].column_count, 1);
-    for (auto i = 0ull; i < setBarX.length; ++i) for (auto j = 0ull; j < setBarX[i].element_count; ++j) {
-        auto iCurrChann = 0ull;
-        if (vecGrad.element_count > 1) iCurrChann = matrix::elem_pos(j, setBarX[i].column_count).col;
-        vecGrad.index(iCurrChann) += setGradLossToOutput[i].index(j) * setBarX[i].index(j);
-    }
-    return vecGrad;
-}
-
-callback_matrix neunet_vect BNGradLossToShift(const net_set<neunet_vect> &setGradLossToOutput) {
-    neunet_vect vecGrad(setGradLossToOutput[0].column_count, 1);
-    for (auto i = 0ull; i < setGradLossToOutput.length; ++i) for (auto j = 0ull; j < setGradLossToOutput[i].element_count; ++j) {
-        auto iCurrChann = 0ull;
-        if (vecGrad.element_count > 1) iCurrChann = matrix::elem_pos(j, setGradLossToOutput[i].column_count).col;
-        vecGrad.index(iCurrChann) += setGradLossToOutput[i].index(j);
-    }
-    return vecGrad;
 }
 
 NEUNET_END
@@ -125,6 +116,9 @@ matrix_declare struct LayerBN : Layer {
 
     matrix_elem_t dBeta  = 0,
                   dGamma = 1;
+
+    uint64_t iTrainBatchCnt = 0,
+             iTrainBatchIdx = 0;
 
     ada_nesterov<matrix_elem_t> advBeta,
                                 advGamma;
@@ -140,69 +134,76 @@ matrix_declare struct LayerBN : Layer {
 
                 vecGradBeta,
                 vecGradGamma,
-    
-                vecMuBeta,
-                vecSigmaSqr,
+
                 vecExpMuBeta,
                 vecExpSigmaSqr;
 
     net_set<neunet_vect> setInput,
-                         setOutput,
-                         setGrad,
-                         setBarX;
+                         setGrad;
+
+    BNData<matrix_elem_t> BdData;
 
     async::async_controller asyBNCtrl;
 
-    std::atomic_bool bBNFlag = false;
-    
     virtual void ValueAssign(const LayerBN &lyrSrc) {
-        bBNFlag  = (bool)lyrSrc.bBNFlag;
-        dEpsilon = lyrSrc.dEpsilon;
-        dDecay   = lyrSrc.dDecay;
+        dEpsilon               = lyrSrc.dEpsilon;
+        dDecay                 = lyrSrc.dDecay;
+        iTrainBatchCnt         = lyrSrc.iTrainBatchCnt;
+        iTrainBatchIdx         = lyrSrc.iTrainBatchIdx;
+        BdData.dCoeBatchSize   = lyrSrc.BdData.dCoeBatchSize;
+        BdData.dCoeDbBatchSize = lyrSrc.BdData.dCoeDbBatchSize;
     }
 
     virtual void ValueCopy(const LayerBN &lyrSrc) {
         ValueAssign(lyrSrc);
-        setInput         = lyrSrc.setInput;
-        dBeta            = lyrSrc.dBeta;
-        dGamma           = lyrSrc.dGamma;
-        vecBeta          = lyrSrc.vecBeta;
-        vecGamma         = lyrSrc.vecGamma;
-        vecNesterovBeta  = lyrSrc.vecNesterovBeta;
-        vecNesterovGamma = lyrSrc.vecNesterovGamma;
-        vecGradBeta      = lyrSrc.vecGradBeta;
-        vecGradGamma     = lyrSrc.vecGradGamma;
-        advBeta          = lyrSrc.advBeta;
-        advGamma         = lyrSrc.advGamma;
-        adaBeta          = lyrSrc.adaBeta;
-        adaGamma         = lyrSrc.adaGamma;
-        vecMuBeta        = lyrSrc.vecMuBeta;
-        vecSigmaSqr      = lyrSrc.vecSigmaSqr;
-        setBarX          = lyrSrc.setBarX;
-        vecExpMuBeta     = lyrSrc.vecMuBeta;
-        vecExpSigmaSqr   = lyrSrc.vecExpSigmaSqr;
+        setInput           = lyrSrc.setInput;
+        setGrad            = lyrSrc.setGrad;
+        dBeta              = lyrSrc.dBeta;
+        dGamma             = lyrSrc.dGamma;
+        vecBeta            = lyrSrc.vecBeta;
+        vecGamma           = lyrSrc.vecGamma;
+        vecNesterovBeta    = lyrSrc.vecNesterovBeta;
+        vecNesterovGamma   = lyrSrc.vecNesterovGamma;
+        vecGradBeta        = lyrSrc.vecGradBeta;
+        vecGradGamma       = lyrSrc.vecGradGamma;
+        advBeta            = lyrSrc.advBeta;
+        advGamma           = lyrSrc.advGamma;
+        adaBeta            = lyrSrc.adaBeta;
+        adaGamma           = lyrSrc.adaGamma;
+        vecExpMuBeta       = lyrSrc.vecExpMuBeta;
+        vecExpSigmaSqr     = lyrSrc.vecExpSigmaSqr;
+        BdData.setBarX     = lyrSrc.BdData.setBarX;
+        BdData.setDist     = lyrSrc.BdData.setDist;
+        BdData.vecMuBeta   = lyrSrc.BdData.vecMuBeta;
+        BdData.vecSigma    = lyrSrc.BdData.vecSigma;
+        BdData.vecSigmaDom = lyrSrc.BdData.vecSigmaDom;
+        BdData.vecSigmaSqr = lyrSrc.BdData.vecSigmaSqr;
     }
 
     virtual void ValueMove(LayerBN &&lyrSrc) {
         ValueAssign(lyrSrc);
-        setInput         = std::move(lyrSrc.setInput);
-        dBeta            = std::move(lyrSrc.dBeta);
-        dGamma           = std::move(lyrSrc.dGamma);
-        vecBeta          = std::move(lyrSrc.vecBeta);
-        vecGamma         = std::move(lyrSrc.vecGamma);
-        vecNesterovBeta  = std::move(lyrSrc.vecNesterovBeta);
-        vecNesterovGamma = std::move(lyrSrc.vecNesterovGamma);
-        vecGradBeta      = std::move(lyrSrc.vecGradBeta);
-        vecGradGamma     = std::move(lyrSrc.vecGradGamma);
-        advBeta          = std::move(lyrSrc.advBeta);
-        advGamma         = std::move(lyrSrc.advGamma);
-        adaBeta          = std::move(lyrSrc.adaBeta);
-        adaGamma         = std::move(lyrSrc.adaGamma);
-        vecMuBeta        = std::move(lyrSrc.vecMuBeta);
-        vecSigmaSqr      = std::move(lyrSrc.vecSigmaSqr);
-        setBarX          = std::move(lyrSrc.setBarX);
-        vecExpMuBeta     = std::move(lyrSrc.vecMuBeta);
-        vecExpSigmaSqr   = std::move(lyrSrc.vecExpSigmaSqr);
+        setInput           = std::move(lyrSrc.setInput);
+        setGrad            = std::move(lyrSrc.setGrad);
+        dBeta              = std::move(lyrSrc.dBeta);
+        dGamma             = std::move(lyrSrc.dGamma);
+        vecBeta            = std::move(lyrSrc.vecBeta);
+        vecGamma           = std::move(lyrSrc.vecGamma);
+        vecNesterovBeta    = std::move(lyrSrc.vecNesterovBeta);
+        vecNesterovGamma   = std::move(lyrSrc.vecNesterovGamma);
+        vecGradBeta        = std::move(lyrSrc.vecGradBeta);
+        vecGradGamma       = std::move(lyrSrc.vecGradGamma);
+        advBeta            = std::move(lyrSrc.advBeta);
+        advGamma           = std::move(lyrSrc.advGamma);
+        adaBeta            = std::move(lyrSrc.adaBeta);
+        adaGamma           = std::move(lyrSrc.adaGamma);
+        vecExpMuBeta       = std::move(lyrSrc.vecExpMuBeta);
+        vecExpSigmaSqr     = std::move(lyrSrc.vecExpSigmaSqr);
+        BdData.setBarX     = std::move(lyrSrc.BdData.setBarX);
+        BdData.setDist     = std::move(lyrSrc.BdData.setDist);
+        BdData.vecMuBeta   = std::move(lyrSrc.BdData.vecMuBeta);
+        BdData.vecSigma    = std::move(lyrSrc.BdData.vecSigma);
+        BdData.vecSigmaDom = std::move(lyrSrc.BdData.vecSigmaDom);
+        BdData.vecSigmaSqr = std::move(lyrSrc.BdData.vecSigmaSqr);
         lyrSrc.Reset(false);
     }
 
@@ -223,49 +224,49 @@ matrix_declare struct LayerBN : Layer {
         }
         setInput.init(iTrainBatchSize, false);
         setGrad.init(iTrainBatchSize, false);
-        this->iTrainBatchCnt = iTrainBatchCnt;
+        BdData.dCoeBatchSize   = 1.l / iTrainBatchSize;
+        BdData.dCoeDbBatchSize = 2.l / iTrainBatchSize;
+        this->iTrainBatchCnt   = iTrainBatchCnt;
     }
 
     bool ForwProp() {
-        if (this->dLearnRate) setOutput = BNTrain(vecMuBeta, vecSigmaSqr, setBarX, this->setInput, vecNesterovBeta, vecNesterovGamma, dEpsilon);
-        else setOutput = BNTrain(vecMuBeta, vecSigmaSqr, setBarX, this->setInput, vecBeta, vecGamma, dEpsilon);
-        return setOutput.length;
-    }
-
-    bool BackProp() {
-        vecGradBeta  = BNGradLossToShift(setGrad);
-        vecGradGamma = BNGradLossToScale(setBarX, setGrad);
-        if (this->dLearnRate) setGrad = BNGradLossToInput(vecMuBeta, vecSigmaSqr, setBarX, setInput, setGrad, vecNesterovGamma, dEpsilon);
-        else setGrad = BNGradLossToInput(vecMuBeta, vecSigmaSqr, setBarX, setInput, setGrad, vecGamma, dEpsilon);
+        if (dLearnRate) setGrad = BNTrain(BdData, setInput, vecNesterovBeta, vecNesterovGamma, dEpsilon);
+        else setGrad = BNTrain(BdData, setInput, vecBeta, vecGamma, dEpsilon);
         return setGrad.length;
     }
 
-    bool ForwPropAsync(neunet_vect &vecInput, uint64_t iIdx, uint64_t iEpoch, uint64_t iTrainBatchIdx) {
-        if (iTrainBatchIdx != this->iTrainBatchIdx && iEpoch != iEpochCnt) asyTrainCtrl.thread_sleep();
+    bool BackProp() {
+        if (dLearnRate) setGrad = BNGradLossToInputGammaBeta(vecGradGamma, vecGradBeta, setGrad, BdData, vecNesterovGamma, dEpsilon);
+        else setGrad = BNGradLossToInputGammaBeta(vecGradGamma, vecGradBeta, setGrad, BdData, vecGamma, dEpsilon);
+        return setGrad.length;
+    }
+
+    bool ForwPropAsync(neunet_vect &vecInput, uint64_t iIdx) {
         setInput[iIdx] = std::move(vecInput);
+        auto bFlag = true;
         if (++iLayerBatchSizeIdx == setInput.length) {
-            bBNFlag = ForwProp();
+            bFlag = ForwProp();
             asyBNCtrl.thread_wake_all();
         } else asyBNCtrl.thread_sleep();
-        vecInput = std::move(setOutput[iIdx]);
-        return bBNFlag;
+        vecInput = std::move(setGrad[iIdx]);
+        return bFlag;
     }
 
     bool BackPropAsync(neunet_vect &vecGrad, uint64_t iIdx) {
         setGrad[iIdx] = std::move(vecGrad);
+        auto bFlag = true;
         if (--iLayerBatchSizeIdx) asyBNCtrl.thread_sleep();
         else {
-            bBNFlag = BackProp();
+            bFlag = BackProp();
             asyBNCtrl.thread_wake_all();
             Update();
         }
         vecGrad = std::move(setGrad[iIdx]);
-        return bBNFlag;
+        return bFlag;
     }
 
-    bool Deduce(neunet_vect &vecInput, uint64_t iEpoch) {
-        if (iEpoch != iEpochCnt) asyDeduceCtrl.thread_sleep();
-        vecInput = BNDeduce(vecExpMuBeta, vecSigmaSqr, vecInput, vecBeta, vecGamma, dEpsilon);
+    bool Deduce(neunet_vect &vecInput) {
+        vecInput = BNDeduce(vecExpMuBeta, BdData.vecSigmaSqr, vecInput, vecBeta, vecGamma, dEpsilon);
         return vecInput.verify;
     }
 
@@ -281,28 +282,30 @@ matrix_declare struct LayerBN : Layer {
         }
         // moving average
         if (vecExpMuBeta.verify && vecExpSigmaSqr.verify) {
-            vecExpMuBeta   = dDecay * vecExpMuBeta + (1 - dDecay) * vecMuBeta;
-            vecExpSigmaSqr = dDecay * vecExpSigmaSqr + (1 - dDecay) * vecSigmaSqr;
+            vecExpMuBeta   = dDecay * vecExpMuBeta + (1 - dDecay) * BdData.vecMuBeta;
+            vecExpSigmaSqr = dDecay * vecExpSigmaSqr + (1 - dDecay) * BdData.vecSigmaSqr;
         } else {
-            vecExpMuBeta   = std::move(vecMuBeta);
-            vecExpSigmaSqr = std::move(vecSigmaSqr);            
+            vecExpMuBeta   = std::move(BdData.vecMuBeta);
+            vecExpSigmaSqr = std::move(BdData.vecSigmaSqr);            
         }
         if (++iTrainBatchIdx == iTrainBatchCnt) {
-            ++iEpochCnt;
-            iTrainBatchIdx = 0;
-            vecSigmaSqr    = vecExpSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
-            asyDeduceCtrl.thread_wake_all();
-        } else asyTrainCtrl.thread_wake_all();
+            iTrainBatchIdx     = 0;
+            BdData.vecSigmaSqr = vecExpSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
+        }
     }
 
     virtual void Reset(bool bFull = true) {
         if (bFull) Layer::Reset(true);
-        dEpsilon = 1e-8l;
-        dBeta    = 0;
-        dGamma   = 1;
-        dDecay   = 0.9l;
-        bBNFlag  = false;
-        setInput.reset();        
+        dEpsilon               = 1e-8l;
+        dDecay                 = 0.9l;
+        iTrainBatchCnt         = 0;
+        iTrainBatchIdx         = 0;
+        BdData.dCoeBatchSize   = 0;
+        BdData.dCoeDbBatchSize = 0;
+        dBeta                  = 0;
+        dGamma                 = 0;
+        setInput.reset();
+        setGrad.reset();
         vecBeta.reset();
         vecGamma.reset();
         vecNesterovBeta.reset();
@@ -313,11 +316,14 @@ matrix_declare struct LayerBN : Layer {
         advGamma.reset();
         adaBeta.reset();
         adaGamma.reset();
-        vecMuBeta.reset();
-        vecSigmaSqr.reset();
-        setBarX.reset();
         vecExpMuBeta.reset();
         vecExpSigmaSqr.reset();
+        BdData.setBarX.reset();
+        BdData.setDist.reset();
+        BdData.vecMuBeta.reset();
+        BdData.vecSigma.reset();
+        BdData.vecSigmaDom.reset();
+        BdData.vecSigmaSqr.reset();
     }
 
     virtual ~LayerBN() { Reset(false); }

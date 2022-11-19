@@ -30,6 +30,7 @@
 // Bias
 #define NEUNET_LAYER_BIAS   0x0007
 
+#include <concepts>
 #include "conv"
 #include "bn"
 
@@ -58,10 +59,12 @@ typedef LayerTrans              NetLayerTrans;
 
 LAYER_END
 
-// neunet status code
-#define NEUNET_STAT_NRM 0x0000
-#define NEUNET_STAT_END 0x0001
-#define NEUNET_STAT_ERR 0x0002
+/* network status code */
+// train
+#define NEUNET_STAT_NRM     0x0000
+// deduce
+#define NEUNET_STAT_END     0x0001
+#define NEUNET_STAT_ERR     0x0002
 
 // layer verification
 

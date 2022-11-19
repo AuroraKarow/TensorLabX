@@ -109,11 +109,11 @@ public:
 
     bool __alpha_verify__() const { return rgba[bmio_a].verify; }
 
-    __declspec(property(get=ln_cnt))           uint64_t            height;
-    __declspec(property(get=col_cnt))          uint64_t            width;
-    __declspec(property(get=is_bitmap))        bool                verify;
-    __declspec(property(get=__alpha_verify__)) bool                alpha_verify;
-    __declspec(property(get=__gray__))         bmio_chann          gray;
+    __declspec(property(get=ln_cnt))           uint64_t   height;
+    __declspec(property(get=col_cnt))          uint64_t   width;
+    __declspec(property(get=is_bitmap))        bool       verify;
+    __declspec(property(get=__alpha_verify__)) bool       alpha_verify;
+    __declspec(property(get=__gray__))         bmio_chann gray;
 
     bool operator==(const bitmap &src) const {
         for (auto i = 0; i < bmio_rgba; ++i) if (rgba[i] != src.rgba[i]) return false;

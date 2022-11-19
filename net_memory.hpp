@@ -209,8 +209,7 @@ public:
             return;
         }
         auto temp_id = head_id, curr_addr = 0ull;
-        do
-        {
+        do {
             if (mem_blk_info[temp_id].addr_curr_len) {
                 if (mem_blk_info[temp_id].addr != curr_addr) for (auto i = 0ull; i < mem_blk_info[temp_id].addr_curr_len; ++i) mem_val[curr_addr + i] = std::move(mem_val[mem_blk_info[temp_id].addr + i]);
                 curr_addr += mem_blk_info[temp_id].addr_curr_len;

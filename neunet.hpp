@@ -4,10 +4,9 @@ NEUNET_BEGIN
 
 struct NeunetCore {
     // property
-
     uint64_t iTrainBatchSize  = 0,
              iDeduceBatchSize = 0;
-    
+
     long double dTrainAcc = 1e-8l;
 
     net_sequence<layer::NetLayerPtr> seqLayer;
@@ -17,14 +16,14 @@ struct NeunetCore {
     // tool for train & deduce
 
     std::atomic_uint64_t iNetStatCode   = 0,
-                         iTrainProcCnt  = 0,
-                         iDeduceProcCnt = 0,
+                         iProcCnt       = 0,
 
-                         iTrainAccCnt   = 0,
-                         iTrainRcCnt    = 0,
-                         iDeduceAccCnt  = 0,
-                         iDeduceRcCnt   = 0;
+                         iTrainBatchCnt = 0,
+                         iEpoch         = 0,
 
+                         iAccCnt        = 0,
+                         iRcCnt         = 0;
+    
     // asynchronous tool
 
     async::net_queue<uint64_t> queTrainAcc,
@@ -34,6 +33,9 @@ struct NeunetCore {
                                queDeduceRc;
 
     async::async_pool asyPool;
+
+    async::async_controller asyTrainCtrl,
+                            asyDeduceCtrl;
 
     NeunetCore(uint64_t iTrainBatchSize = 16, uint64_t iDeduceBatchSize = 16, long double dTrainAcc = 1e-8l) :
         iTrainBatchSize(iTrainBatchSize),
@@ -121,7 +123,7 @@ bool RunInit(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduceDataCn
         netCore.iNetStatCode = NEUNET_STAT_ERR;
         return false;
     }
-    netCore.setTrainDataIdx.init(iTrainDataCnt);
+    netCore.setTrainDataIdx.init(iTrainDataCnt, false);
     for (auto i = 0ull; i < iTrainDataCnt; ++i) netCore.setTrainDataIdx[i] = i;
     // layer
     auto iTrainBatchCnt = iTrainDataCnt / netCore.iTrainBatchSize;
@@ -129,8 +131,8 @@ bool RunInit(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduceDataCn
     case NEUNET_LAYER_ACT: neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[i])->RunInit(netCore.iTrainBatchSize); break;
     case NEUNET_LAYER_PC: neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt); break;
     case NEUNET_LAYER_TRANS: neunet_layer_cast<layer::NetLayerTrans>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt); break;
-    case NEUNET_LAYER_FC: neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->RunInit(iInputLnCnt, netCore.iTrainBatchSize, iTrainBatchCnt); break;
-    case NEUNET_LAYER_CONV: neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt, netCore.iTrainBatchSize, iTrainBatchCnt); break;
+    case NEUNET_LAYER_FC: neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->RunInit(iInputLnCnt, netCore.iTrainBatchSize); break;
+    case NEUNET_LAYER_CONV: neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt, netCore.iTrainBatchSize); break;
     case NEUNET_LAYER_POOL: neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt, netCore.iTrainBatchSize); break;
     case NEUNET_LAYER_BN: neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->RunInit(iChannCnt, netCore.iTrainBatchSize, iTrainBatchCnt); break;
     case NEUNET_LAYER_BIAS: if (i) {
@@ -144,7 +146,7 @@ bool RunInit(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduceDataCn
 }
 
 // forward propagation
-bool ForwProp(NeunetCore &netCore, vect &vecInput, uint64_t iLbl, uint64_t iIdx, uint64_t iEpoch, uint64_t iTrainBatchIdx) {
+bool ForwProp(NeunetCore &netCore, vect &vecInput, uint64_t iIdx) {
     if (netCore.iNetStatCode == NEUNET_STAT_ERR) return false;
     for (auto i = 0ull; i < netCore.seqLayer.length; ++i) {
         auto bFPFlag = true;
@@ -152,16 +154,15 @@ bool ForwProp(NeunetCore &netCore, vect &vecInput, uint64_t iLbl, uint64_t iIdx,
         case NEUNET_LAYER_ACT: bFPFlag = neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
         case NEUNET_LAYER_PC: bFPFlag = neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[i])->ForwProp(vecInput); break;
         case NEUNET_LAYER_TRANS: bFPFlag = neunet_layer_cast<layer::NetLayerTrans>(netCore.seqLayer[i])->ForwProp(vecInput); break;
-        case NEUNET_LAYER_FC: bFPFlag = neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx, iEpoch, iTrainBatchIdx); break;
-        case NEUNET_LAYER_CONV: bFPFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx, iEpoch, iTrainBatchIdx); break;
+        case NEUNET_LAYER_FC: bFPFlag = neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
+        case NEUNET_LAYER_CONV: bFPFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
         case NEUNET_LAYER_POOL: bFPFlag = neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
-        case NEUNET_LAYER_BN: bFPFlag = neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->ForwPropAsync(vecInput, iIdx, iEpoch, iTrainBatchIdx); break;
+        case NEUNET_LAYER_BN: bFPFlag = neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->ForwPropAsync(vecInput, iIdx); break;
         case NEUNET_LAYER_BIAS: bFPFlag = neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->ForwProp(vecInput); break;
         default: break;
         }
         if (!bFPFlag) return false;
     }
-    output_acc_rc(vecInput, netCore.dTrainAcc, iLbl, netCore.iTrainAccCnt, netCore.iTrainRcCnt);
     return true;
 }
 
@@ -189,7 +190,7 @@ bool BackProp(NeunetCore &netCore, vect &vecFPOutput, const vect &vecOrgn, uint6
 }
 
 // deduce
-bool Deduce(NeunetCore &netCore, vect &vecInput, uint64_t iLbl, uint64_t iIdx, uint64_t iEpoch) {
+bool Deduce(NeunetCore &netCore, vect &vecInput, uint64_t iIdx) {
     if (netCore.iNetStatCode == NEUNET_STAT_ERR) return false;
     for (auto i = 0ull; i < netCore.seqLayer.length; ++i) {
         auto bDdFlag = true;
@@ -197,16 +198,15 @@ bool Deduce(NeunetCore &netCore, vect &vecInput, uint64_t iLbl, uint64_t iIdx, u
         case NEUNET_LAYER_ACT: bDdFlag = neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_PC: bDdFlag = neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_TRANS: bDdFlag = neunet_layer_cast<layer::NetLayerTrans>(netCore.seqLayer[i])->Deduce(vecInput); break;
-        case NEUNET_LAYER_FC: bDdFlag = neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->Deduce(vecInput, iEpoch); break;
-        case NEUNET_LAYER_CONV: bDdFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->Deduce(vecInput, iEpoch); break;
+        case NEUNET_LAYER_FC: bDdFlag = neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->Deduce(vecInput); break;
+        case NEUNET_LAYER_CONV: bDdFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_POOL: bDdFlag = neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->Deduce(vecInput); break;
-        case NEUNET_LAYER_BN: neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->Deduce(vecInput, iEpoch); break;
+        case NEUNET_LAYER_BN: neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_BIAS: neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->Deduce(vecInput); break;
         default: break;
         }
         if (!bDdFlag) return false;
     }
-    output_acc_rc(vecInput, netCore.dTrainAcc, iLbl, netCore.iDeduceAccCnt, netCore.iDeduceRcCnt);
     return true;
 }
 
@@ -215,61 +215,78 @@ bool Deduce(NeunetCore &netCore, vect &vecInput, uint64_t iLbl, uint64_t iIdx, u
 // error abortion
 bool ErrorAbort(NeunetCore &netCore) {
     if (netCore.iNetStatCode != NEUNET_STAT_ERR) return false;
-    netCore.queDeduceAcc.except_abort();
-    netCore.queDeduceRc.except_abort();
-    netCore.queTrainAcc.except_abort();
-    netCore.queTrainRc.except_abort();
+    netCore.queDeduceAcc.err_abort();
+    netCore.queDeduceRc.err_abort();
+    netCore.queTrainAcc.err_abort();
+    netCore.queTrainRc.err_abort();
     return true;
 }
 
 // train & deduce process thread
-void TrainDeduceThread(NeunetCore &netCore, const net_set<vect> &setTrainData, const net_set<uint64_t> &setTrainLbl, const net_set<vect> &setDeduceData, const net_set<uint64_t> &setDeduceLbl, uint64_t iLblTypeCnt) { for (auto i = 0ull; i < netCore.asyPool.size(); ++i) netCore.asyPool.add_task([&netCore, &setTrainData, &setTrainLbl, &setDeduceData, &setDeduceLbl, iLblTypeCnt, i](uint64_t iEpoch, uint64_t iTrainBatchCnt, uint64_t iDeduceBatchCnt) { while (netCore.iNetStatCode == NEUNET_STAT_NRM) {
+void TrainDeduceThread(NeunetCore &netCore, const net_set<vect> &setTrainData, const net_set<uint64_t> &setTrainLbl, const net_set<vect> &setDeduceData, const net_set<uint64_t> &setDeduceLbl, uint64_t iLblTypeCnt) { for (auto i = 0ull; i < netCore.asyPool.size(); ++i) netCore.asyPool.add_task([&netCore, &setTrainData, &setTrainLbl, &setDeduceData, &setDeduceLbl, iLblTypeCnt, i](uint64_t iEpoch, uint64_t iTrainBatchCnt, uint64_t iDeduceBatchCnt){ while (netCore.iNetStatCode == NEUNET_STAT_NRM) {
     uint64_t iDataIdx  = i,
              iBatchIdx = 0;
     // train
     while (iBatchIdx < iTrainBatchCnt && i < netCore.iTrainBatchSize) {
+        // get data
         auto vecInput = setTrainData[netCore.setTrainDataIdx[iDataIdx]];
         auto iLbl     = setTrainLbl[netCore.setTrainDataIdx[iDataIdx]];
-        if (!ForwProp(netCore, vecInput, iLbl, i, iEpoch, iBatchIdx)) {
-            netCore.iNetStatCode = NEUNET_STAT_ERR;
-            break;
+        auto vecOrgn  = lbl_orgn(iLbl, iLblTypeCnt);
+        iDataIdx     += netCore.iTrainBatchSize;
+        // wait last batch
+        if (iBatchIdx != netCore.iTrainBatchCnt) netCore.asyTrainCtrl.thread_sleep();
+        if (ForwProp(netCore, vecInput, i)) {
+            // FP
+            output_acc_rc(vecInput, netCore.dTrainAcc, iLbl, netCore.iAccCnt, netCore.iRcCnt);
+            ++iBatchIdx;
+            if (BackProp(netCore, vecInput, vecOrgn, i)) {
+                if (++netCore.iProcCnt == netCore.iTrainBatchSize) {
+                    // current batch data
+                    netCore.queTrainAcc.en_queue((uint64_t)netCore.iAccCnt);
+                    netCore.queTrainRc.en_queue((uint64_t)netCore.iRcCnt);
+                    netCore.iAccCnt  = 0;
+                    netCore.iRcCnt   = 0;
+                    netCore.iProcCnt = 0;
+                    if (iBatchIdx == iTrainBatchCnt) {
+                        netCore.setTrainDataIdx.shuffle();
+                        ++netCore.iEpoch;
+                        netCore.asyDeduceCtrl.thread_wake_all();
+                    } else {
+                        ++netCore.iTrainBatchCnt;
+                        netCore.asyTrainCtrl.thread_wake_all();
+                    }
+                }
+                continue;              
+            }
         }
-        iDataIdx += netCore.iTrainBatchSize;
-        ++iBatchIdx;
-        if (++netCore.iTrainProcCnt == netCore.iTrainBatchSize) {
-            netCore.queTrainAcc.en_queue((uint64_t)netCore.iTrainAccCnt);
-            netCore.queTrainRc.en_queue((uint64_t)netCore.iTrainRcCnt);
-            netCore.iTrainAccCnt  = 0;
-            netCore.iTrainRcCnt   = 0;
-            netCore.iTrainProcCnt = 0;
-            if (iBatchIdx == iTrainBatchCnt) netCore.setTrainDataIdx.shuffle();
-        }
-        auto vecOrgn = lbl_orgn(iLbl, iLblTypeCnt);
-        if (!BackProp(netCore, vecInput, vecOrgn, i)) {
-            netCore.iNetStatCode = NEUNET_STAT_ERR;
-            break;
-        }
+        netCore.iNetStatCode = NEUNET_STAT_ERR;
+        break;
     }
     if (ErrorAbort(netCore)) break;
+    // deduce
     ++iEpoch;
     iDataIdx  = i;
     iBatchIdx = 0;
     while (iBatchIdx < iDeduceBatchCnt && i < netCore.iDeduceBatchSize) {
         auto vecInput = setDeduceData[iDataIdx];
         auto iLbl     = setDeduceLbl[iDataIdx];
-        if (!Deduce(netCore, vecInput, iLbl, i, iEpoch)) {
+        if (iEpoch != netCore.iEpoch) netCore.asyDeduceCtrl.thread_sleep();
+        if (!Deduce(netCore, vecInput, i)) {
             netCore.iNetStatCode = NEUNET_STAT_ERR;
             break;
         }
+        output_acc_rc(vecInput, netCore.dTrainAcc, iLbl, netCore.iAccCnt, netCore.iRcCnt);
         iDataIdx += netCore.iDeduceBatchSize;
         ++iBatchIdx;
     }
-    if (++netCore.iDeduceProcCnt == netCore.asyPool.size()) {
-        netCore.queDeduceAcc.en_queue((uint64_t)netCore.iDeduceAccCnt);
-        netCore.queDeduceRc.en_queue((uint64_t)netCore.iDeduceRcCnt);
-        netCore.iDeduceAccCnt  = 0;
-        netCore.iDeduceRcCnt   = 0;
-        netCore.iDeduceProcCnt = 0;
+    if (++netCore.iProcCnt == netCore.asyPool.size()) {
+        netCore.queDeduceAcc.en_queue((uint64_t)netCore.iAccCnt);
+        netCore.queDeduceRc.en_queue((uint64_t)netCore.iRcCnt);
+        netCore.iAccCnt        = 0;
+        netCore.iRcCnt         = 0;
+        netCore.iProcCnt       = 0;
+        netCore.iTrainBatchCnt = 0;
+        netCore.asyTrainCtrl.thread_wake_all();
     }
 } }, 0, (setTrainData.length / netCore.iTrainBatchSize), (setDeduceData.length / netCore.iDeduceBatchSize)); }
 
@@ -303,7 +320,7 @@ void DataShowThread(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduc
 }
 
 bool TestShow(NeunetCore &netSrc, vect &vecInput, uint64_t iLbl, uint64_t iInputLnCnt, uint64_t iInputColCnt) {
-    if (RunInit(netSrc, 32, 32, iInputLnCnt, iInputColCnt, 1) && Deduce(netSrc, vecInput, iLbl, 0, 0)) {
+    if (RunInit(netSrc, 16, 16, iInputLnCnt, iInputColCnt, 1) && Deduce(netSrc, vecInput, 0)) {
         print_output(vecInput, iLbl);
         return true;
     } else return false;

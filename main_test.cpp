@@ -7,6 +7,8 @@
 #include <iostream>
 
 #include "net_chrono"
+#include "net_memory"
+#include "net_map"
 #include "neunet"
 
 using std::cout;
@@ -19,44 +21,21 @@ int main(int argc, char *argv[], int *envp[]) {
     std::cout << "hello, world." << std::endl;
     auto bgpt = NEUNET_CHRONO_TIME_POINT;
 
-    NeunetCore core;
-
-    AddLayer<layer::NetLayerFC>(core, 2);                   // 0
-    neunet_layer_cast<layer::NetLayerFC>(core.seqLayer[0])->vecWeight = 
-    {{1.4},
-     {2.7}};
-    AddLayer<layer::NetLayerBias>(core);                    // 1
-    AddLayer<layer::NetLayerAct>(core, NEUNET_ARELU);       // 2
-    AddLayer<layer::NetLayerFC>(core, 4);                   // 3
-    neunet_layer_cast<layer::NetLayerFC>(core.seqLayer[3])->vecWeight = 
-    {{1.4, 4.8},
-     {2.7, 3.7},
-     {3.3, 1.8},
-     {1.9, 3.8}};
-    AddLayer<layer::NetLayerBias>(core);                    // 4
-    AddLayer<layer::NetLayerAct>(core, NEUNET_ARELU);       // 5
-    AddLayer<layer::NetLayerFC>(core, 3);                   // 6
-    neunet_layer_cast<layer::NetLayerFC>(core.seqLayer[6])->vecWeight = 
-    {{1.4, 3.4, 2.8, 9.0},
-     {2.7, 9.7, 3.6, 9.1},
-     {3.5, 5.5, 2.0, 7.0}};
-    AddLayer<layer::NetLayerBias>(core);                    // 7
-    AddLayer<layer::NetLayerAct>(core, NEUNET_ARELU);       // 8
-    AddLayer<layer::NetLayerFC>(core, 2);                   // 9
-    neunet_layer_cast<layer::NetLayerFC>(core.seqLayer[9])->vecWeight = 
-    {{1.4, 8.4, 1.0},
-     {2.7, 7.2, 0.7}};
-    AddLayer<layer::NetLayerBias>(core);                    // 10
-    AddLayer<layer::NetLayerAct>(core, NEUNET_ARELU);       // 11
-    AddLayer<layer::NetLayerFC>(core, 2);                   // 12
-    neunet_layer_cast<layer::NetLayerFC>(core.seqLayer[12])->vecWeight = 
-    {{1.4, 1.4},
-     {2.7, 2.7}};
-    AddLayer<layer::NetLayerBias>(core);                    // 13
-    AddLayer<layer::NetLayerAct>(core, NEUNET_ARELU_LOSS);  // 14
-    
-    vect input = {{1.4}};
-    TestShow(core, input, 0, 1, 1);
+    vect in = {{1, 0, 1},
+               {2, 2, 2},
+               {0, 1, 1},
+               {1, 0, 0},
+               {1, 3, 1},
+               {3, 2, 3},
+               {0, 1, 3},
+               {2, 1, 3},
+               {2, 0, 2}};
+    uint64_t caffe_ln_cnt = 0, caffe_col_cnt = 0, output_ln_cnt = 0, output_col_cnt = 0;
+    auto caffe_data = conv::CaffeTransformData(3, caffe_ln_cnt, caffe_col_cnt, 3, 3, output_ln_cnt, output_col_cnt, 2, 2, 1, 1, 0, 0);
+    auto caffe = conv::CaffeTransform(in, caffe_data, caffe_ln_cnt, caffe_col_cnt);
+    cout << caffe << '\n' << endl;
+    auto im2col = conv::CaffeTransform(caffe, caffe_data, in.line_count, in.column_count, false);
+    cout << im2col << '\n' << endl;
     
     auto edpt = NEUNET_CHRONO_TIME_POINT;
     cout << (edpt - bgpt) << "ms" << endl;

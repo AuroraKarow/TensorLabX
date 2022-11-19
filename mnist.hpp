@@ -78,6 +78,7 @@ private:
             }
             if (padding) vec_data = vec_data.padding(padding, padding, padding, padding);
             vec_data.reshape(data_length, 1);
+            if (elem_status == mnist_elem_norm) vec_data.elem_wise_opt(vec_data.elem_sum(), MATRIX_ELEM_DIV);
         }
         ptr_reset(data_ptr);
         return vec_data;

@@ -33,30 +33,25 @@ bool gdi_load_bitmap(bmio_bitmap dest, const wchar_t *dir, bool alpha = false) {
         auto map_ptr = new Gdiplus::Bitmap(dir);
         auto curr_px = new Gdiplus::Color;
         chann_init(dest, map_ptr->GetHeight(), map_ptr->GetWidth(), alpha);
-        for (auto i = 0ull; i<map_ptr->GetHeight(); ++i) for (auto j = 0ull; j<map_ptr->GetWidth(); ++j)
-            if (map_ptr->GetPixel(j, i, curr_px) == Gdiplus::Status::Ok)
-            {
-                dest[bmio_r][i][j] = (long double)curr_px->GetRed();
-                dest[bmio_g][i][j] = curr_px->GetGreen();
-                dest[bmio_b][i][j] = curr_px->GetBlue();
-                if(alpha) dest[bmio_a][i][j] = curr_px->GetAlpha();
-            } else { 
-                flag = false;
-                break;
-            }
-        delete curr_px;
-        delete map_ptr;
-        curr_px = nullptr;
-        map_ptr = nullptr;
+        for (auto i = 0ull; i<map_ptr->GetHeight(); ++i) for (auto j = 0ull; j<map_ptr->GetWidth(); ++j) if (map_ptr->GetPixel(j, i, curr_px) == Gdiplus::Status::Ok) {
+            dest[bmio_r][i][j] = (long double)curr_px->GetRed();
+            dest[bmio_g][i][j] = curr_px->GetGreen();
+            dest[bmio_b][i][j] = curr_px->GetBlue();
+            if(alpha) dest[bmio_a][i][j] = curr_px->GetAlpha();
+        } else { 
+            flag = false;
+            break;
+        }
+        while (curr_px) { delete curr_px; curr_px = nullptr; }
+        while (map_ptr) { delete map_ptr; map_ptr = nullptr; }
     }
     Gdiplus::GdiplusShutdown(gph_token);
-    delete st_gph;
-    st_gph = nullptr;
+    while (st_gph) { delete st_gph; st_gph = nullptr; }
     return flag;
 }
 
 bool gdi_CLSID_encode(const wchar_t *format, CLSID *p_CLSID) {
-   // Number of image encoders
+    // Number of image encoders
     uint32_t encode_num = 0,
     // Size of the image encoder array in bytes
              _size      = 0;
@@ -119,16 +114,13 @@ bool gdi_save_bitmap(const bmio_bitmap src, const wchar_t *dir_root, const wchar
                 if (backslash == L'\\') path += L'\\' + file_name;
                 else path += L'/' + file_name;
                 flag = Gdiplus::Status::Ok == map_ptr->Save(path.c_str(), p_clsid);
-                delete p_clsid;
-                p_clsid = nullptr;
+                while (p_clsid) { delete p_clsid; p_clsid = nullptr; }
             }
         } else flag = false;
-        delete map_ptr;
-        map_ptr = nullptr;
+        while (map_ptr) { delete map_ptr; map_ptr = nullptr; }
     }
     Gdiplus::GdiplusShutdown(gph_token);
-    delete st_gph;
-    st_gph = nullptr;
+    while (st_gph) { delete st_gph; st_gph = nullptr; }
     return flag;
 }
 
