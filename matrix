@@ -13,6 +13,7 @@
 #define MATRIX_ELEM_DIV     0x0001
 #define MATRIX_ELEM_POW     0x0002
 
+#define MATRIX_BYTESIZE     0x0008
 #define MATRIX_REGSIZE      0x0004
 #define MATRIX_UNROLL       MATRIX_REGSIZE
 #define MATRIX_UNROLL_UNIT  0x0010
@@ -33,6 +34,7 @@
 
 #define callback_matrices   template<typename ... args>
 
+#include <omp.h>
 #include "matrix_base.hpp"
 
 #define matrix_elem_para    i_arg

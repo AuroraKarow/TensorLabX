@@ -235,12 +235,34 @@ double *mult_reg(const double *fst, uint64_t fst_ln_cnt, uint64_t fst_col_cnt, c
     }
     return nullptr;
 }
+callback_matrix matrix_ptr mult_vect(const matrix_ptr fst, uint64_t fst_ln_cnt, uint64_t fst_col_cnt, const matrix_ptr snd_vect) {
+    auto ans = init<matrix_elem_t>(fst_ln_cnt);
+    uint64_t ln  = 0,
+             col = 0;
+    
+    auto blk_ln_cnt = fst_ln_cnt / MATRIX_BYTESIZE;
+    
+    for(ln = 0; ln < blk_ln_cnt; ++ln) {
+        matrix_elem_t blk_val[MATRIX_BYTESIZE] = {};
+        
+        auto curr_ln = ln * MATRIX_BYTESIZE;
+        
+        for(col = 0; col < fst_col_cnt; ++col) for (auto x = 0; x < MATRIX_BYTESIZE; ++x) blk_val[x] += fst[(curr_ln + x) * fst_col_cnt + col] * snd_vect[col];
+        
+        for (auto x = 0; x < MATRIX_BYTESIZE; ++x) ans[curr_ln + x] += blk_val[x];
+    }
+    
+    for(ln *= MATRIX_BYTESIZE; ln < fst_ln_cnt; ++ln) for(col = 0; col < fst_col_cnt; ++col) ans[ln] += fst[ln * fst_col_cnt + col] * snd_vect[col];
+
+    return ans;
+}
 /* ans_ln_cnt  = fst_ln_cnt
  * ans_col_cnt = snd_col_cnt
  * array packing
  */
 callback_matrix matrix_ptr mult(const matrix_ptr fst, uint64_t fst_ln_cnt, uint64_t fst_col_cnt, const matrix_ptr snd, uint64_t snd_col_cnt) {
     if (fst && snd && fst_ln_cnt && fst_col_cnt && snd_col_cnt) {
+        if (snd_col_cnt == 1) return mult_vect(fst, fst_ln_cnt, fst_col_cnt, snd);
         auto ans_elem_cnt = fst_ln_cnt * snd_col_cnt;
         if constexpr (std::is_same_v<matrix_elem_t, double>) return mult_reg(fst, fst_ln_cnt, fst_col_cnt, snd, snd_col_cnt);
         if constexpr (std::is_same_v<matrix_elem_t, long double>) {
