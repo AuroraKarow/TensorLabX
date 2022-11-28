@@ -429,6 +429,43 @@ public:
 
     static net_matrix identity(uint64_t dim_cnt) { return net_matrix(init_identity<matrix_elem_t>(dim_cnt), dim_cnt, dim_cnt); }
 
+    static net_matrix set_sigma(const net_set<net_matrix> &vect_set) {
+        if constexpr (std::is_same_v<matrix_elem_t, double> || (std::is_same_v<matrix_elem_t, long double> && sizeof(long double) == sizeof(double))) {
+            net_matrix ans;
+            ans.ln_cnt   = vect_set[0].ln_cnt;
+            ans.col_cnt  = vect_set[0].col_cnt;
+            ans.elem_cnt = vect_set[0].elem_cnt;
+
+            __m256d ans_reg[MATRIX_UNROLL];
+            auto ans_ptr  = new double [ans.elem_cnt];
+            auto idx_temp = 0ull;
+            while (idx_temp < ans.elem_cnt) {
+                auto idx_next = idx_temp + MATRIX_UNROLL_UNIT;
+
+                if (idx_next > ans.elem_cnt) {
+                    for (auto i = idx_temp; i < ans.elem_cnt; ++i) {
+                        *(ans_ptr + i) = (*(vect_set[0].ptr + i));
+                        for (auto j = 1ull; j < vect_set.length; ++j) *(ans_ptr + i) += (*(vect_set[j].ptr + i));
+                    }
+                    break;
+                }
+
+                for (auto x = 0; x < MATRIX_UNROLL; ++x) ans_reg[x] = _mm256_load_pd((double *)vect_set[0].ptr + idx_temp + x * MATRIX_REGSIZE);
+
+                for (auto i = 1ull; i < vect_set.length; ++i) for (auto x = 0; x < MATRIX_UNROLL; ++x) ans_reg[x] = _mm256_add_pd(ans_reg[x], _mm256_load_pd((double *)vect_set[i].ptr + idx_temp + x * MATRIX_REGSIZE));
+
+                for (auto x = 0; x < MATRIX_UNROLL; ++x) _mm256_store_pd(ans_ptr + idx_temp + x * MATRIX_REGSIZE, ans_reg[x]);
+
+                idx_temp = idx_next;
+            }
+
+            ans.ptr = (matrix_elem_t *)ans_ptr;
+            ans_ptr = nullptr;
+            
+            return ans;
+        } else return vect_set.sum;
+    }
+
     __declspec(property(get=__ln_cnt__))       uint64_t      line_count;
     __declspec(property(get=__col_cnt__))      uint64_t      column_count;
     __declspec(property(get=__elem_cnt__))     uint64_t      element_count;
@@ -499,11 +536,6 @@ public:
         return line_data(this, ln, col_cnt);
     }
 
-    // matrix_elem_t *operator[](uint64_t ln) const {
-    //     assert(ln < ln_cnt);
-    //     return ptr + ln * col_cnt;
-    // }
-
     bool operator==(const net_matrix &src) const {
         if (shape_verify(src)) {
             for (auto i = 0ull; i < elem_cnt; ++i) if (*(ptr + i) != *(src.ptr + i)) return false;
@@ -523,5 +555,7 @@ public:
     }
 
 };
+
+callback_matrix neunet_vect vect_sum(const net_set<neunet_vect> &vect_set) { return net_matrix<matrix_elem_t>::set_sigma(vect_set); }
 
 MATRIX_END

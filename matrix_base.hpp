@@ -184,12 +184,10 @@ callback_matrix matrix_elem_t sum(const matrix_ptr src, uint64_t ln_cnt, uint64_
     return ans;
 }
 
-
 callback_matrix matrix_ptr add(const matrix_ptr fst, const matrix_ptr snd, uint64_t elem_cnt, bool subtract = false) {
     if (elem_cnt && fst && snd) {
-        // reg
-        auto ans = new long double[elem_cnt];
-        for (auto i = 0ull; i < elem_cnt; ++i)
+        auto ans = new matrix_elem_t[elem_cnt];
+        for (auto i = 0ll; i < elem_cnt; ++i)
             if (subtract) *(ans + i) = *(fst + i) - *(snd + i);
             else *(ans + i) = *(fst + i) + *(snd + i);
         return ans;
@@ -297,7 +295,7 @@ callback_matrix matrix_ptr mult(const matrix_ptr val, uint64_t elem_cnt, const m
 callback_matrix matrix_ptr elem_operate(const matrix_ptr val, uint64_t elem_cnt, const matrix_elem_t &para, uint64_t operation, bool para_fst = false, long double epsilon = 1e-8) {
     matrix_ptr ans = nullptr;
     if (val && elem_cnt) {
-        ans = init<matrix_elem_t>(elem_cnt);
+        ans = new matrix_elem_t[elem_cnt];
         for (auto i = 0ull; i < elem_cnt; ++i) {
             auto elem      = *(val + i),
                  curr_val  = para;

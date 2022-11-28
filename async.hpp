@@ -6,9 +6,10 @@ template<typename f_arg, typename ... args> constexpr auto function_package(f_ar
 
 struct async_controller final {
 public:
-    void thread_sleep() {
+    void thread_sleep(uint64_t wait_ms = 0) {
         std::unique_lock<std::mutex> lk(td_mtx);
-        cond.wait(lk);
+        if (wait_ms) cond.wait_for(lk, std::chrono::milliseconds(wait_ms));
+        else cond.wait(lk);
     }
 
     void thread_wake_all() { cond.notify_all(); }

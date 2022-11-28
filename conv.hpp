@@ -241,7 +241,7 @@ matrix_declare struct LayerConv : Layer {
     }
 
     void Update() {
-        auto vecGrad = setGradKernel.sum.elem_wise_opt(setGradKernel.length, MATRIX_ELEM_DIV);
+        auto vecGrad = matrix::vect_sum(setGradKernel).elem_wise_opt(setGradKernel.length, MATRIX_ELEM_DIV);
         if (dLearnRate) {
             vecKernel        -= advKernel.momentum(vecGrad, dLearnRate);
             vecNesterovKernel = advKernel.weight(vecKernel);

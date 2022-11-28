@@ -181,7 +181,7 @@ matrix_declare struct LayerFC : Layer {
     }
 
     void Update() {
-        auto vecGrad = setGradWeight.sum.elem_wise_opt(setGradWeight.length, MATRIX_ELEM_DIV);
+        auto vecGrad = matrix::vect_sum(setGradWeight).elem_wise_opt(setGradWeight.length, MATRIX_ELEM_DIV);
         if (dLearnRate) {
             vecWeight        -= advWeight.momentum(vecGrad, dLearnRate);
             vecNesterovWeight = advWeight.weight(vecWeight);

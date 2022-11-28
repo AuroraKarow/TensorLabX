@@ -45,7 +45,7 @@ matrix_declare struct BNData final {
 
 callback_matrix net_set<neunet_vect> BNTrain (BNData<matrix_elem_t> &BdData, const net_set<neunet_vect> &setInput, const neunet_vect &vecBeta, const neunet_vect &vecGamma, const matrix_elem_t &dEpsilon = 1e-8l) {
     // Average, miu
-    BdData.vecMuBeta = BdData.dCoeBatchSize * setInput.sum;
+    BdData.vecMuBeta = BdData.dCoeBatchSize * matrix::vect_sum(setInput);
     // Variance, sigma square
     BdData.setDist.init(setInput.length, false);
     BdData.vecSigmaSqr = neunet_vect(BdData.vecMuBeta.line_count, BdData.vecMuBeta.column_count);
@@ -75,8 +75,8 @@ callback_matrix net_set<neunet_vect> BNGradLossToInputGammaBeta(neunet_vect &vec
     vecGradGamma = neunet_vect(BdData.vecSigma.column_count, 1);
     vecGradBeta  = vecGradGamma;
     for (auto i = 0ull; i < BdData.setBarX.length; ++i) BdData.setBarX[i] = BdData.setBarX[i].elem_wise_opt(setGradLossToOutput[i], MATRIX_ELEM_MULT);
-    auto vecGradGammaTensor = BdData.setBarX.sum,
-         vecGradBetaTensor  = setGradLossToOutput.sum;
+    auto vecGradGammaTensor = matrix::vect_sum(BdData.setBarX),
+         vecGradBetaTensor  = matrix::vect_sum(setGradLossToOutput);
     for (auto i = 0ull; i < vecGradGammaTensor.line_count; ++i) for (auto j = 0ull; j < vecGradBetaTensor.column_count; ++j) {
         vecGradGamma.index(j) += vecGradGammaTensor[i][j];
         vecGradBeta.index(j)  += vecGradBetaTensor[i][j];
@@ -92,7 +92,7 @@ callback_matrix net_set<neunet_vect> BNGradLossToInputGammaBeta(neunet_vect &vec
     vecGradSigmaSqr  = vecGradSigmaSqr.elem_wise_opt(vecSigmaSqOnePtFive, MATRIX_ELEM_DIV);
     vecGradSigmaSqr *= (-.5l);
     // Gradient expectation
-    auto vecGradMuBeta = setGradBarX.sum.elem_wise_opt(BdData.vecSigmaDom, MATRIX_ELEM_DIV) + BdData.dCoeDbBatchSize * vecGradSigmaSqr.elem_wise_opt(BdData.setDist.sum, MATRIX_ELEM_MULT);
+    auto vecGradMuBeta = matrix::vect_sum(setGradBarX).elem_wise_opt(BdData.vecSigmaDom, MATRIX_ELEM_DIV) + BdData.dCoeDbBatchSize * vecGradSigmaSqr.elem_wise_opt(matrix::vect_sum(BdData.setDist), MATRIX_ELEM_MULT);
     vecGradMuBeta *= BdData.dCoeBatchSize;
     // Gradient input
     net_set<neunet_vect> setGradInput(BdData.setBarX.length);

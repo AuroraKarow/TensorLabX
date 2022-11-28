@@ -7,7 +7,7 @@
 #include "csvio"
 
 #define DATASET_BEGIN       namespace neunet { namespace dataset {
-#define DATASET_END         }}
+#define DATASET_END         } }
 
 // mnist
 

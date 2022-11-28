@@ -234,7 +234,7 @@ void TrainDeduceThread(NeunetCore &netCore, const net_set<vect> &setTrainData, c
         auto vecOrgn  = lbl_orgn(iLbl, iLblTypeCnt);
         iDataIdx     += netCore.iTrainBatchSize;
         // wait last batch
-        if (iBatchIdx != netCore.iTrainBatchCnt) netCore.asyTrainCtrl.thread_sleep();
+        if (iBatchIdx != netCore.iTrainBatchCnt) netCore.asyTrainCtrl.thread_sleep(1000);
         if (ForwProp(netCore, vecInput, i)) {
             // FP
             output_acc_rc(vecInput, netCore.dTrainAcc, iLbl, netCore.iAccCnt, netCore.iRcCnt);
@@ -256,7 +256,7 @@ void TrainDeduceThread(NeunetCore &netCore, const net_set<vect> &setTrainData, c
                         netCore.asyTrainCtrl.thread_wake_all();
                     }
                 }
-                continue;              
+                continue;
             }
         }
         netCore.iNetStatCode = NEUNET_STAT_ERR;

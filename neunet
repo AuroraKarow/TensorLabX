@@ -30,7 +30,7 @@
 // Bias
 #define NEUNET_LAYER_BIAS   0x0007
 
-#include <concepts>
+#include "async"
 #include "conv"
 #include "bn"
 
