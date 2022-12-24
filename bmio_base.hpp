@@ -1,7 +1,5 @@
 BMIO_BEGIN
 
-typedef vect bmio_bitmap[4];
-
 bool chann_shape_verify(const bmio_bitmap fst, const bmio_bitmap snd) {
     for (auto i = 0ull; i < bmio_rgba; ++i) if (!fst[i].shape_verify(snd[i])) return false;
     return true;

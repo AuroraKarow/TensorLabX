@@ -68,7 +68,7 @@ net_set<net_kv<int, string>> set = {
 test.insert(std::move(set));
 test.insert({{4, "cerry"},
              {5, "marin"}});
-cout << test << endl;
+for (auto kv_temp : test) cout << kv_temp.key << " -> " << kv_temp.value << '\n';
 ```
 
 [<< 返回 Back](cover.md)

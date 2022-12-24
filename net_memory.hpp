@@ -2,9 +2,9 @@ NEUNET_BEGIN
 
 template <typename arg> class net_memory {
 protected:
-    struct net_ptr_mem final : private net_ptr_base<net_memory<arg>> {
+    struct net_memory_seg final : private net_ptr_base<net_memory<arg>> {
     private:
-        void value_assign(const net_ptr_mem &src) {
+        void value_assign(const net_memory_seg &src) {
             this->ptr_base = src.ptr_base;
             this->len      = src.len;
             ptr_addr       = src.ptr_addr;
@@ -17,16 +17,16 @@ protected:
         }
 
     public:
-        net_ptr_mem(net_memory *src = nullptr, uint64_t ptr_len = 0, uint64_t addr = 0) :
+        net_memory_seg(net_memory *src = nullptr, uint64_t ptr_len = 0, uint64_t addr = 0) :
             ptr_addr(addr) {
             this->ptr_base = src;
             this->len      = ptr_len;
         }
-        net_ptr_mem(net_ptr_mem &&src) {
+        net_memory_seg(net_memory_seg &&src) {
             value_assign(src);
             src.destroy();
         }
-        net_ptr_mem(const net_ptr_mem &src) { value_assign(src); }
+        net_memory_seg(const net_memory_seg &src) { value_assign(src); }
 
         uint64_t size() const { return this->len; }
 
@@ -35,29 +35,29 @@ protected:
             return this->ptr_base->mem_val[ptr_addr + idx];
         }
 
-        net_ptr_mem &operator=(const net_ptr_mem &src) {
+        net_memory_seg &operator=(const net_memory_seg &src) {
             value_assign(src);
             return *this;
         }
 
-        net_ptr_mem &operator=(net_ptr_mem &&src) {
+        net_memory_seg &operator=(net_memory_seg &&src) {
             value_assign(src);
             src.destroy();
             return *this;
         }
 
-        bool operator==(const net_ptr_mem &src) const { return this->ptr_base == src.ptr_base && this->len == src.len && ptr_addr == src.ptr_addr; }
+        bool operator==(const net_memory_seg &src) const { return this->ptr_base == src.ptr_base && this->len == src.len && ptr_addr == src.ptr_addr; }
 
-        bool operator!=(const net_ptr_mem &src) const { !(*this == src); }
+        bool operator!=(const net_memory_seg &src) const { !(*this == src); }
 
-        ~net_ptr_mem() { destroy(); }
+        ~net_memory_seg() { destroy(); }
 
     private: uint64_t ptr_addr = 0;
 
     public:
         __declspec(property(get=size)) uint64_t length;
 
-        friend std::ostream &operator<<(std::ostream &out, const net_ptr_mem &src) {
+        friend std::ostream &operator<<(std::ostream &out, const net_memory_seg &src) {
             out << "[Length " << src.len << ']';
             for (auto i = 0ull; i < src.len; ++i) {
                 out << '\n';
@@ -268,9 +268,9 @@ public:
         return false;
     }
 
-    net_ptr_mem operator[](uint64_t id) {
-        if (id_verify(id)) return net_ptr_mem(this, mem_blk_info[id].addr_curr_len, mem_blk_info[id].addr);
-        else return net_ptr_mem();
+    net_memory_seg operator[](uint64_t id) {
+        if (id_verify(id)) return net_memory_seg(this, mem_blk_info[id].addr_curr_len, mem_blk_info[id].addr);
+        else return net_memory_seg();
     }
 
     net_memory &operator=(net_memory&& src) {

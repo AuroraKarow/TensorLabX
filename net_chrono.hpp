@@ -71,8 +71,16 @@ private:
 
     net_set<net_chrono_epoch> chrono_log;
     net_list<uint64_t>        blank_id;
-};
 
-net_chrono glb_timer;
+public:
+    net_chrono &operator=(const net_chrono &src) {
+        value_copy(src);
+        return *this;
+    }
+    net_chrono &operator=(net_chrono &&src) {
+        value_move(std::move(src));
+        return *this;
+    }
+};
 
 NEUNET_END

@@ -34,6 +34,18 @@ using namespace neunet;
 [`erase`](erase.md)|從表擦除鍵值對<br>Erase key-value element(s) from map
 `reset`|手動釋放表分配的内存<br>Release map allocated memory manually
 
+**迭代器** Iterator
+
+```c++
+// Iterator utility
+for (auto kv_temp : map_var) {
+    // key
+    kv_temp.key;
+    // value
+    kv_temp.value; 
+}
+```
+
 [<< 返回 Back](../cover.md)
 
 ---

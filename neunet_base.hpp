@@ -90,8 +90,6 @@ callback_matrix neunet_vect chann_vec_crop(uint64_t &ans_ln_cnt, uint64_t &ans_c
 
 void print_train_progress(int curr_prog, int prog, long double acc, long double rc, int dur) { std::printf("\r[Train][%d/%d][Acc/Rc][%.2f/%.2f][%dms]", curr_prog, prog, acc, rc, dur); }
 
-void print_deduce_progress(int curr_prog, int prog) { std::printf("\r[Deduce][%d/%d]", curr_prog, prog); }
-
 void print_epoch_status(int epoch, long double acc, long double rc, int dur) {
     std::printf("\r[Epoch][%d][Acc/Rc][%.4f/%.4f][%dms]", epoch, acc, rc, dur);
     std::cout << std::endl;
@@ -149,7 +147,7 @@ callback_matrix void output_acc_rc(const neunet_vect &output, long double train_
     if (output.index(lbl) > (1 - train_acc)) ++rc_cnt;
 }
 
-template <typename matrix_elem_t, typename matrix_elem_v> struct ada_delta final {
+matrix_declare struct ada_delta final {
 private:
     void value_assign(const ada_delta &src) {
         rho     = src.rho;
@@ -222,7 +220,7 @@ public:
                 
 };
 
-template <typename matrix_elem_t, typename matrix_elem_v> struct ada_nesterov final {
+matrix_declare struct ada_nesterov final {
 private:
     void value_copy(const ada_nesterov &src) {
         rho      = src.rho;

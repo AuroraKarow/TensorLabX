@@ -55,7 +55,7 @@ public:
     bitmap(bitmap &&src) { value_move(std::move(src)); }
     bitmap(bmio_bitmap &&src) { for (auto i = 0; i < bmio_rgba; ++i) rgba[i] = std::move(src[i]);  }
     bitmap(uint64_t ln_cnt = 0, uint64_t col_cnt = 0, bool alpha = false) { chann_init(rgba, ln_cnt, col_cnt, alpha); }
-    bitmap(const ch_str dir, bool alpha = false) { load(dir, alpha); }
+    bitmap(const char *dir, bool alpha = false) { load(dir, alpha); }
     bitmap(const wchar_t *dir, bool alpha = false) { load(dir, alpha); }
 
     bool is_bitmap() const { return chann_verify(rgba) && rgba[bmio_b].verify; }
@@ -64,7 +64,7 @@ public:
 
     uint64_t col_cnt() const { return rgba[bmio_r].column_count; }
 
-    bool load(const ch_str dir, bool alpha = false) {
+    bool load(const char *dir, bool alpha = false) {
         auto w_dir = str_charset_exchange(dir);
         auto flag  = gdi_load_bitmap(rgba, w_dir, alpha);
         ptr_reset(w_dir);
@@ -72,7 +72,7 @@ public:
     }
     bool load(const wchar_t *dir, bool alpha = false) { return gdi_load_bitmap(rgba, dir, alpha); }
 
-    bool save(const ch_str dir_root, const ch_str name, uint64_t ex_name, char backslash = '\\') const {
+    bool save(const char *dir_root, const char *name, uint64_t ex_name, char backslash = '\\') const {
         auto w_dir_root = str_charset_exchange(dir_root),
              w_name     = str_charset_exchange(name);
         auto flag       = gdi_save_bitmap(rgba, w_dir_root, w_name, ex_name, backslash);

@@ -12,8 +12,8 @@ Available class(es) list below.
 類型<br>Class or type|描述<br>Description
 -|-
 [`bitmap`](bitmap/cover.md)|封裝類，位圖輸入輸出與處理。<br>Encapsulated class, bitmap I/O and process.
-`bmio_bitmap`*|位圖像素矩陣數組，長度為4且尺寸相同。<br>Pixel matrix array of bitmap, length is 4 and the shape of these matrices are same. Raw format.
-`bmio_chann`*|位圖通道矩陣<br>Channel matrix of bitmap
+`bmio_bitmap`\*|位圖像素矩陣數組，長度為4且尺寸相同。<br>Pixel matrix array of bitmap, length is 4 and the shape of these matrices are same. Raw format.
+`bmio_chann`\*|位圖通道矩陣<br>Channel matrix of bitmap
 
 以下列出了頭文件包含的編碼。\
 The list of code including in head file below.
@@ -40,5 +40,5 @@ typedef vect bmio_chann;
 
 ---
 
-*更多關於類型* `vect` *請參閲* [`net_matrix`](../../MatrixTensor/net_matrix/cover.md)\
-*Please refer to* [`net_matrix`](../../MatrixTensor/net_matrix/cover.md) *for more about type* `vect`
+*更多關於類型* `vect` *請參閲* [`net_matrix`](../../MatrixCalculation/net_matrix/cover.md)\
+*Please refer to* [`net_matrix`](../../MatrixCalculation/net_matrix/cover.md) *for more about type* `vect`

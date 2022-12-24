@@ -110,8 +110,7 @@ callback_arg arg ptr_erase(arg *&src, uint64_t elem_cnt, uint64_t tgt_idx, bool 
 
 callback_arg bool ptr_sort(arg *&seq_val, uint64_t begin, uint64_t end, bool asc = true) {
     if (end == begin) return true;
-    else if (seq_val + begin && seq_val + end)
-    {
+    else if (seq_val + begin && seq_val + end) {
         auto pivot = begin,
              slide = end;
         while (slide != pivot)

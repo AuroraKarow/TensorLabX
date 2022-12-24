@@ -25,8 +25,8 @@ neunet::net_set<net_matrix<double>> raw_chann = yuki.raw<double>();
 
 ---
 
-*更多關於矩陣請參閲* [`net_matrix`](../../../MatrixTensor/net_matrix/cover.md)\
-*Please refer to* [`net_matrix`](../../../MatrixTensor/net_matrix/cover.md) *for more about matrix*
+*更多關於矩陣請參閲* [`net_matrix`](../../../MatrixCalculation/net_matrix/cover.md)\
+*Please refer to* [`net_matrix`](../../../MatrixCalculation/net_matrix/cover.md) *for more about matrix*
 
 *更多關於動態集合請參閲* [`net_set`](../../net_set/cover.md)\
 *Please refer to* [`net_set`](../../net_set/cover.md) *for more about dynamic set*

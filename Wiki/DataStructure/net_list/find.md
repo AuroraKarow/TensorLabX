@@ -36,8 +36,8 @@ net_set<uint64_t> find(const arg               &tgt,
                        const net_set<uint64_t> &idx_set);
 ```
 
-在指定表索引中尋找表元素是目標值的所有索引並返回索引集合。更多請參閲 [`sub_list` 重載$^2$](sub_list.md#重載-overload-2)\
-Find all indexes of the specified indexes set of the list whose elements are target element and return the index set. Please refer to [`sub_list` Overload$^2$](sub_list.md#重載-overload-2) for more details.
+在指定表索引中尋找表元素是目標值的所有索引並返回索引集合。更多請參閲 [`sub_list`](sub_list.md)\
+Find all indexes of the specified indexes set of the list whose elements are target element and return the index set. Please refer to [`sub_list`](sub_list.md) for more details.
 
 ```c++
 using std::cout;
@@ -80,13 +80,13 @@ auto all_idx = test.find({{1, 3, 5},
      // 在索引集合 {0, 2, 4} 中尋找
      // Find in index set {0, 2, 4}
                           {0, 2, 4});
-// 一下都會打印 1
+// 以下都會打印 1
 // They would print 1 all below
 cout << (all_idx == rit_idx) << endl;
 cout << (rit_idx == spc_idx) << endl;
 // 打印索引集
 // Print index set
-cout << spec_idx << endl;
+cout << spc_idx << endl;
 ```
 
 [<< 返回 Back](cover.md)

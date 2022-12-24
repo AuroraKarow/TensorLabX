@@ -41,6 +41,10 @@ template <typename k_arg, typename arg> struct net_kv {
     }
 };
 
+template <typename k_arg> using hash_fn_t      = uint64_t(*)(const k_arg &);
+template <typename k_arg,
+          typename arg>   using init_list_kv_t = std::initializer_list<net_kv<k_arg, arg>>;
+
 template <typename k_arg, typename arg> struct net_leaf {
     uint64_t hash_key = 0;
 
@@ -415,21 +419,22 @@ protected:
     void value_copy(const net_tree &src) {
         neunet::net_leaf_copy(root, src.root);
         len       = src.len;
-        hash_func = src.hash_func;
+        p_hash_fn = src.p_hash_fn;
     }
 
     void value_move(net_tree &&src) {
-        root      = src.root;
-        len       = src.len;
-        src.root  = nullptr;
-        src.len   = 0;
-        hash_func = std::move(src.hash_func);
+        root          = src.root;
+        len           = src.len;
+        p_hash_fn     = src.p_hash_fn;
+        src.p_hash_fn = nullptr;
+        src.root      = nullptr;
+        src.len       = 0;
     }
 
 public:
-    net_tree(const std::function<uint64_t(const k_arg&)> &hash_key_func = [](const k_arg &key) { return hash_in_built(key); }) :
-        hash_func(hash_key_func) {}
-    net_tree(const std::initializer_list<net_kv<k_arg, arg>> &init_list, const std::function<uint64_t(const k_arg&)> &hash_key_func = [](const k_arg &key) { return hash_in_built(key); }) : net_tree(hash_key_func) { assert(insert(init_list) == NEUNET_INSERT_SUCCESS); }
+    net_tree(hash_fn_t<k_arg> hash_func = hash_in_built) :
+        p_hash_fn(hash_func) {}
+    net_tree(init_list_kv_t<k_arg, arg> init_list, hash_fn_t<k_arg> hash_func = hash_in_built) : net_tree(hash_func) { assert(insert(init_list) == NEUNET_INSERT_SUCCESS); }
     net_tree(const net_tree &src) { value_copy(src); }
     net_tree(net_tree &&src) { value_move(std::move(src)); }
 
@@ -463,7 +468,7 @@ public:
     uint64_t insert(net_set<net_kv<k_arg, arg>> &&elem_list) {
         uint64_t cnt = 0;
         for (auto i = 0ull; i < elem_list.length; ++i) {
-            auto curr_hash = hash_func(elem_list[i].key);
+            auto curr_hash = p_hash_fn(elem_list[i].key);
             if (insert(curr_hash, std::move(elem_list[i]))) ++cnt;
         }
         auto src_len = elem_list.length;
@@ -472,16 +477,8 @@ public:
         else if (cnt == 0) return NEUNET_INSERT_FAILED;
         else return NEUNET_INSERT_PARTIAL;
     }
-    uint64_t insert(const std::initializer_list<net_kv<k_arg, arg>> &init_list) {
-        net_set<net_kv<k_arg, arg>> elem_list(init_list.size());
-        auto cnt = 0ull;
-        for (auto temp : init_list) elem_list[cnt++] = std::move(temp);
-        return insert(std::move(elem_list));
-    }
-    bool insert(const k_arg &key, const arg &value) {
-        auto curr_hash = hash_func(key);
-        return insert(curr_hash, net_kv(key, value));
-    }
+    uint64_t insert(init_list_kv_t<k_arg, arg> init_list) { return insert(net_set<net_kv<k_arg, arg>>(init_list)); }
+    bool insert(const k_arg &key, const arg &value) { return insert(p_hash_fn(key), net_kv(key, value)); }
 
     net_kv<k_arg, arg> erase(uint64_t hash_key) {
         auto temp = net_leaf_erase(root, hash_key);
@@ -492,21 +489,15 @@ public:
         uint64_t cnt = 0;
         net_set<net_kv<k_arg, arg>> ans(len);
         for (auto temp : k_set) {
-            auto curr_hash = hash_func(temp);
+            auto curr_hash = p_hash_fn(temp);
             auto kv_temp   = erase(curr_hash);
             if (kv_temp.valid) ans[cnt++] = std::move(kv_temp);
         }
         if (cnt != ans.length) ans.init(cnt);
         return ans;
     }
-    net_set<net_kv<k_arg, arg>> erase(const std::initializer_list<k_arg> &init_k) {
-        net_set<k_arg> k_set_temp(init_k.size());
-        auto cnt = 0ull;
-        for (auto temp : init_k) k_set_temp[cnt++] = std::move(temp);
-        return erase(k_set_temp);
-    }
     net_kv<k_arg, arg> erase(const k_arg &key) {
-        auto curr_hash = hash_func(key);
+        auto curr_hash = p_hash_fn(key);
         return erase(curr_hash);
     }
 
@@ -531,7 +522,7 @@ public:
     }
 
     arg &operator[] (const k_arg &key) const {
-        auto tgt_hash = hash_func(key);
+        auto tgt_hash = p_hash_fn(key);
         return get_value(tgt_hash);
     }
 
@@ -539,6 +530,8 @@ public:
         if (len != src.len) return false;
         return net_leaf_compare(root, src.root);
     }
+
+    bool operator!=(const net_tree &src) const { return !(*this == src); }
 
     net_tree &operator=(const net_tree &src) {
         value_copy(src);
@@ -551,8 +544,9 @@ public:
 
     void reset() {
         delete root;
-        root = nullptr;
-        len  = 0;
+        root      = nullptr;
+        p_hash_fn = nullptr;
+        len       = 0;
     }
 
     ~net_tree() { reset(); }
@@ -563,7 +557,7 @@ protected:
     uint64_t len = 0; 
 
     // hash function
-    std::function<uint64_t(const k_arg&)> hash_func;
+    hash_fn_t<k_arg> p_hash_fn = nullptr;
 
 public:
     __declspec(property(get=size)) uint64_t length;

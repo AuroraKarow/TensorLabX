@@ -31,14 +31,14 @@ int main(int argc, char *argv[], char *envp[]) {
 
     // mnist data loading
 
-    std::string root = "E:\\VS Code project data\\MNIST\\";
+    std::string root = "D:\\Users\\Aurora\\Documents\\Visual Studio Code Project\\MNIST\\file\\";
     mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
 
     // network declaration
 
     auto dLearnRate = .4l;
-    NeunetCore net_core(125, 125, .1l);
+    NeunetCore net_core(80, 80, .1l);
 
     // layers adding
     

@@ -23,7 +23,7 @@ net_kv<k_arg, arg> erase(const k_arg &key);
 ```
 
 擦除表中與指定鍵相同鍵的鍵值對元素。\
-Erase key-value element in list which keys are same as the specified key.
+Erase key-value element in map which keys are same as the specified key.
 
 參數<br>Parameters|描述<br>Description|I/O
 -|-|-

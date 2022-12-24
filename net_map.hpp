@@ -84,6 +84,7 @@ protected:
         rehash_load  = src.rehash_hash;
         rehash_idx   = src.rehash_idx;
         rehash_leaf  = src.rehash_leaf;
+        p_hash_fn    = src.p_hash_fn;
         len[0]       = src.len[0];
         len[1]       = src.len[1];
     }
@@ -92,15 +93,23 @@ protected:
         value_assign(src);
         kv_data[0] = src.kv_data[0];
         kv_data[1] = src.kv_data[1];
-        hash_func  = src.hash_func;
     }
 
     void value_move(net_map &&src) {
         value_assign(src);
         kv_data[0] = std::move(src.kv_data[0]);
         kv_data[1] = std::move(src.kv_data[1]);
-        hash_func  = std::move(src.hash_func);
         src.reset();
+    }
+
+    uint64_t hash_key_verify(uint64_t &idx, uint64_t hash_key) const {
+        idx = hash_key % kv_data[!backup].length;
+        if (kv_data[!backup][idx].hash_key_verify(hash_key)) return NEUNET_HASH_EXIST_CURR;
+        if (len[backup]) {
+            idx = hash_key % kv_data[backup].length;
+            if (kv_data[backup][idx].hash_key_verify(hash_key)) return NEUNET_HASH_EXIST_BACK;
+        }
+        return NEUNET_HASH_NOT_FOUND;
     }
 
     void rehash_init(uint64_t alloc_size) {
@@ -140,13 +149,13 @@ protected:
     }
 
 public:
-    net_map(uint64_t alloc_size = 128, const std::function<uint64_t(const k_arg&)> &hash_key_func = [](const k_arg &key) { return hash_in_built(key); }, uint64_t rehash_load_base = 4, long double upper_factor = 0.75, long double lower_factor = 0.1) :
-        hash_func(hash_key_func),
+    net_map(uint64_t alloc_size = 128, hash_fn_t<k_arg> hash_func = hash_in_built, uint64_t rehash_load_base = 4, long double upper_factor = 0.75, long double lower_factor = 0.1) :
+        p_hash_fn(hash_func),
         rehash_base(rehash_load_base),
         rehash_load(rehash_load_base),
         bucket_upper(upper_factor),
         bucket_lower(lower_factor) { kv_data[!backup].init(alloc_size); }
-    net_map(const net_set<net_kv<k_arg, arg>> &init_list, uint64_t alloc_size = 128, const std::function<uint64_t(const k_arg&)> &hash_key_func = [](const k_arg &key) { return hash_in_built(key); }, uint64_t rehash_load_base = 4, long double upper_factor = 0.75, long double lower_factor = 0.1) : net_map(alloc_size, hash_key_func, rehash_load_base, upper_factor, lower_factor) { insert(init_list); }
+    net_map(init_list_kv_t<k_arg, arg> init_list, uint64_t alloc_size = 128, hash_fn_t<k_arg> hash_func = hash_in_built, uint64_t rehash_load_base = 4, long double upper_factor = 0.75, long double lower_factor = 0.1) : net_map(alloc_size, hash_func, rehash_load_base, upper_factor, lower_factor) { insert(init_list); }
     net_map(const net_map &src) { value_copy(src); }
     net_map(net_map &&src) { value_move(std::move(src)); }
 
@@ -175,16 +184,6 @@ public:
         return ans;
     }
 
-    uint64_t hash_key_verify(uint64_t &idx, uint64_t hash_key) const {
-        idx = hash_key % kv_data[!backup].length;
-        if (kv_data[!backup][idx].hash_key_verify(hash_key)) return NEUNET_HASH_EXIST_CURR;
-        if (len[backup]) {
-            idx = hash_key % kv_data[backup].length;
-            if (kv_data[backup][idx].hash_key_verify(hash_key)) return NEUNET_HASH_EXIST_BACK;
-        }
-        return NEUNET_HASH_NOT_FOUND;
-    }
-
     uint64_t insert(net_set<net_kv<k_arg, arg>> &&elem_list) {
         auto src_len = elem_list.length;
         // memory check
@@ -204,7 +203,7 @@ public:
         // insert
         uint64_t cnt = 0;
         for (auto i = 0ull; i < elem_list.length; ++i) {
-            auto curr_hash_key = hash_func(elem_list[i].key),
+            auto curr_hash_key = p_hash_fn(elem_list[i].key),
                  curr_idx      = curr_hash_key % kv_data[lexicon].length;
             if (kv_data[lexicon][curr_idx].insert(curr_hash_key, std::move(elem_list[i]))) ++cnt;
         }
@@ -215,13 +214,8 @@ public:
         else if (cnt == 0) return NEUNET_INSERT_FAILED;
         else return NEUNET_INSERT_PARTIAL;
     }
-    uint64_t insert(const std::initializer_list<net_kv<k_arg, arg>> &init_list) {
-        net_set<net_kv<k_arg, arg>> temp(init_list.size());
-        auto cnt = 0ull;
-        for (auto kv_temp : init_list) temp[cnt++] = std::move(kv_temp);
-        return insert(std::move(temp));
-    }
-    uint64_t insert(const k_arg &key, const arg &value) { return insert({net_kv<k_arg, arg>(key, value)}); }
+    uint64_t insert(init_list_kv_t<k_arg, arg> init_list) { return insert(net_set<net_kv<k_arg, arg>>(init_list)); }
+    bool insert(const k_arg &key, const arg &value) { return insert({{key, value}}) == NEUNET_INSERT_SUCCESS; }
 
     net_set<net_kv<k_arg, arg>> erase(const net_set<k_arg> &key_list) {
         net_set<net_kv<k_arg, arg>> ans;
@@ -230,7 +224,7 @@ public:
         auto cnt = 0ull;
         // erase
         for (auto temp : key_list) {
-            auto curr_hash = hash_func(temp);
+            auto curr_hash = p_hash_fn(temp);
             if (!rehash_leaf.is_end() && rehash_leaf.hash_key == curr_hash) {
                 ans[cnt++] = *rehash_leaf;
                 ++rehash_leaf;
@@ -277,7 +271,7 @@ public:
 
     arg &operator[](const k_arg &key) {
         rehash_transfer();
-        auto curr_hash = hash_func(key),
+        auto curr_hash = p_hash_fn(key),
              curr_idx  = 0ull,
              find_res  = hash_key_verify(curr_idx, curr_hash);
         assert(find_res != NEUNET_HASH_NOT_FOUND);
@@ -312,6 +306,7 @@ public:
         rehash_idx    = 0;
         len[0]        = 0;
         len[1]        = 0;
+        p_hash_fn     = nullptr;
 
         kv_data[0].reset();
         kv_data[1].reset();
@@ -323,7 +318,7 @@ protected:
     net_set<net_tree<k_arg, arg>> kv_data[2];
     
     // hash function
-    std::function<uint64_t(const k_arg &)> hash_func;
+    hash_fn_t<k_arg> p_hash_fn = nullptr;
 
     bool backup = true;
 
@@ -344,7 +339,6 @@ public:
     __declspec(property(get=mem_size))    uint64_t memory_length;
 
     friend std::ostream &operator<<(std::ostream &out, const net_map &src) {
-        
         for (auto i = 0; i < 2; ++i) for (auto tr_temp : src.kv_data[i]) for (auto kv_temp : tr_temp) {
             out << "[Key][\n";
             out << kv_temp.key << "\n]";

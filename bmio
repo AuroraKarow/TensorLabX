@@ -15,9 +15,6 @@
 #define bmio_rgb            0x0003
 #define bmio_rgba           0x0004
 
-#define bmio_chann          neunet::vect
-#define bmio_chann_blank    neunet::vect()
-
 #define bmio_r              0x0000
 #define bmio_g              0x0001
 #define bmio_b              0x0002
@@ -32,6 +29,13 @@
 #define bmio_gray_weight_r  0.299
 #define bmio_gray_weight_g  0.587
 #define bmio_gray_weight_b  0.114
+
+BMIO_BEGIN
+
+typedef vect bmio_bitmap[4];
+typedef vect bmio_chann;
+
+BMIO_END
 
 #include "bmio_base.hpp"
 

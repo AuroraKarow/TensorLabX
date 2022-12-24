@@ -192,7 +192,7 @@ public:
             auto name = L'[' + std::to_wstring(i) + L']' + std::to_wstring(lbl[i]);
             bmio::bmio_bitmap raw;
             for (auto j = 0; j < bmio_rgb; ++j) {
-                raw[j] = bmio_chann(elem_ln_cnt, elem_col_cnt);
+                raw[j] = bmio::bmio_chann(elem_ln_cnt, elem_col_cnt);
                 for (auto k = 0ull; k < raw[j].element_count ; ++k) {
                     if (elem[i].index(k)) raw[j].index(k) = 255;
                     else raw[j].index(k) = 0;

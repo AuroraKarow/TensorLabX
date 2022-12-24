@@ -37,14 +37,16 @@ matrix_declare struct BNData final {
     neunet_vect vecSigmaSqr;
     neunet_vect vecSigma;
     neunet_vect vecSigmaDom;
-    net_set<neunet_vect> setBarX;
-    net_set<neunet_vect> setDist;
+
     long double dCoeBatchSize   = 0,
                 dCoeDbBatchSize = 0;
+
+    net_set<neunet_vect> setBarX;
+    net_set<neunet_vect> setDist;
 };
 
 callback_matrix net_set<neunet_vect> BNTrain (BNData<matrix_elem_t> &BdData, const net_set<neunet_vect> &setInput, const neunet_vect &vecBeta, const neunet_vect &vecGamma, const matrix_elem_t &dEpsilon = 1e-8l) {
-    // Average, miu
+    // Average, mu
     BdData.vecMuBeta = BdData.dCoeBatchSize * matrix::vect_sum(setInput);
     // Variance, sigma square
     BdData.setDist.init(setInput.length, false);

@@ -24,5 +24,5 @@ cout << (NEUNET_CHRONO_TIME_POINT - time_pt) << "ms" << endl;
 
 ---
 
-*更多關於矩陣請參閲* [`net_matrix`](../../MatrixTensor/net_matrix/cover.md)\
-*Please refer to* [`net_matrix`](../../MatrixTensor/net_matrix/cover.md) *for more about matrix*
+*更多關於矩陣請參閲* [`net_matrix`](../../MatrixCalculation/net_matrix/cover.md)\
+*Please refer to* [`net_matrix`](../../MatrixCalculation/net_matrix/cover.md) *for more about matrix*

@@ -1,24 +1,24 @@
 # TensorLabX
 
-[![GPL-3.0 license](https://badgen.net/badge/License/MIT)](...)
-[![TensorLab](https://badgen.net/badge/github/TensorLabX?icon=github)](https://github.com/AuroraKarow/TensorLabX)
+[![GPL-3.0 license](https://badgen.net/badge/License/GPL3/red)](...)
+[![TensorLab](https://badgen.net/badge/github/TensorLabX?icon=github&color=purple)](https://github.com/AuroraKarow/TensorLabX)
 [![Download](https://badgen.net/badge/Download/1.26/green)](https://github.com/AuroraKarow/TensorLabX/archive/refs/heads/main.zip)
-[![TensorLab](https://badgen.net/badge/github/TensorLab?icon=github&color=red)](https://github.com/AuroraKarow/TensorLab)
+[![TensorLab](https://badgen.net/badge/github/TensorLab?icon=github)](https://github.com/AuroraKarow/TensorLab)
 
 Hello, This is Hatsune ~\
 こんにちは、ハツネちゃんです～　キラー～(∠・ω< )⌒✨
 
 TensorLabX是一個簡單易用的輕量級的神經網絡開源C++工具，這個工具基於CPU進行運算，GPU的運算支持已經進入日程表，預計基於NVIDIA平臺，支持CUDA。這個項目運行與Windows平臺。\
-TensorLabX is a simple and easy-to-use open sources lite C++ tool of ANN. It runs on CPU meanwhile GPU calculation support is on schedule now and it might be based on NVIDIA platform and support CUDA. This project runs on Windows platform.
+TensorLabX is a simple and easy-to-use open sources lite C++ tool of ANN. It runs on CPU meanwhile GPU calculation support is on schedule now and it might be based on NVIDIA platform and support CUDA. This project run on Windows platform.
 
 當前TensorLabX支持 \
 With TensorLabX you can
 
-* [基礎數據結構應用 Basic data structure application](Wiki/DataStructure/cover.md)
-* [數字運算與處理 Mathematical calculation and processing](Wiki/DigitalCalculation/cover.md)
-* [矩陣運算實驗 Matrix calcultion experiment](Wiki/MatrixTensor/cover.md)
-* [多綫程程序實驗 Multi-thread programming experiment](Wiki/ThreadsProgramming/cover.md)
-* [神經網絡框架搭建與測試 Neural network build and test](Wiki/NeunralNetwork/cover.md)
+* [基礎數據結構應用 Basic data structure application](DataStructure/cover.md)
+* [數字運算與處理 Mathematical calculation and processing](DigitalCalculation/cover.md)
+* [矩陣運算實驗 Matrix calcultion experiment](MatrixCalculation/cover.md)
+* [多綫程程序實驗 Multi-thread programming experiment](ThreadsProgramming/cover.md)
+* [神經網絡實驗 Neural network experiment](NeunralNetwork/cover.md)
 
 這個開源項目目前處於實驗階段，後續可能會有較大幅度的更改。\
 This open sources project is in experimental progress, it might be changed in large scale after on.

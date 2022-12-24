@@ -3,6 +3,7 @@
 #ifndef __MATRIX__
 #define __MATRIX__
 
+#include <intrin.h>
 #include "net_decimal"
 
 #define MATRIX_BEGIN        namespace neunet { namespace matrix {
@@ -41,6 +42,8 @@
                             std::is_integral_v<i_arg>>
 
 #define matrix_declare      callback_matrix
+
+#define neunet_vect         matrix::net_matrix<matrix_elem_t>
 
 #include "matrix.hpp"
 

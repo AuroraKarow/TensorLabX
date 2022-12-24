@@ -162,12 +162,12 @@ matrix_declare struct LayerConv : Layer {
         dFstRng           = lyrSrc.dFstRng;
         dSndRng           = lyrSrc.dSndRng;
         vecKernel         = lyrSrc.vecKernel;
-        vecNesterovKernel = lyrSrc.vecNesterovKernel;
         advKernel         = lyrSrc.advKernel;
         adaKernel         = lyrSrc.adaKernel;
         setCaffeData      = lyrSrc.setCaffeData;
         setCaffeInput     = lyrSrc.setCaffeInput;
         setGradKernel     = lyrSrc.setGradKernel;
+        vecNesterovKernel = lyrSrc.vecNesterovKernel;
     }
 
     virtual void ValueMove(LayerConv &&lyrSrc) {
@@ -175,12 +175,12 @@ matrix_declare struct LayerConv : Layer {
         dFstRng           = std::move(lyrSrc.dFstRng);
         dSndRng           = std::move(lyrSrc.dSndRng);
         vecKernel         = std::move(lyrSrc.vecKernel);
-        vecNesterovKernel = std::move(lyrSrc.vecNesterovKernel);
         advKernel         = std::move(lyrSrc.advKernel);
         adaKernel         = std::move(lyrSrc.adaKernel);
         setCaffeData      = std::move(lyrSrc.setCaffeData);
         setCaffeInput     = std::move(lyrSrc.setCaffeInput);
         setGradKernel     = std::move(lyrSrc.setGradKernel);
+        vecNesterovKernel = std::move(lyrSrc.vecNesterovKernel);
         lyrSrc.Reset(false);
     }
 
@@ -272,12 +272,12 @@ matrix_declare struct LayerConv : Layer {
         iCaffeLnCnt     = 0;
         iCaffeColCnt    = 0;
         vecKernel.reset();        
-        vecNesterovKernel.reset();
         advKernel.reset();        
         adaKernel.reset();
         setCaffeData.reset();
         setCaffeInput.reset();    
-        setGradKernel.reset();            
+        setGradKernel.reset();
+        vecNesterovKernel.reset();          
     }
 
     virtual ~LayerConv() { Reset(false); }

@@ -78,7 +78,7 @@ public:
 
     uint64_t size() { return td_set.length; }
 
-    template<typename f_arg, typename ... args> auto add_task(f_arg &&func, args &&...paras) -> std::future<std::invoke_result_t<f_arg, args...>> {
+    template<typename f_arg, typename ... args> auto add_task(f_arg &&func, args &&...paras) {
         using r_arg = std::invoke_result_t<f_arg, args...>;
         auto p_curr_task = function_package(std::forward<f_arg>(func), std::forward<args>  (paras)...);
         std::future<r_arg> res = p_curr_task->get_future();
@@ -91,8 +91,7 @@ public:
         return res;
     }
 
-    ~async_pool()
-    {
+    ~async_pool() {
         stop = true;
         cond.notify_all();
         for (auto i = 0ull; i < td_set.size(); ++i) if (td_set[i].joinable()) td_set[i].join();
