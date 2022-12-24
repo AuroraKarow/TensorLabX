@@ -14,11 +14,11 @@ TensorLabX is a simple and easy-to-use open sources lite C++ tool of ANN. It run
 當前TensorLabX支持 \
 With TensorLabX you can
 
-* [基礎數據結構應用 Basic data structure application](DataStructure/cover.md)
-* [數字運算與處理 Mathematical calculation and processing](DigitalCalculation/cover.md)
-* [矩陣運算實驗 Matrix calcultion experiment](MatrixCalculation/cover.md)
-* [多綫程程序實驗 Multi-thread programming experiment](ThreadsProgramming/cover.md)
-* [神經網絡實驗 Neural network experiment](NeunralNetwork/cover.md)
+* [基礎數據結構應用 Basic data structure application](Wiki/DataStructure/cover.md)
+* [數字運算與處理 Mathematical calculation and processing](Wiki/DigitalCalculation/cover.md)
+* [矩陣運算實驗 Matrix calcultion experiment](Wiki/MatrixCalculation/cover.md)
+* [多綫程程序實驗 Multi-thread programming experiment](Wiki/ThreadsProgramming/cover.md)
+* [神經網絡實驗 Neural network experiment](Wiki/NeunralNetwork/cover.md)
 
 這個開源項目目前處於實驗階段，後續可能會有較大幅度的更改。\
 This open sources project is in experimental progress, it might be changed in large scale after on.
