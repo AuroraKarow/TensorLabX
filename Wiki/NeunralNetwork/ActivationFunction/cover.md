@@ -2,6 +2,12 @@
 
 ```c++
 using namespace neunet;
+
+#define NEUNET_SIGMOID    0x0001
+#define NEUNET_RELU       0x0002
+#define NEUNET_ARELU      0x0003
+#define NEUNET_ARELU_LOSS 0x0004
+#define NEUNET_SOFTMAX    0x0005
 ```
 
 - [$Sigmoid$](Sigmoid.md)

@@ -5,7 +5,6 @@
 #pragma once
 
 #include <iostream>
-#include "net_chrono"
 #include "neunet"
 #include "dataset"
 
@@ -38,7 +37,7 @@ int main(int argc, char *argv[], char *envp[]) {
     // network declaration
 
     auto dLearnRate = .4l;
-    NeunetCore net_core(80, 80, .1l);
+    NeunetCore net_core(125, 125, .1l);
 
     // layers adding
     

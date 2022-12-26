@@ -77,6 +77,7 @@ LAYER_END
                             std::is_same_v<LayerType, neunet::layer::NetLayerBias>>
 #define neunet_layer_cast   std::dynamic_pointer_cast
 
+#include "net_chrono"
 #include "neunet.hpp"
 
 #endif

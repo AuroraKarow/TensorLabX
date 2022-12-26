@@ -384,7 +384,7 @@ matrix_declare struct LayerAct : Layer {
         case NEUNET_SIGMOID: vecGrad = sigmoid_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
         case NEUNET_RELU: vecGrad = ReLU_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
         case NEUNET_ARELU: vecGrad = AReLU_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
-        case NEUNET_ARELU_LOSS: AReLU_loss_grad(setInput[iIdx], vecGrad, vecOrgn); break;
+        case NEUNET_ARELU_LOSS: vecGrad = AReLU_loss_grad(setInput[iIdx], vecGrad, vecOrgn); break;
         case NEUNET_SOFTMAX: vecGrad = softmax_cec_grad(vecGrad, vecOrgn); break;
         default: return true;
         }
