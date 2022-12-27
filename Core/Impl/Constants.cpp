@@ -3,7 +3,7 @@
 using namespace std;
 namespace Core
 {
-	RunTimeConstants::RunTimeConstants() :
+	RConstants::RConstants() :
 		Pi(acosl(-1)) {
 	}
 }

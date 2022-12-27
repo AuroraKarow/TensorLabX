@@ -15,4 +15,6 @@ namespace Core {
     };
 }
 
+#define Constant Core::RConstants::Instance()
+
 #endif // !__CORE__CONSTANTS__
