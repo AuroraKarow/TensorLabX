@@ -132,6 +132,8 @@ public:
         else load_cnt = elem_cnt;
         elem.init(load_cnt);
         lbl.init(load_cnt);
+        data_idx.init(load_cnt);
+        for (auto i = 0ull; i < load_cnt; ++i) data_idx[i] = i;
         auto cnt = 0;
         for (auto i = 0ull; i < elem_cnt; ++i) if ((idx_arr && *(idx_arr + cnt) == i) || !idx_arr) {
             elem[cnt] = read_curr_elem(true, padding);
@@ -159,6 +161,8 @@ public:
             load_qnty.fill_with(lbl_load_distribute[0]);
             elem.init(mnist_orgn_size * lbl_load_distribute[0]);
             lbl.init(elem.length);
+            data_idx.init(elem.length);
+            for (auto i = 0ull; i < elem.length; ++i) data_idx[i] = i;
             lbl_load_distribute.reset();
         }
         else if (lbl_load_distribute.length == 10) load_qnty = std::move(lbl_load_distribute);
@@ -231,7 +235,9 @@ private:
 public:
     net_set<vect> elem;
 
-    net_set<uint64_t>    lbl;
+    net_set<uint64_t> lbl;
+
+    net_set<uint64_t> data_idx;
 
     __declspec(property(get=size))           uint64_t element_count;
     __declspec(property(get=ln_cnt))         uint64_t element_line_count;

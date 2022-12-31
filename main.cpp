@@ -31,6 +31,7 @@ int main(int argc, char *argv[], char *envp[]) {
     // mnist data loading
 
     std::string root = "...\\MNIST\\";
+    // std::string root = "E:\\VS Code project data\\MNIST\\";
     mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
 
