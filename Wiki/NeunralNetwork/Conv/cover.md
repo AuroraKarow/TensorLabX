@@ -7,6 +7,49 @@ Basic function of the convolution layer.
 using namespace neunet::conv;
 ```
 
+$$Conv(X_O,K_O) \implies X_O*K_O=Z_O$$
+$$X_O*K_O \backsim Caffe(X)K=Z$$
+$$\frac{dL}{dCaffe(x)}=\frac{dL}{dZ}K^T$$
+$$\begin{align*}
+    \frac{dL}{dX}&=\frac{dL}{dCaffe(x)}Caffe'(x)\\
+    &=deCaffe(\frac{dL}{dCaffe(x)})\\
+    &=deCaffe(\frac{dL}{dZ}K^T)
+\end{align*}$$
+$$\frac{dL}{dK}=Caffe(X)^T\frac{dL}{dZ}$$
+
+在反向傳播時，相同位置的 Caffe 矩陣梯度需要相加。\
+The Caffe element gradients at same position of Im2Col matrix are need to sum in backward propagation.
+
+全局平均池化\
+Global average pooling
+
+$$Pool_{Gavg}(X)=Z$$
+
+平均池化\
+Average pooling
+
+$$Z_O=Pool_{Avg}^O(X_O) \backsim Pool_{Avg}(Caffe(X))=Z$$
+
+最大池化\
+Max pooling
+
+$$Z_O=Pool_{Max}^O(X_O) \backsim Pool_{Max}(Caffe(X))=Z$$
+
+均值梯度\
+Gradient of average value
+
+$$z=Avg(x)=\frac{\sum_{i=0}^nx_i}{n}$$
+$$\frac{\partial L}{\partial x_i}=\frac{\partial L}{\partial z}Avg'(x)=\frac{1}{n}\left(\frac{\partial L}{\partial z}\right)$$
+
+最大值梯度\
+Gradient of max value
+
+$$z=Max(x)=Max\{x_1,x_2,\dots,x_i,\dots,x_n\}$$
+$$\frac{\partial L}{\partial x_i}=\frac{\partial L}{\partial z}Max'(x)=\begin{cases}
+    \frac{\partial L}{\partial z} & ,z=x_i \\
+    0 & ,z\neq x_i
+\end{cases}$$
+
 函數<br>Function|描述<br>Description
 -|-
 [`CaffeTransformData`](CaffeTransformData.md)|獲取 Caffe 矩陣轉換數據<br>Get Caffe matrix transformation data

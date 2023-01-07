@@ -12,6 +12,18 @@ callback_matrix net_set<neunet_vect> BNGradLossToInputGammaBeta(BNData<matrix_el
 BN 反向傳播並獲取用於更新 $shift$ 與 $scale$ 的梯度。\
 BN backward propagagtion and getting the gradient for $shift$ and $scale$ updating.
 
+$$\begin{align*}
+    \frac{\partial L}{\partial \hat{X_i}}&=\gamma\otimes\frac{\partial L}{\partial Y_i}\\
+    \frac{\partial L}{\partial \sigma_\chi^2}&=-\frac{1}{2}V \odot V^2\odot\sum_{i=1}^m\frac{\partial L}{\partial \hat{X_i}}\odot D_i\\
+    \frac{\partial L}{\partial \mu_\chi}&=-V\odot\sum_{i=1}^m\frac{\partial L}{\partial \hat{X_i}}-\frac{2}{m}\frac{\partial L}{\partial \sigma_\chi^2}\odot\sum_{i=1}^mD_i\\
+    \frac{\partial L}{\partial X_i}&=\frac{\partial L}{\partial \hat{X_i}}\odot V+\frac{\partial L}{\partial \sigma_\chi^2}\odot\frac{2}{m}D_i+\frac{1}{m}\frac{\partial L}{\partial \mu_\chi}\\
+    \frac{\partial L}{\partial\gamma}&=\hat{X_i}\odot\sum_{i=1}^m\frac{\partial L}{\partial Y_i}\\
+    \frac{\partial L}{\partial\beta}&=\sum_{i=1}^m\frac{\partial L}{\partial Y_i}
+\end{align*}$$
+
+$\gamma$ 和 $\beta$ 的梯度需要對每一個通道進行求和。\
+The gradient of $\gamma$ and $\beta$ need to get sum of each channel.
+
 參數<br>Parameters|描述<br>Description|I/O
 -|-|-
 `BdData`|BN層數據<br>BN layer data|*輸入<br>input*
@@ -25,3 +37,8 @@ BN backward propagagtion and getting the gradient for $shift$ and $scale$ updati
 Return matrix of the gradient from loss to BN input.
 
 [<< 返回 Back](cover.md)
+
+___
+
+*更多請參閲* [`BNTrain`](BNTrain.md) *。*\
+*Please refer to*  [`BNTrain`](BNTrain.md) *for more details.*

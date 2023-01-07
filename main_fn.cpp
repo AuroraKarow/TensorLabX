@@ -62,6 +62,19 @@ struct layer_weight : virtual layer_base {
     ada_delta<long double>    delta;
     ada_nesterov<long double> nesterov;
 };
+typedef std::shared_ptr<layer_weight> layer_weight_ptr;
+
+void layer_update(layer_weight_ptr src) {
+    auto grad = matrix::vect_sum(src->weight_grad).elem_wise_opt(src->weight_grad.length, MATRIX_ELEM_DIV);
+    if (src->learn_rate) {
+        src->weight   -= src->nesterov.momentum(grad, src->learn_rate);
+        src->weight_nv = src->nesterov.weight(src->weight);
+        src->weight_tp = src->weight_nv.transpose;
+    } else {
+        src->weight   -= src->delta.delta(grad);
+        src->weight_tp = src->weight.transpose;
+    }
+}
 
 // layer dim
 
@@ -161,18 +174,6 @@ void layer_shape(layer_fc_ptr src, uint64_t &in_ln_cnt, uint64_t batch_size) {
     in_ln_cnt = src->out_ln_cnt;
 }
 
-void layer_update(layer_fc_ptr src) {
-    auto grad = matrix::vect_sum(src->weight_grad).elem_wise_opt(src->weight_grad.length, MATRIX_ELEM_DIV);
-    if (src->learn_rate) {
-        src->weight   -= src->nesterov.momentum(grad, src->learn_rate);
-        src->weight_nv = src->nesterov.weight(src->weight);
-        src->weight_tp = src->weight_nv.transpose;
-    } else {
-        src->weight   -= src->delta.delta(grad);
-        src->weight_tp = src->weight.transpose;
-    }
-}
-
 void layer_forward(layer_fc_ptr src, vect &input, uint64_t bat_sz_idx) {
     using namespace fc;
     src->input[bat_sz_idx] = std::move(input);
@@ -194,17 +195,17 @@ void layer_deduce(layer_fc_ptr src, vect &input) { input = fc::Output(input, src
 // layer caffe
 
 struct layer_caffe : virtual layer_flat {
-    uint64_t in_ln_cnt       = 0,
-             in_col_cnt      = 0,
-             out_col_cnt     = 0,
-             ln_stride       = 0,
-             col_stride      = 0,
-             ln_dilate       = 0,
-             col_dilate      = 0,
-             filter_ln_cnt   = 0,
-             filter_col_cnt  = 0,
-             caffe_ln_cnt    = 0,
-             caffe_col_cnt   = 0;
+    uint64_t in_ln_cnt      = 0,
+             in_col_cnt     = 0,
+             out_col_cnt    = 0,
+             ln_stride      = 0,
+             col_stride     = 0,
+             ln_dilate      = 0,
+             col_dilate     = 0,
+             filter_ln_cnt  = 0,
+             filter_col_cnt = 0,
+             caffe_ln_cnt   = 0,
+             caffe_col_cnt  = 0;
 
     net_set<uint64_t> caffe_data;
 };
@@ -245,18 +246,6 @@ void layer_shape(layer_conv_ptr src, uint64_t &in_ln_cnt, uint64_t &in_col_cnt, 
     in_ln_cnt  = src->out_ln_cnt;
     in_col_cnt = src->out_col_cnt;
     chann_cnt  = src->kernel_qty;
-}
-
-void layer_update(layer_conv_ptr src) {
-    auto grad = matrix::vect_sum(src->weight_grad).elem_wise_opt(src->input.length, MATRIX_ELEM_DIV);
-    if (src->learn_rate) {
-        src->weight   -= src->nesterov.momentum(grad, src->learn_rate);
-        src->weight_nv = src->nesterov.weight(src->weight);
-        src->weight_tp = src->weight_nv.transpose;
-    } else {
-        src->weight   -= src->delta.delta(grad);
-        src->weight_tp = src->weight.transpose;
-    }
 }
 
 void layer_forward(layer_conv_ptr src, vect &input, uint64_t bat_sz_idx) {
@@ -430,7 +419,7 @@ template <typename layer_type, typename ... layer_paras> void net_add_layer(net_
     layer_init(layer_cast<layer_type>(net_lyr[curr_lyr_idx]), std::forward<layer_paras>(args)...);
 }
 
-void net_run_init(net_sequence<layer_base_ptr> &net_lyr, uint64_t in_ln_cnt, uint64_t in_col_cnt, uint64_t chann_cnt, uint64_t batch_size, uint64_t batch_cnt) {
+void net_shape_init(net_sequence<layer_base_ptr> &net_lyr, uint64_t in_ln_cnt, uint64_t in_col_cnt, uint64_t chann_cnt, uint64_t batch_size, uint64_t batch_cnt) {
     for (auto i = 0ull; i < net_lyr.length; ++i) switch (net_lyr[i]->type) {
     case lyr_act: layer_shape(layer_cast<layer_act>(net_lyr[i]), batch_size); break;
     case lyr_fc: layer_shape(layer_cast<layer_fc>(net_lyr[i]), in_ln_cnt, batch_size); break;
@@ -559,7 +548,7 @@ int main(int argc, char *argv[], char *envp[]) {
     auto trn_bat_cnt = train.element_count / trn_bat_sz;
     
     // mnist shape
-    net_run_init(net_lyr, train.element_line_count, train.element_column_count, 1, trn_bat_sz, trn_bat_cnt);
+    net_shape_init(net_lyr, train.element_line_count, train.element_column_count, 1, trn_bat_sz, trn_bat_cnt);
 
     // mnist train & deduce
     for (auto i = 0ull; i < pool_sz; ++i) pool.add_task([&net_lyr, &train, &test, &bat_sz_cnt, &net_stat, &trn_ctrl, &tst_ctrl, &acc_cnt, &rc_cnt, &trn_acc, &trn_rc, &tst_acc, &tst_rc, pool_sz, i, trn_bat_sz, tst_bat_sz, trn_bat_cnt, trn_prec](uint64_t epoch, uint64_t tst_bat_cnt){ while (net_stat == NEUNET_STAT_NRM){
