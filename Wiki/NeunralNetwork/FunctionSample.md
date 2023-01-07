@@ -939,33 +939,50 @@ void net_backward(net_sequence<layer_base_ptr> &net_lyr, vect &grad, uint64_t ba
 這個過程默認處於 `main` 函數中。\
 This process is included in `main` function.
 
+網絡狀態編碼<br>Network status code|描述<br>Description
+-|-
+`NEUNET_STAT_NRM`|正常<br>Normal
+`NEUNET_STAT_END`|訓練完成<br>Train completed
+`NEUNET_STAT_ERR`|錯誤<br>Error
+
 ```c++
 using namespace std;
 using namespace neunet;
 using namespace fn_app;
 using namespace dataset;
 
+// 學習率
 // learn rate
 long double learn_rate = .4;
+// 訓練和測試的數據批大小
 // train & test data batch size
 uint64_t trn_bat_sz = 125, tst_bat_sz = 125;
+// 訓練精度
 // train precision
 long double trn_prec = .1;
+// 網絡狀態編碼
 // network status code
 std::atomic_uint64_t net_stat   = NEUNET_STAT_NRM,
-// batch size count
+// 批大小計數器
+// batch size counter
                      bat_sz_cnt = 0,
-// accuracy count
+// 準確度計數
+// accuracy counter
                      acc_cnt    = 0,
-// recall count
+// 回收率計數
+// recall counter
                      rc_cnt     = 0;
+// 訓練與測試的精度與回收率隊列
 // accuracy & recall count of train & test
 net_queue<uint64_t> trn_acc, trn_rc, tst_acc, tst_rc;
+// 綫程池
 // threads pool
 auto pool_sz = trn_bat_sz > tst_bat_sz ? trn_bat_sz : tst_bat_sz;
 async_pool pool(pool_sz);
+// 訓練與測試的異步控製器
 // asynchronous process controller of train & test
 async_controller trn_ctrl, tst_ctrl;
+// 網絡層 - LeNet-5
 // network layer - LeNet-5
 net_sequence<layer_base_ptr> net_lyr;
 // C0
@@ -989,123 +1006,193 @@ net_add_layer<layer_act>(net_lyr, NEUNET_SIGMOID);
 net_add_layer<layer_fc>(net_lyr, 10, learn_rate);
 net_add_layer<layer_act>(net_lyr, NEUNET_SOFTMAX);
     
-/* train & test dataset, built-in data structure "mnist" */
+/* 訓練與測試集，内置數據結構 train & test dataset, built-in data structure "mnist" */
 
+// mnist 數據集根目錄
 // root directory of mnist dataset
-// std::string root = "...\\MNIST\\";
-std::string root = "E:\\VS Code project data\\MNIST\\";
+std::string root = "...\\MNIST\\";
+// 加載訓練與測試集
 // load train & test dataset
 mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
 test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
+// 訓練集的批計數
 // train batch count
 auto trn_bat_cnt = train.element_count / trn_bat_sz;
-    
+
+// mnist 形狀
 // mnist shape
 net_shape_init(net_lyr, train.element_line_count, train.element_column_count, 1, trn_bat_sz, trn_bat_cnt);
 
+// mnist 訓練和測試
 // mnist train & deduce
 for (auto i = 0ull; i < pool_sz; ++i) pool.add_task([&net_lyr, &train, &test, &bat_sz_cnt, &net_stat, &trn_ctrl, &tst_ctrl, &acc_cnt, &rc_cnt, &trn_acc, &trn_rc, &tst_acc, &tst_rc, pool_sz, i, trn_bat_sz, tst_bat_sz, trn_bat_cnt, trn_prec](uint64_t epoch, uint64_t tst_bat_cnt){ while (net_stat == NEUNET_STAT_NRM){
+    // 處理當前數據索引值
     // current data index value of process
     uint64_t data_idx = i,
+    // 批計數
     // batch count
              bat_cnt  = 0;
-    // last thread
+    // 最後一個縣城標記
+    // last thread mark
     bool last_tkn = false;
+    // 訓練
     // train
     while (bat_cnt < trn_bat_cnt && i < trn_bat_sz) {
-        // get train data and corresponding labels of current batch
+        // 獲取當前批索引訓練數據對應的標簽
+        // get train data and corresponding labels of current batch index
         auto input = train.elem[train.data_idx[data_idx]];
         auto lbl   = train.lbl[train.data_idx[data_idx]];
         auto orgn  = neunet::lbl_orgn(lbl, mnist_orgn_size);
+        // 下一批數據索引
         // next batch data index
         data_idx  += trn_bat_sz;
         if (bat_cnt || epoch) {
             if (last_tkn) last_tkn = false;
-            // if it is not last thread of last processing, it need to wait, 1000ms at most
+            // 如果不是最後一個到達的綫程，需要等待最多 1000ms
+            // if it is not last arriving thread, it need to wait, 1000ms at most
             else trn_ctrl.thread_sleep(1000);
             if (net_stat == NEUNET_STAT_END) break;
         }
+        // 前向傳播
         // FP
         net_forward(net_lyr, input, i);
         neunet::output_acc_rc(input, trn_prec, lbl, acc_cnt, rc_cnt);
+        // 下一批次
         // next batch
         ++bat_cnt;
+        // 反向傳播
         // BP
         net_backward(net_lyr, input, i, orgn);
         if (++bat_sz_cnt == trn_bat_sz) {
+            // 標記最後一個綫程
             // last thread marked
             bat_sz_cnt = 0;
             last_tkn   = true;
+            // 保存精確度與回收計數值
             // save accuracy & recall count value
             trn_acc.en_queue(acc_cnt);
             trn_rc.en_queue(rc_cnt);
             acc_cnt = 0;
             rc_cnt  = 0;
-            // shuffle train data index
             if (bat_cnt == trn_bat_cnt) {
+                // 洗牌訓練數據索引
+                // shuffle train data index
                 train.data_idx.shuffle();
+                // 激活測試過程
                 // activate testing process
                 tst_ctrl.thread_wake_all();
+            // 否則激活下一批次訓練過程
             // otherwise activate training process of next batch
             } else trn_ctrl.thread_wake_all();
         }
     }
     if (net_stat == NEUNET_STAT_END) break;
+    // 重置值
     // reset value
     data_idx = i;
     bat_cnt  = 0;
+    // 推測
     // deduce
     while (bat_cnt < tst_bat_cnt && i < tst_bat_sz) {
+        // 獲取當前批次測試數據對應的標簽
         // get test data and corresponding labels of current batch
         auto input = train.elem[data_idx];
         auto lbl   = train.lbl[data_idx];
-        // process which is not the last thread should wait, 1000ms at most
+        // 并非最後到達的綫程過程需要等待，最多 1000ms
+        // process which is not the last arriving thread should wait, 1000ms at most
         if (!(bat_cnt || last_tkn)) tst_ctrl.thread_sleep();
         if (net_stat == NEUNET_STAT_END) break;
+        // 測試
         // test
         net_deduce(net_lyr, input);
         neunet::output_acc_rc(input, trn_prec, lbl, acc_cnt, rc_cnt);
+        // 下一批次數據索引
         // next batch data index
         data_idx += trn_bat_sz;
         ++bat_cnt;
     }
+    // 下一個epoch
     // next epoch
     if (net_stat == NEUNET_STAT_END) break;
     ++epoch;
     if (++bat_sz_cnt == pool_sz) {
         bat_sz_cnt = 0;
+        // 保存準確度與回收計數值
         // save accuracy & recall count value
         tst_acc.en_queue(acc_cnt);
         tst_rc.en_queue(rc_cnt);
         acc_cnt = 0;
         rc_cnt  = 0;
+        // 激活下一個epoch訓練過程
         // activate next epoch train process
         trn_ctrl.thread_wake_all();
     }
 } }, 0ull, test.element_count / tst_bat_sz);
-    
+
+// 訓練和測試的召回率
 // recall rate of train & test
 long double rc_rt = .0;
 // epoch count
 uint64_t ep_cnt = 0;
+// 訓練與測試輸出數據表示
 // train & test output data show
 while (rc_rt < 1) {
+    // 獲取epoch時間節點
+    // get time point of a epoch
     auto ep_tm_pt = NEUNET_CHRONO_TIME_POINT;
+    // 訓練
     // train
     for (auto i = 0ull; i < trn_bat_cnt; ++i) {
+        // 獲取單批次訓練時間節點
+        // get time point of a train batch
         auto tm_pt = NEUNET_CHRONO_TIME_POINT;
+        // 計算準確率和召回率
+        // calculate accuracy and recall rate
         auto acc   = trn_acc.de_queue() / (trn_bat_sz * 1.);
         rc_rt      = trn_rc.de_queue() / (trn_bat_sz * 1.);
+        // 打印單批次訓練耗時
+        // print the duration of a batch training
         neunet::print_train_progress((i + 1), trn_bat_cnt, acc, rc_rt, (NEUNET_CHRONO_TIME_POINT - tm_pt));
     }
+    // 推測
     // deduce
     std::printf("\r[Deducing]...");
+    // 計算準確率和召回率
+    // calculate accuracy and recall rate
     auto acc = tst_acc.de_queue() / (test.element_count * 1.);
     rc_rt    = tst_rc.de_queue() / (test.element_count * 1.);
+    // 打印一個epoch的耗時
+    // print the duration of a epoch
     neunet::print_epoch_status(++ep_cnt, acc, rc_rt, (NEUNET_CHRONO_TIME_POINT - ep_tm_pt));
 }
 ```
 
 ## 測試<br>Test
+
+使用函數 `net_deduce` 推測自定義輸入。這個輸入需要符合 mnist 數據集形狀，即$28^2$。\
+Use function `net_deduce` to deduce customized input. This input should fit to the mnist shape, $28^2$.
+
+```c++
+using bmio::bitmap;
+// 加載手寫數字圖片
+// load hand-writing number image
+bitmap in_img("...\\deduce_test.bmp");
+// 獲取灰度單通道圖片矩陣
+// get gray single channel image matrix
+auto test_input  = in_img.gray;
+// 使用推測函數
+// use deducing function
+auto test_output = net_deduce(net_lyr, input);
+// 測試標簽
+// test label
+auto lbl_test    = 0;
+// 打印推測結果
+// print deducing result
+for (auto i = 1ull; i < test_output.element_count; ++i) if (test_output.index(i) > test_output.index(lbl_test)) lbl_test = i;
+cout << "image is number: " << lbl_test << endl;
+```
+
+更多關於位圖請參閲 [`bitmap`](../DataStructure/bmio/bitmap/cover.md) 。\
+Please refer to [`bitmap`](../DataStructure/bmio/bitmap/cover.md) for more details about bitmap process.
 
 [<< 返回 Back](cover.md)

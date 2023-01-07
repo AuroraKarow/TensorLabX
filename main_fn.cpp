@@ -500,11 +500,11 @@ int main(int argc, char *argv[], char *envp[]) {
     long double trn_prec = .1;
     // network status code
     std::atomic_uint64_t net_stat   = NEUNET_STAT_NRM,
-    // batch size count
+    // batch size counter
                          bat_sz_cnt = 0,
-    // accuracy count
+    // accuracy counter
                          acc_cnt    = 0,
-    // recall count
+    // recall counter
                          rc_cnt     = 0;
     // accuracy & recall count of train & test
     net_queue<uint64_t> trn_acc, trn_rc, tst_acc, tst_rc;
@@ -539,8 +539,7 @@ int main(int argc, char *argv[], char *envp[]) {
     /* train & test dataset, built-in data structure "mnist" */
 
     // root directory of mnist dataset
-    // std::string root = "...\\MNIST\\";
-    std::string root = "E:\\VS Code project data\\MNIST\\";
+    std::string root = "...\\MNIST\\";
     // load train & test dataset
     mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
@@ -560,7 +559,7 @@ int main(int argc, char *argv[], char *envp[]) {
         bool last_tkn = false;
         // train
         while (bat_cnt < trn_bat_cnt && i < trn_bat_sz) {
-            // get train data and corresponding labels of current batch
+            // get train data and corresponding labels of current batch index
             auto input = train.elem[train.data_idx[data_idx]];
             auto lbl   = train.lbl[train.data_idx[data_idx]];
             auto orgn  = neunet::lbl_orgn(lbl, mnist_orgn_size);
@@ -568,7 +567,7 @@ int main(int argc, char *argv[], char *envp[]) {
             data_idx  += trn_bat_sz;
             if (bat_cnt || epoch) {
                 if (last_tkn) last_tkn = false;
-                // if it is not last thread of last processing, it need to wait, 1000ms at most
+                // if it is not last arriving thread, it need to wait, 1000ms at most
                 else trn_ctrl.thread_sleep(1000);
                 if (net_stat == NEUNET_STAT_END) break;
             }
@@ -588,8 +587,8 @@ int main(int argc, char *argv[], char *envp[]) {
                 trn_rc.en_queue(rc_cnt);
                 acc_cnt = 0;
                 rc_cnt  = 0;
-                // shuffle train data index
                 if (bat_cnt == trn_bat_cnt) {
+                    // shuffle train data index
                     train.data_idx.shuffle();
                     // activate testing process
                     tst_ctrl.thread_wake_all();
@@ -606,7 +605,7 @@ int main(int argc, char *argv[], char *envp[]) {
             // get test data and corresponding labels of current batch
             auto input = train.elem[data_idx];
             auto lbl   = train.lbl[data_idx];
-            // process which is not the last thread should wait, 1000ms at most
+            // process which is not the last arriving thread should wait, 1000ms at most
             if (!(bat_cnt || last_tkn)) tst_ctrl.thread_sleep();
             if (net_stat == NEUNET_STAT_END) break;
             // test
@@ -651,6 +650,5 @@ int main(int argc, char *argv[], char *envp[]) {
         rc_rt    = tst_rc.de_queue() / (test.element_count * 1.);
         neunet::print_epoch_status(++ep_cnt, acc, rc_rt, (NEUNET_CHRONO_TIME_POINT - ep_tm_pt));
     }
-
     return EXIT_SUCCESS;
 }

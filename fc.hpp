@@ -18,27 +18,27 @@ FC_END
 
 LAYER_BEGIN
 
-struct LayerTrans : Layer {
+struct LayerFlat : Layer {
     uint64_t iLnCnt    = 0,
              iColCnt   = 0,
              iChannCnt = 0;
     
-    virtual void ValueAssign(const LayerTrans &lyrSrc) {
+    virtual void ValueAssign(const LayerFlat &lyrSrc) {
         iLnCnt    = iLnCnt;
         iColCnt   = iColCnt;
         iChannCnt = lyrSrc.iChannCnt;
     }
 
-    virtual void ValueCopy(const LayerTrans &lyrSrc) { ValueAssign(lyrSrc); }
+    virtual void ValueCopy(const LayerFlat &lyrSrc) { ValueAssign(lyrSrc); }
 
-    virtual void ValueMove(LayerTrans &&lyrSrc) {
+    virtual void ValueMove(LayerFlat &&lyrSrc) {
         ValueAssign(lyrSrc);
         lyrSrc.Reset(false);
     }
 
-    LayerTrans() : Layer(NEUNET_LAYER_TRANS) {}
-    LayerTrans(const LayerTrans &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerTrans(LayerTrans &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
+    LayerFlat() : Layer(NEUNET_LAYER_FLAT) {}
+    LayerFlat(const LayerFlat &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
+    LayerFlat(LayerFlat &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
     void RunInit(uint64_t &iInputLnCnt, uint64_t &iInputColCnt, uint64_t &iCurrChannCnt) {
         iLnCnt        = iInputColCnt;
@@ -68,16 +68,16 @@ struct LayerTrans : Layer {
         iChannCnt = 0;
     }
 
-    virtual ~LayerTrans() { Reset(false); }
+    virtual ~LayerFlat() { Reset(false); }
 
-    LayerTrans &operator=(const LayerTrans &lyrSrc) {
+    LayerFlat &operator=(const LayerFlat &lyrSrc) {
         if (iLayerType == lyrSrc.iLayerType) {
             Layer::operator=(lyrSrc);
             ValueCopy(lyrSrc);
         }
         return *this;
     }
-    LayerTrans &operator=(LayerTrans &&lyrSrc) {
+    LayerFlat &operator=(LayerFlat &&lyrSrc) {
         if (iLayerType == lyrSrc.iLayerType) {
             Layer::operator=(std::move(lyrSrc));
             ValueMove(std::move(lyrSrc));

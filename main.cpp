@@ -31,7 +31,6 @@ int main(int argc, char *argv[], char *envp[]) {
     // mnist data loading
 
     std::string root = "...\\MNIST\\";
-    // std::string root = "E:\\VS Code project data\\MNIST\\";
     mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
 
@@ -50,7 +49,7 @@ int main(int argc, char *argv[], char *envp[]) {
     AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
     AddLayer<NetLayerAct>(net_core, NEUNET_RELU);
     AddLayer<NetLayerPool>(net_core, NEUNET_POOL_AVG, 2, 2, 2, 2);
-    AddLayer<NetLayerTrans>(net_core);
+    AddLayer<NetLayerFlat>(net_core);
     AddLayer<NetLayerFC>(net_core, 500, dLearnRate);
     AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
     AddLayer<NetLayerAct>(net_core, NEUNET_SIGMOID);

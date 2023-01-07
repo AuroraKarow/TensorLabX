@@ -15,8 +15,8 @@
 #define NEUNET_LAYER_ACT    0x0000
 // Padding & cropping
 #define NEUNET_LAYER_PC     0x0001
-// Transformation
-#define NEUNET_LAYER_TRANS  0x0002
+// Flat
+#define NEUNET_LAYER_FLAT   0x0002
 // Fully connection
 #define NEUNET_LAYER_FC     0x0003
 // Convolution
@@ -53,7 +53,7 @@ typedef LayerPC                 NetLayerPC;
 // pooling
 typedef LayerPool               NetLayerPool;
 // transform
-typedef LayerTrans              NetLayerTrans;
+typedef LayerFlat               NetLayerFlat;
 
 LAYER_END
 
@@ -73,7 +73,7 @@ LAYER_END
                             std::is_same_v<LayerType, neunet::layer::NetLayerFC> || \
                             std::is_same_v<LayerType, neunet::layer::NetLayerPC> || \
                             std::is_same_v<LayerType, neunet::layer::NetLayerPool> || \
-                            std::is_same_v<LayerType, neunet::layer::NetLayerTrans> || \
+                            std::is_same_v<LayerType, neunet::layer::NetLayerFlat> || \
                             std::is_same_v<LayerType, neunet::layer::NetLayerBias>>
 #define neunet_layer_cast   std::dynamic_pointer_cast
 
