@@ -4,8 +4,7 @@
 using namespace std;
 int main()
 {
-    //Please make this file able to run. Current vscode setting does not support c++20;
-    Core::Matrix::Matrix<int> m;
-    std::cout << "Hello World!\n";
+    //Core::Data::Matrix<int> m(64, 64);
+    std::cout << "Hello World!\n" << Constant->Pi;
     return EXIT_SUCCESS;
 }

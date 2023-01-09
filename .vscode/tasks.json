@@ -35,7 +35,7 @@
                 "/ZI",
                 "/EHsc",
                 "/std:c++20",
-                "/openmp:experimental",
+                "/openmp",
                 "/Fe${fileDirname}\\${fileBasenameNoExtension}.exe",
                 "${file}"
             ],

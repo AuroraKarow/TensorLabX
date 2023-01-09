@@ -8,7 +8,7 @@ namespace Core {
     {
         MAKE_SINGLETON(RConstants)
        
-    private:
+    public:
         RConstants();
 	public:
 		const double Pi;

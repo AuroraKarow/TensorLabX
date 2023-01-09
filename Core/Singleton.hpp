@@ -23,10 +23,6 @@ std::shared_ptr<T>& Singleton<T>::Instance()
 }
 
 #define MAKE_SINGLETON(Type)      \
-    friend class Singleton<Type>; \
-//protected:                        \
-//    Type() = default;             \
-//                                  \
-public:
+    friend class Singleton<Type>; 
 
 #endif //__CORE__SINGLETON__
