@@ -49,7 +49,7 @@ int main(int argc, char *argv[], char *envp[]) {
     AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
     AddLayer<NetLayerAct>(net_core, NEUNET_RELU);
     AddLayer<NetLayerPool>(net_core, NEUNET_POOL_AVG, 2, 2, 2, 2);
-    AddLayer<NetLayerTrans>(net_core);
+    AddLayer<NetLayerFlat>(net_core);
     AddLayer<NetLayerFC>(net_core, 500, dLearnRate);
     AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
     AddLayer<NetLayerAct>(net_core, NEUNET_SIGMOID);

@@ -8,6 +8,8 @@ callback_matrix neunet_vect GradLossToWeight(const neunet_vect &vecGradLossToOut
 獲取損失到權重的梯度，用於更新權重。\
 Get gradient from loss to weight for weight updating.
 
+$$\frac{dL}{dW}=\frac{dL}{dZ}X^T$$
+
 參數<br>Parameters|描述<br>Description|I/O
 -|-|-
 `vecGradLossToOutput`|損失到當前網絡層輸出向量的梯度<br>Gradient from loss to output vector vector of current layer|*輸入<br>input*

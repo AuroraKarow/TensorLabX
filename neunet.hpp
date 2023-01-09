@@ -63,7 +63,7 @@ struct NeunetCore {
  * uint64_t iLnDistCnt  = 0
  * uint64_t iColDistCnt = 0
  * 
- * **Transform (LayerTrans)**
+ * **Transform (LayerFlat)**
  * 
  * void
  * 
@@ -130,7 +130,7 @@ bool RunInit(NeunetCore &netCore, uint64_t iTrainDataCnt, uint64_t iDeduceDataCn
     for (auto i = 0ull; i < netCore.seqLayer.length; ++i) switch (netCore.seqLayer[i]->iLayerType) {
     case NEUNET_LAYER_ACT: neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[i])->RunInit(netCore.iTrainBatchSize); break;
     case NEUNET_LAYER_PC: neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt); break;
-    case NEUNET_LAYER_TRANS: neunet_layer_cast<layer::NetLayerTrans>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt); break;
+    case NEUNET_LAYER_FLAT: neunet_layer_cast<layer::NetLayerFlat>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt); break;
     case NEUNET_LAYER_FC: neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->RunInit(iInputLnCnt, netCore.iTrainBatchSize); break;
     case NEUNET_LAYER_CONV: neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt, netCore.iTrainBatchSize); break;
     case NEUNET_LAYER_POOL: neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->RunInit(iInputLnCnt, iInputColCnt, iChannCnt, netCore.iTrainBatchSize); break;
@@ -153,7 +153,7 @@ bool ForwProp(NeunetCore &netCore, vect &vecInput, uint64_t iIdx) {
         switch (netCore.seqLayer[i]->iLayerType) {
         case NEUNET_LAYER_ACT: bFPFlag = neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
         case NEUNET_LAYER_PC: bFPFlag = neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[i])->ForwProp(vecInput); break;
-        case NEUNET_LAYER_TRANS: bFPFlag = neunet_layer_cast<layer::NetLayerTrans>(netCore.seqLayer[i])->ForwProp(vecInput); break;
+        case NEUNET_LAYER_FLAT: bFPFlag = neunet_layer_cast<layer::NetLayerFlat>(netCore.seqLayer[i])->ForwProp(vecInput); break;
         case NEUNET_LAYER_FC: bFPFlag = neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
         case NEUNET_LAYER_CONV: bFPFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
         case NEUNET_LAYER_POOL: bFPFlag = neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->ForwProp(vecInput, iIdx); break;
@@ -176,7 +176,7 @@ bool BackProp(NeunetCore &netCore, vect &vecFPOutput, const vect &vecOrgn, uint6
         switch (netCore.seqLayer[iLyrIdx]->iLayerType) {
         case NEUNET_LAYER_ACT: bBPFlag = neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput, vecOrgn, iIdx); break;
         case NEUNET_LAYER_PC: bBPFlag = neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput); break;
-        case NEUNET_LAYER_TRANS: bBPFlag = neunet_layer_cast<layer::NetLayerTrans>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput); break;
+        case NEUNET_LAYER_FLAT: bBPFlag = neunet_layer_cast<layer::NetLayerFlat>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput); break;
         case NEUNET_LAYER_FC: bBPFlag = neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput, iIdx); break;
         case NEUNET_LAYER_CONV: bBPFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput, iIdx); break;
         case NEUNET_LAYER_POOL: bBPFlag = neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[iLyrIdx])->BackProp(vecFPOutput, iIdx); break;
@@ -197,7 +197,7 @@ bool Deduce(NeunetCore &netCore, vect &vecInput, uint64_t iIdx) {
         switch (netCore.seqLayer[i]->iLayerType) {
         case NEUNET_LAYER_ACT: bDdFlag = neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_PC: bDdFlag = neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[i])->Deduce(vecInput); break;
-        case NEUNET_LAYER_TRANS: bDdFlag = neunet_layer_cast<layer::NetLayerTrans>(netCore.seqLayer[i])->Deduce(vecInput); break;
+        case NEUNET_LAYER_FLAT: bDdFlag = neunet_layer_cast<layer::NetLayerFlat>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_FC: bDdFlag = neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_CONV: bDdFlag = neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i])->Deduce(vecInput); break;
         case NEUNET_LAYER_POOL: bDdFlag = neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i])->Deduce(vecInput); break;
