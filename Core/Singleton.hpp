@@ -7,19 +7,19 @@ template <class T>
 class Singleton
 {
 protected:
-    static std::unique_ptr<T> instance;
+    static std::shared_ptr<T> instance;
 
 public:
-    static T *Instance();
+    static std::shared_ptr<T>& Instance();
 };
 
 template <class T>
-std::unique_ptr<T> Singleton<T>::instance{new T()};
+std::shared_ptr<T> Singleton<T>::instance{new T()};
 
 template <class T>
-T *Singleton<T>::Instance()
+std::shared_ptr<T>& Singleton<T>::Instance()
 {
-    return instance.get();
+    return instance;
 }
 
 #define MAKE_SINGLETON(Type)      \
