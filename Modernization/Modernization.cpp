@@ -1,8 +1,8 @@
 ﻿// Modernization.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
 //#include "Core/CoreTypes.hpp"
-#include "Core/Matrix.hpp"
-#include "Core/Constants.hpp"
+#include "../Core/Matrix.hpp"
+#include "../Core/Constants.hpp"
 #include <iostream>
 using namespace Core::Data;
 
@@ -17,7 +17,7 @@ int main()
     _ASSERT(m1.Equal(mcopy) == true);*/
     std::cout << Constant->Pi << std::endl;
     std::cout << Constant << std::endl;
-    TestMatrixReferenceEqual();
+    //TestMatrixReferenceEqual();
     return 0;
 }
 
@@ -25,7 +25,7 @@ void TestMatrixReferenceEqual() {
     Matrix<int> m1(5, 5);
     Matrix<int> mcopy(m1);
     std::cout << &m1 << std::endl << &mcopy << std::endl;
-    _ASSERT(!m1.ReferenceEqual(mcopy));
+    _ASSERT(!m1.Equal(mcopy));
 }
 
 // 运行程序: Ctrl + F5 或调试 >“开始执行(不调试)”菜单

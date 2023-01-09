@@ -6,7 +6,7 @@
 template <class T>
 class Singleton
 {
-protected:
+public:
     static std::shared_ptr<T> instance;
 
 public:
@@ -18,7 +18,7 @@ std::shared_ptr<T> Singleton<T>::instance{new T()};
 
 template <class T>
 std::shared_ptr<T>& Singleton<T>::Instance()
-{
+{   
     return instance;
 }
 

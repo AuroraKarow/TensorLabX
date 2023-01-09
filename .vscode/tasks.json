@@ -29,6 +29,9 @@
             "label": "DEBUG build from coretest",
             "command": "cl.exe",
             "args": [
+                "/JMC",
+                "/Gd",
+                "/Od",
                 "/WX",
                 "/RTCu",
                 "/GR",
@@ -36,7 +39,9 @@
                 "/EHsc",
                 "/std:c++20",
                 "/openmp",
+                "/MDd",
                 "/Fe${fileDirname}\\${fileBasenameNoExtension}.exe",
+                "*.cpp",
                 "${file}"
             ],
             "options": {

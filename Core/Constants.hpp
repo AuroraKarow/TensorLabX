@@ -1,17 +1,20 @@
+#include "Singleton.hpp"
+#include <cmath>
 #ifndef __CORE__CONSTANTS__
 #define __CORE__CONSTANTS__
-#include "Singleton.hpp"
 
-namespace Core {
+namespace Core
+{
     /*Runtime Constants*/
     class RConstants : public Singleton<RConstants>
     {
         MAKE_SINGLETON(RConstants)
-       
+
     public:
-        RConstants();
-	public:
-		const double Pi;
+        RConstants() : Pi(std::acos(-1)) {}
+
+    public:
+        const double Pi;
     };
 }
 
