@@ -20,19 +20,13 @@ using neunet::vect;
 using neunet::dataset::mnist;
 using neunet::NeunetCore;
 using neunet::AddLayer;
-using neunet::RunInit;
-using neunet::TrainDeduceThread;
+using neunet::Shape;
+using neunet::TrainTestThread;
 using neunet::DataShowThread;
 
 int main(int argc, char *argv[], char *envp[]) {
     cout << "hello, world.\n" << endl;
     auto chrono_begin = NEUNET_CHRONO_TIME_POINT;
-
-    // mnist data loading
-
-    std::string root = "...\\MNIST\\";
-    mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
-    test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
 
     // network declaration
 
@@ -54,16 +48,26 @@ int main(int argc, char *argv[], char *envp[]) {
     AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
     AddLayer<NetLayerAct>(net_core, NEUNET_SIGMOID);
     AddLayer<NetLayerFC>(net_core, 10, dLearnRate);
+    AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
     AddLayer<NetLayerAct>(net_core, NEUNET_SOFTMAX);
+
+    // mnist data loading
+
+    std::string root = "...\\MNIST\\";
+    // std::string root = "E:\\VS Code project data\\MNIST\\";
+    mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
+    test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
+
+    auto trn_bat_cnt = train.element_count / net_core.iTrnBatSz;
 
     // shape initialization
 
-    RunInit(net_core, train.element_count, test.element_count, train.element_line_count, train.element_column_count, 1);
+    Shape(net_core, trn_bat_cnt, train.element_line_count, train.element_column_count, 1);
 
     // threads
 
-    TrainDeduceThread(net_core, train.elem, train.lbl, test.elem, test.lbl, mnist_orgn_size);
-    DataShowThread(net_core, train.element_count, test.element_count);
+    TrainTestThread(net_core, train.elem, train.lbl, train.data_idx, test.elem, test.lbl, mnist_orgn_size, trn_bat_cnt, (test.element_count / net_core.iTstBatSz));
+    DataShowThread(net_core, trn_bat_cnt, test.element_count);
 
     auto chrono_end = NEUNET_CHRONO_TIME_POINT;
     cout << '\n' << (chrono_end - chrono_begin) << "ms" << endl;
