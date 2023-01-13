@@ -24,8 +24,8 @@ callback_matrix neunet_vect CaffeTransform(const neunet_vect &vecChann, const ne
     for (auto i = 0ull; i < setCaffeData.length; ++i) vecAns.index(i) = vecChann.index(setCaffeData[i]);
     return vecAns;
 }
-callback_matrix neunet_vect CaffeTransform(const neunet_vect &vecCaffe, const net_set<uint64_t> &setCaffeData, uint64_t iIm2ColLnCnt, uint64_t iIm2ColColCnt, bool bIsGrad) {
-    neunet_vect vecAns(iIm2ColLnCnt, iIm2ColColCnt);
+callback_matrix neunet_vect CaffeTransform(const neunet_vect &vecCaffe, const net_set<uint64_t> &setCaffeData, uint64_t iChannElemCnt, uint64_t iChannCnt, bool bIsGrad) {
+    neunet_vect vecAns(iChannElemCnt, iChannCnt);
     for (auto i = 0ull; i < setCaffeData.length; ++i) if (bIsGrad) vecAns.index(setCaffeData[i]) += vecCaffe.index(i);
     else vecAns.index(setCaffeData[i]) = vecCaffe.index(i);
     return vecAns;
