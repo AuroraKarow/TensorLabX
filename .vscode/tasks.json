@@ -61,7 +61,7 @@
             "type": "shell",
             "label": "clean",
             "command":["git"],
-            "args": ["clean", "-xf"]
+            "args": ["clean", "-Xnf"]
         },
     ]
 }
