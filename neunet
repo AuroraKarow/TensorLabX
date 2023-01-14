@@ -11,22 +11,23 @@
 #define NEUNET_ARELU_LOSS   0x0004
 #define NEUNET_SOFTMAX      0x0005
 
+#define NEUNET_LAYER_NULL   0x0000
 // Activation function
-#define NEUNET_LAYER_ACT    0x0000
+#define NEUNET_LAYER_ACT    0x0001
 // Padding & cropping
-#define NEUNET_LAYER_PC     0x0001
+#define NEUNET_LAYER_PC     0x0002
 // Flat
-#define NEUNET_LAYER_FLAT   0x0002
+#define NEUNET_LAYER_FLAT   0x0003
 // Fully connection
-#define NEUNET_LAYER_FC     0x0003
+#define NEUNET_LAYER_FC     0x0004
 // Convolution
-#define NEUNET_LAYER_CONV   0x0004
+#define NEUNET_LAYER_CONV   0x0005
 // Pooling
-#define NEUNET_LAYER_POOL   0x0005
+#define NEUNET_LAYER_POOL   0x0006
 // BN
-#define NEUNET_LAYER_BN     0x0006
+#define NEUNET_LAYER_BN     0x0007
 // Bias
-#define NEUNET_LAYER_BIAS   0x0007
+#define NEUNET_LAYER_BIAS   0x0008
 
 #include "async"
 #include "conv"

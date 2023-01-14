@@ -156,7 +156,6 @@ callback_matrix matrix_ptr strassen_mult(const matrix_ptr left, uint64_t left_ln
     return ans_ptr;
 }
 
-// template<typename matrix_elem_t, typename matrix_elem_v>
 matrix_declare class net_matrix {
 protected:
     void value_assign(const net_matrix &src) {

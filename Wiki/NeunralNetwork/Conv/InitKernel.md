@@ -1,7 +1,7 @@
 # `InitKernel`
 
 ```c++
-callback_matrix neunet_vect InitKernel(uint64_t            iAmt,
+callback_matrix neunet_vect InitKernel(uint64_t            iKernelQty,
                                        uint64_t            iChannCnt,
                                        uint64_t            iLnCnt,
                                        uint64_t            iColCnt,
@@ -15,7 +15,7 @@ Initializing convolution kernels with pseudo random number.
 
 參數<br>Parameters|描述<br>Description|I/O
 -|-|-
-`iAmt`|卷幾個數量<br>Kernel amount|*輸入<br>Output*
+`iKernelQty`|卷幾個數量<br>Kernel amount|*輸入<br>Output*
 `iChannCnt`|捲積核通道數<br>Kernel channel count|*輸入<br>input*
 `iLnCnt`|捲積核通道矩陣行計數<br>Line count of kernel channel matrix|*輸入<br>input*
 `iColCnt`|捲積核通道矩陣列計數<br>Column count of kernel channel matrix|*輸入<br>input*

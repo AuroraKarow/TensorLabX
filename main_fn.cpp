@@ -309,7 +309,7 @@ void layer_forward(layer_pool_ptr src, vect &input, uint64_t bat_sz_idx) {
 }
 
 void layer_backward(layer_pool_ptr src, vect &grad, uint64_t bat_sz_idx) {
-    if (src->pool_type == NEUNET_POOL_GAG) grad = conv::GradLossToPoolGlbAvgChann(grad, src->in_ln_cnt, src->in_col_cnt);
+    if (src->pool_type == NEUNET_POOL_GAG) grad = conv::GradLossToPoolGlbAvgChann(grad, src->in_elem_cnt);
     else grad = conv::CaffeTransform(conv::GradLossToPoolMaxAvgCaffeInput(src->pool_type, grad, src->filter_elem_cnt, src->max_pool_pos[bat_sz_idx]), src->caffe_data, src->in_elem_cnt, src->chann_cnt, true);
 }
 
@@ -324,18 +324,16 @@ void layer_deduce(layer_pool_ptr src, vect &input) {
 // layer BN
 
 struct layer_bn : layer_derive {
+    std::atomic_uint64_t back_bat_sz_cnt = 0;
+
     long double mov_avg_decay    = 0.9,
                 beta_learn_rate  = 0,
                 gamma_learn_rate = 0;
 
     vect beta,
          gamma,
-         beta_grad,
-         gamma_grad,
          beta_nv,
          gamma_nv;
-
-    net_set<vect> input_grad;
 
     BNData<long double> BN_data;
 
@@ -345,7 +343,8 @@ struct layer_bn : layer_derive {
     ada_delta<long double> delta_beta,
                            delta_gamma;
 
-    async::async_controller BN_ctrl;
+    async::async_controller BN_for_ctrl,
+                            BN_back_ctrl;
 };
 typedef std::shared_ptr<layer_bn> layer_bn_ptr;
 
@@ -368,39 +367,40 @@ void layer_shape(layer_bn_ptr src, uint64_t chann_cnt, uint64_t batch_size, uint
     if (src->beta_learn_rate) src->beta_nv = src->nesterov_beta.weight(src->beta);
     if (src->gamma_learn_rate) src->gamma_nv = src->nesterov_gamma.weight(src->gamma);
     src->input.init(batch_size, false);
-    src->input_grad.init(batch_size, false);
     BNInitBNData(src->BN_data, batch_size, batch_cnt);
 }
 
-void layer_update(layer_bn_ptr src) {
+void layer_update(layer_bn_ptr src, vect beta_grad, vect gamma_grad) {
     if (src->beta_learn_rate) {
-        src->beta   -= src->nesterov_beta.momentum(src->beta_grad, src->beta_learn_rate);
+        src->beta   -= src->nesterov_beta.momentum(beta_grad, src->beta_learn_rate);
         src->beta_nv = src->nesterov_beta.weight(src->beta);
-    } else src->beta -= src->delta_beta.delta(src->beta_grad);
+    } else src->beta -= src->delta_beta.delta(beta_grad);
     if (src->gamma_learn_rate) {
-        src->gamma   -= src->nesterov_gamma.momentum(src->gamma_grad, src->gamma_learn_rate);
+        src->gamma   -= src->nesterov_gamma.momentum(gamma_grad, src->gamma_learn_rate);
         src->gamma_nv = src->nesterov_gamma.weight(src->gamma);
-    } else src->gamma -= src->delta_gamma.delta(src->gamma_grad);
+    } else src->gamma -= src->delta_gamma.delta(gamma_grad);
 }
 
 void layer_forward(layer_bn_ptr src, vect &input, uint64_t bat_sz_idx) {
     src->input[bat_sz_idx] = std::move(input);
     if (++src->batch_size_cnt == src->input.length) {
-        src->input_grad = BNTrain(src->BN_data, src->input, (src->beta_learn_rate ? src->beta_nv : src->beta), (src->gamma_learn_rate ? src->gamma_nv : src->gamma));
-        src->BN_ctrl.thread_wake_all();
-    } else src->BN_ctrl.thread_sleep();
-    input = std::move(src->input_grad[bat_sz_idx]);
+        src->input = BNTrain(src->BN_data, src->input, (src->beta_learn_rate ? src->beta_nv : src->beta), (src->gamma_learn_rate ? src->gamma_nv : src->gamma));
+        src->batch_size_cnt = 0;
+        src->BN_for_ctrl.thread_wake_all();
+    } else while (src->batch_size_cnt) src->BN_for_ctrl.thread_sleep(1000);
+    input = std::move(src->input[bat_sz_idx]);
 }
 
 void layer_backward(layer_bn_ptr src, vect &grad, uint64_t bat_sz_idx) {
-    src->input_grad[bat_sz_idx] = std::move(grad);
-    if (--src->batch_size_cnt) src->BN_ctrl.thread_sleep();
-    else {
-        src->input_grad = BNGradLossToInputGammaBeta(src->BN_data, src->gamma_grad, src->beta_grad, src->input_grad, (src->gamma_learn_rate ? src->gamma_nv : src->gamma), src->mov_avg_decay);
-        src->BN_ctrl.thread_wake_all();
-        layer_update(src);
-    }
-    grad = std::move(src->input_grad[bat_sz_idx]);
+    src->input[bat_sz_idx] = std::move(grad);
+    if (++src->back_bat_sz_cnt == src->input.length) {
+        vect beta_grad, gamma_grad;
+        src->input = BNGradLossToInputGammaBeta(src->BN_data, gamma_grad, beta_grad, src->input, (src->gamma_learn_rate ? src->gamma_nv : src->gamma), src->mov_avg_decay);
+        src->back_bat_sz_cnt = 0;
+        src->BN_back_ctrl.thread_wake_all();
+        layer_update(src, beta_grad, gamma_grad);
+    } else while (src->back_bat_sz_cnt) src->BN_back_ctrl.thread_sleep(1000);
+    grad = std::move(src->input[bat_sz_idx]);
 }
 
 void layer_deduce(layer_bn_ptr src, vect &input) { input = BNDeduce(src->BN_data, input, src->beta, src->gamma); }
@@ -534,12 +534,14 @@ int main(int argc, char *argv[], char *envp[]) {
     net_add_layer<layer_act>(net_lyr, NEUNET_SIGMOID);
     // F5
     net_add_layer<layer_fc>(net_lyr, 10, learn_rate);
+    net_add_layer<layer_bn>(net_lyr, 0, 1, 1e-5l, 1e-5l);
     net_add_layer<layer_act>(net_lyr, NEUNET_SOFTMAX);
     
     /* train & test dataset, built-in data structure "mnist" */
 
     // root directory of mnist dataset
-    std::string root = "...\\MNIST\\";
+    // std::string root = "...\\MNIST\\";
+    std::string root = "E:\\VS Code project data\\MNIST\\";
     // load train & test dataset
     mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
@@ -603,8 +605,8 @@ int main(int argc, char *argv[], char *envp[]) {
         // deduce
         while (bat_cnt < tst_bat_cnt && i < tst_bat_sz) {
             // get test data and corresponding labels of current batch
-            auto input = train.elem[data_idx];
-            auto lbl   = train.lbl[data_idx];
+            auto input = test.elem[data_idx];
+            auto lbl   = test.lbl[data_idx];
             // process which is not the last arriving thread should wait, 1000ms at most
             if (!(bat_cnt || last_tkn)) tst_ctrl.thread_sleep();
             if (net_stat == NEUNET_STAT_END) break;

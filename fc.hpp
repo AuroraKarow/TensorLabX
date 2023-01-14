@@ -18,212 +18,98 @@ FC_END
 
 LAYER_BEGIN
 
-struct LayerFlat : Layer {
-    uint64_t iLnCnt    = 0,
-             iColCnt   = 0,
-             iChannCnt = 0;
-    
-    virtual void ValueAssign(const LayerFlat &lyrSrc) {
-        iLnCnt    = iLnCnt;
-        iColCnt   = iColCnt;
-        iChannCnt = lyrSrc.iChannCnt;
-    }
+struct LayerChann : virtual Layer {
+    uint64_t iInElemCnt = 0;
 
-    virtual void ValueCopy(const LayerFlat &lyrSrc) { ValueAssign(lyrSrc); }
+    void ValueAssign(const LayerChann &lyrSrc) { iInElemCnt = lyrSrc.iInElemCnt; }
 
-    virtual void ValueMove(LayerFlat &&lyrSrc) {
+    LayerChann(uint64_t iLayerType = NEUNET_LAYER_NULL) : Layer(iLayerType) {}
+    LayerChann(const LayerChann &lyrSrc) : Layer(lyrSrc) { ValueAssign(lyrSrc); }
+
+    LayerChann &operator=(const LayerChann &lyrSrc) {
         ValueAssign(lyrSrc);
-        lyrSrc.Reset(false);
-    }
-
-    LayerFlat() : Layer(NEUNET_LAYER_FLAT) {}
-    LayerFlat(const LayerFlat &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerFlat(LayerFlat &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
-
-    void RunInit(uint64_t &iInputLnCnt, uint64_t &iInputColCnt, uint64_t &iCurrChannCnt) {
-        iLnCnt        = iInputColCnt;
-        iColCnt       = iInputColCnt;
-        iChannCnt     = iCurrChannCnt;
-        iInputLnCnt   = iInputLnCnt * iInputColCnt * iChannCnt;
-        iInputColCnt  = 1;
-        iCurrChannCnt = 1;
-    }
-    
-    callback_matrix bool ForwProp(neunet_vect &vecInput) { return Deduce(vecInput); }
-
-    callback_matrix bool BackProp(neunet_vect &vecGrad) {
-        vecGrad = vecGrad.reshape(iLnCnt * iColCnt, iChannCnt);
-        return vecGrad.verify;
-    }
-
-    callback_matrix bool Deduce(neunet_vect &vecInput) {
-        vecInput = vecInput.reshape(iLnCnt * iColCnt * iChannCnt, 1);  
-        return vecInput.verify;  
-    }
-
-    virtual void Reset(bool bFull = true) {
-        if (bFull) Layer::Reset(true);
-        iLnCnt    = 0;
-        iColCnt   = 0;
-        iChannCnt = 0;
-    }
-
-    virtual ~LayerFlat() { Reset(false); }
-
-    LayerFlat &operator=(const LayerFlat &lyrSrc) {
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(lyrSrc);
-            ValueCopy(lyrSrc);
-        }
-        return *this;
-    }
-    LayerFlat &operator=(LayerFlat &&lyrSrc) {
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(std::move(lyrSrc));
-            ValueMove(std::move(lyrSrc));
-        }
         return *this;
     }
 
+    virtual ~LayerChann() { iInElemCnt = 0; }
 };
 
-matrix_declare struct LayerFC : Layer {
-    uint64_t iOutputLnCnt = 0,
-             iAcc         = 8;
+struct LayerFlat : LayerDim, LayerChann {
+    uint64_t iChannCnt = 0;
 
-    matrix_elem_t dFstRng = 0,
-                  dSndRng = 0;
+    void ValueAssign(const LayerFlat &lyrSrc) { iChannCnt = lyrSrc.iChannCnt; }
+
+    LayerFlat(uint64_t iLayerType = NEUNET_LAYER_FLAT) : LayerDim(iLayerType), LayerChann(iLayerType) {}
+    LayerFlat(const LayerFlat &lyrSrc) : LayerDim(lyrSrc), LayerChann(lyrSrc) { ValueAssign(lyrSrc); }
+
+    void Shape(uint64_t &iInLnCnt, uint64_t &iInColCnt, uint64_t &iChannCnt) {
+        this->iChannCnt = iChannCnt;
+        iInElemCnt      = iInLnCnt * iInColCnt;
+        iOutLnCnt       = iChannCnt * iInElemCnt;
+        iInLnCnt        = iOutLnCnt;
+        iInColCnt       = 1;
+        iChannCnt       = 1;
+    }
     
-    neunet_vect vecWeight,
-                vecTpWeight,
-                vecNesterovWeight;
+    callback_matrix void ForProp(neunet_vect &vecIn) { vecIn = vecIn.reshape(iOutLnCnt, 1); }
 
-    ada_nesterov<matrix_elem_t> advWeight;
-    ada_delta<matrix_elem_t>    adaWeight;
+    callback_matrix void BackProp(neunet_vect &vecGrad) { vecGrad = vecGrad.reshape(iInElemCnt, iChannCnt); }
 
-    net_set<neunet_vect> setInput,
-                         setGradWeight;
+    callback_matrix void Deduce(neunet_vect &vecIn) { ForProp(vecIn); }
 
-    virtual void ValueAssign(const LayerFC &lyrSrc) {
-        iOutputLnCnt = lyrSrc.iOutputLnCnt;
-        iAcc         = lyrSrc.iAcc;
-    }
-
-    virtual void ValueCopy(const LayerFC &lyrSrc) {
+    LayerFlat &operator=(const LayerFlat &lyrSrc) {
+        LayerDim::operator=(lyrSrc);
+        LayerChann::operator=(lyrSrc);
         ValueAssign(lyrSrc);
-        dFstRng           = lyrSrc.dFstRng;
-        dSndRng           = lyrSrc.dSndRng;
-        setInput          = lyrSrc.setInput;
-        advWeight         = lyrSrc.advWeight;
-        adaWeight         = lyrSrc.adaWeight;
-        vecWeight         = lyrSrc.vecWeight;
-        vecTpWeight       = lyrSrc.vecTpWeight;
-        setGradWeight     = lyrSrc.setGradWeight;
-        vecNesterovWeight = lyrSrc.vecNesterovWeight;
-    }
-
-    virtual void ValueMove(LayerFC &&lyrSrc) {
-        ValueAssign(lyrSrc);
-        dFstRng           = std::move(lyrSrc.dFstRng);
-        dSndRng           = std::move(lyrSrc.dSndRng);
-        setInput          = std::move(lyrSrc.setInput);
-        advWeight         = std::move(lyrSrc.advWeight);
-        adaWeight         = std::move(lyrSrc.adaWeight);
-        vecWeight         = std::move(lyrSrc.vecWeight);
-        vecTpWeight       = std::move(lyrSrc.vecTpWeight);
-        setGradWeight     = std::move(lyrSrc.setGradWeight);
-        vecNesterovWeight = std::move(lyrSrc.vecNesterovWeight);
-        lyrSrc.Reset(false);
-    }
-
-    LayerFC(uint64_t iCurrOutputLnCnt = 1, long double dInitLearnRate = 0, const matrix_elem_t &dRandFstRng = 0, const matrix_elem_t &dRandSndRng = 0, uint64_t iRandAcc = 8) : Layer(NEUNET_LAYER_FC, dInitLearnRate),
-        iOutputLnCnt(iCurrOutputLnCnt),
-        dFstRng(dRandFstRng),
-        dSndRng(dRandSndRng),
-        iAcc(iRandAcc) {}
-    LayerFC(const LayerFC &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerFC(LayerFC &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
-
-    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t iTrainBatchSize) {
-        if (!vecWeight.verify) vecWeight = fc::InitWeight(iCurrInputLnCnt, iOutputLnCnt, dFstRng, dSndRng, iAcc);
-        if (dLearnRate) {
-            vecNesterovWeight = advWeight.weight(vecWeight);
-            vecTpWeight       = vecNesterovWeight.transpose;
-        } else vecTpWeight = vecWeight.transpose;
-        setInput.init(iTrainBatchSize, false);
-        setGradWeight.init(iTrainBatchSize, false);
-        iCurrInputLnCnt = iOutputLnCnt;
-    }
-
-    bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
-        if (iIdx >= setInput.length) return false;
-        setInput[iIdx] = std::move(vecInput);
-        if (dLearnRate) vecInput = vecNesterovWeight * setInput[iIdx];
-        else vecInput = vecWeight * setInput[iIdx];
-        return vecInput.verify;
-    }
-
-    bool BackProp(neunet_vect &vecGrad, uint64_t iIdx) {
-        if (iIdx >= setInput.length) return false;
-        setGradWeight[iIdx] = vecGrad * setInput[iIdx].transpose;
-        if (!setGradWeight[iIdx].verify) return false;
-        vecGrad = vecTpWeight * vecGrad;
-        if (++iLayerBatchSizeIdx == setInput.length) {
-            Update();
-            iLayerBatchSizeIdx = 0;
-        }
-        return vecGrad.verify;
-    }
-
-    bool Deduce(neunet_vect &vecInput) const {
-        vecInput = vecWeight * vecInput;
-        return vecInput.verify;
-    }
-
-    void Update() {
-        auto vecGrad = matrix::vect_sum(setGradWeight).elem_wise_opt(setGradWeight.length, MATRIX_ELEM_DIV);
-        if (dLearnRate) {
-            vecWeight        -= advWeight.momentum(vecGrad, dLearnRate);
-            vecNesterovWeight = advWeight.weight(vecWeight);
-            vecTpWeight       = vecNesterovWeight.transpose;
-        } else {
-            vecWeight  -= adaWeight.delta(vecGrad);
-            vecTpWeight = vecWeight.transpose;
-        }
-    }
-
-    virtual void Reset(bool bFull = true) {
-        if (bFull) Layer::Reset(true);
-        iOutputLnCnt = 0;
-        iAcc         = 8;
-        dFstRng      = 0;
-        dSndRng      = 0;
-        setInput.reset();
-        vecWeight.reset();
-        advWeight.reset();
-        advWeight.reset();
-        vecTpWeight.reset();
-        setGradWeight.reset();
-        vecNesterovWeight.reset();
-    }
-
-    virtual ~LayerFC() { Reset(false); }
-
-    virtual LayerFC &operator=(const LayerFC &lyrSrc) {
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(lyrSrc);
-            ValueCopy(lyrSrc);
-        }
-        return *this;
-    }
-    virtual LayerFC &operator=(LayerFC &&lyrSrc) {
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(std::move(lyrSrc));
-            ValueMove(std::move(lyrSrc));
-        }
         return *this;
     }
 
+    virtual ~LayerFlat() { iChannCnt = 0; }
+};
+
+matrix_declare struct LayerFC : LayerDerive<matrix_elem_t>, LayerWeight<matrix_elem_t>, LayerDim {
+    LayerFC(uint64_t iOutLnCnt = 1, long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 8, uint64_t iLayerType = NEUNET_LAYER_FC) : LayerDerive<matrix_elem_t>(iLayerType), LayerWeight<matrix_elem_t>(iLayerType, dLearnRate, dRandFstRng, dRandSndRng, iRandAcc), LayerDim(iLayerType, iOutLnCnt) {}
+    LayerFC(const LayerFC &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc), LayerWeight<matrix_elem_t>(lyrSrc), LayerDim(lyrSrc) {}
+    LayerFC(LayerFC &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)), LayerWeight<matrix_elem_t>(std::move(lyrSrc)), LayerDim(lyrSrc) {}
+
+    void Shape(uint64_t &iInLnCnt, uint64_t iBatSz) {
+        this->vecWeight = fc::InitWeight(iInLnCnt, iOutLnCnt, this->dRandFstRng, this->dRandSndRng, this->iRandAcc);
+        LayerDerive<matrix_elem_t>::Shape(iBatSz);
+        LayerWeight<matrix_elem_t>::Shape(iBatSz, true);
+        iInLnCnt = this->iOutLnCnt;
+    }
+
+    void ForProp(neunet_vect &vecIn, uint64_t iBatSzIdx) {
+        this->setIn[iBatSzIdx] = std::move(vecIn);
+        if (this->dLearnRate) vecIn = fc::Output(this->setIn[iBatSzIdx], this->vecWeightNv);
+        else vecIn = fc::Output(this->setIn[iBatSzIdx], this->vecWeight);
+    }
+
+    void BackProp(neunet_vect &vecGrad, uint64_t iBatSzIdx) {
+        this->setWeightGrad[iBatSzIdx] = fc::GradLossToWeight(vecGrad, this->setIn[iBatSzIdx].transpose);
+        vecGrad                        = fc::GradLossToInput(vecGrad, this->vecWeightTp);
+        if (++this->iBatSzCnt == this->setIn.length) {
+            this->iBatSzCnt = 0;
+            LayerWeight<matrix_elem_t>::Update(true);
+        }
+    }
+
+    void Deduce(neunet_vect &vecIn) const { vecIn = fc::Output(vecIn, this->vecWeight); }
+
+    LayerFC &operator=(const LayerFC &lyrSrc) {
+        LayerDerive<matrix_elem_t>::operator=(lyrSrc);
+        LayerWeight<matrix_elem_t>::operator=(lyrSrc);
+        LayerDim::operator=(lyrSrc);
+        return *this;
+    }
+    LayerFC &operator=(LayerFC &&lyrSrc) {
+        LayerDerive<matrix_elem_t>::operator=(std::move(lyrSrc));
+        LayerWeight<matrix_elem_t>::operator=(std::move(lyrSrc));
+        LayerDim::operator=(lyrSrc);
+        return *this;
+    }
+
+    virtual ~LayerFC() {}
 };
 
 LAYER_END

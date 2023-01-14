@@ -116,11 +116,18 @@ NEUNET_END
 
 LAYER_BEGIN
 
-matrix_declare struct LayerBN : Layer {
-    long double dDecay = 0.9l;
+matrix_declare struct LayerBN : LayerDerive<matrix_elem_t> {
+    std::atomic_uint64_t iBackBatSzCnt = 0,
+                         iForBatSzCnt  = 0;
 
-    matrix_elem_t dBeta  = 0,
-                  dGamma = 1;
+    long double dDecay          = .9,
+                dBetaLearnRate  = .0,
+                dGammaLearnRate = .0;
+
+    neunet_vect vecBeta,
+                vecGamma,
+                vecBetaNv,
+                vecGammaNv;
 
     ada_nesterov<matrix_elem_t> advBeta,
                                 advGamma;
@@ -128,24 +135,17 @@ matrix_declare struct LayerBN : Layer {
     ada_delta<matrix_elem_t> adaBeta,
                              adaGamma;
 
-    neunet_vect vecBeta,
-                vecGamma,
-
-                vecNesterovBeta,
-                vecNesterovGamma,
-
-                vecGradBeta,
-                vecGradGamma;
-
-    net_set<neunet_vect> setInput,
-                         setGrad;
-
     BNData<matrix_elem_t> BdData;
 
-    async::async_controller asyBNCtrl;
+    async::async_controller asyForCtrl,
+                            asyBackCtrl;
 
     virtual void ValueAssign(const LayerBN &lyrSrc) {
         dDecay                 = lyrSrc.dDecay;
+        iBackBatSzCnt          = (uint64_t)lyrSrc.iBackBatSzCnt;
+        iForBatSzCnt           = (uint64_t)lyrSrc.iForBatSzCnt;
+        dBetaLearnRate         = lyrSrc.dBetaLearnRate;
+        dGammaLearnRate        = lyrSrc.dGammaLearnRate;
         BdData.iTrainBatchCnt  = lyrSrc.BdData.iTrainBatchCnt;
         BdData.iTrainBatchIdx  = lyrSrc.BdData.iTrainBatchIdx;
         BdData.dCoeBatchSize   = lyrSrc.BdData.dCoeBatchSize;
@@ -154,16 +154,10 @@ matrix_declare struct LayerBN : Layer {
 
     virtual void ValueCopy(const LayerBN &lyrSrc) {
         ValueAssign(lyrSrc);
-        setInput              = lyrSrc.setInput;
-        setGrad               = lyrSrc.setGrad;
-        dBeta                 = lyrSrc.dBeta;
-        dGamma                = lyrSrc.dGamma;
         vecBeta               = lyrSrc.vecBeta;
         vecGamma              = lyrSrc.vecGamma;
-        vecNesterovBeta       = lyrSrc.vecNesterovBeta;
-        vecNesterovGamma      = lyrSrc.vecNesterovGamma;
-        vecGradBeta           = lyrSrc.vecGradBeta;
-        vecGradGamma          = lyrSrc.vecGradGamma;
+        vecBetaNv             = lyrSrc.vecBetaNv;
+        vecGammaNv            = lyrSrc.vecGammaNv;
         advBeta               = lyrSrc.advBeta;
         advGamma              = lyrSrc.advGamma;
         adaBeta               = lyrSrc.adaBeta;
@@ -180,20 +174,14 @@ matrix_declare struct LayerBN : Layer {
 
     virtual void ValueMove(LayerBN &&lyrSrc) {
         ValueAssign(lyrSrc);
-        setInput              = std::move(lyrSrc.setInput);
-        setGrad               = std::move(lyrSrc.setGrad);
-        dBeta                 = std::move(lyrSrc.dBeta);
-        dGamma                = std::move(lyrSrc.dGamma);
         vecBeta               = std::move(lyrSrc.vecBeta);
         vecGamma              = std::move(lyrSrc.vecGamma);
-        vecNesterovBeta       = std::move(lyrSrc.vecNesterovBeta);
-        vecNesterovGamma      = std::move(lyrSrc.vecNesterovGamma);
-        vecGradBeta           = std::move(lyrSrc.vecGradBeta);
-        vecGradGamma          = std::move(lyrSrc.vecGradGamma);
         advBeta               = std::move(lyrSrc.advBeta);
         advGamma              = std::move(lyrSrc.advGamma);
         adaBeta               = std::move(lyrSrc.adaBeta);
         adaGamma              = std::move(lyrSrc.adaGamma);
+        vecBetaNv             = std::move(lyrSrc.vecBetaNv);
+        vecGammaNv            = std::move(lyrSrc.vecGammaNv);
         BdData.setBarX        = std::move(lyrSrc.BdData.setBarX);
         BdData.setDist        = std::move(lyrSrc.BdData.setDist);
         BdData.vecSigma       = std::move(lyrSrc.BdData.vecSigma);
@@ -202,127 +190,101 @@ matrix_declare struct LayerBN : Layer {
         BdData.vecSigmaSqr    = std::move(lyrSrc.BdData.vecSigmaSqr);
         BdData.vecExpMuBeta   = std::move(lyrSrc.BdData.vecExpMuBeta);
         BdData.vecExpSigmaSqr = std::move(lyrSrc.BdData.vecExpSigmaSqr);
-        lyrSrc.Reset(false);
     }
 
-    LayerBN(const matrix_elem_t &dShift = 0, const matrix_elem_t &dScale = 1, long double dInitLearnRate = 0, long double dDeduceDecay = 0.9l) : Layer(NEUNET_LAYER_BN, dInitLearnRate),
-        dGamma(dScale),
-        dBeta(dShift),
-        dDecay(dDeduceDecay){}
-    LayerBN(const LayerBN &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerBN(LayerBN &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
+    LayerBN(long double dShiftPlaceholder = 0., long double dScalePlaceholder = 1., long double dShiftLearnRate = 0., long double dScaleLearnRate = 0., long double dMovAvgDecay = .9, uint64_t iLayerType = NEUNET_LAYER_BN) : LayerDerive<matrix_elem_t>(iLayerType),
+        dDecay(dMovAvgDecay),
+        dBetaLearnRate(dShiftLearnRate),
+        dGammaLearnRate(dScaleLearnRate),
+        vecBeta(dShiftPlaceholder),
+        vecGamma(dScalePlaceholder) {}
+    LayerBN(const LayerBN &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc) { ValueCopy(lyrSrc); }
+    LayerBN(LayerBN &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
-    void RunInit(uint64_t iChannCnt, uint64_t iTrainBatchSize, uint64_t iTrainBatchCnt) {
-        if (!vecBeta.verify) vecBeta  = BNInitBetaGamma(iChannCnt, dBeta);
-        if (!vecGamma.verify) vecGamma = BNInitBetaGamma(iChannCnt, dGamma);
-        if (this->dLearnRate) {
-            vecNesterovBeta  = advBeta.weight(vecBeta);
-            vecNesterovGamma = advGamma.weight(vecGamma);
-        }
-        setInput.init(iTrainBatchSize, false);
-        setGrad.init(iTrainBatchSize, false);
-        BNInitBNData(BdData, iTrainBatchSize, iTrainBatchCnt);
+    void Shape(uint64_t iChannCnt, uint64_t iBatSz, uint64_t iBatCnt) {
+        auto dBeta  = vecBeta.atom,
+             dGamma = vecGamma.atom;
+        vecGamma    = BNInitBetaGamma(iChannCnt, dGamma);
+        vecBeta     = BNInitBetaGamma(iChannCnt, dBeta);
+        if (dBetaLearnRate) vecBetaNv = advBeta.weight(vecBeta);
+        if (dGammaLearnRate) vecGammaNv = advGamma.weight(vecGamma);
+        BNInitBNData(BdData, iBatSz, iBatCnt);
+        LayerDerive<matrix_elem_t>::Shape(iBatSz);
     }
 
-    bool ForwProp() {
-        if (dLearnRate) setGrad = BNTrain(BdData, setInput, vecNesterovBeta, vecNesterovGamma);
-        else setGrad = BNTrain(BdData, setInput, vecBeta, vecGamma);
-        return setGrad.length;
+    void Update(const neunet_vect &vecBetaGrad, const neunet_vect &vecGammaGrad) {
+        if (dBetaLearnRate) {
+            vecBeta  -= advBeta.momentum(vecBetaGrad, dBetaLearnRate);
+            vecBetaNv = advBeta.weight(vecBeta);
+        } else vecBeta -= adaBeta.delta(vecBetaGrad);
+        if (dGammaLearnRate) {
+            vecGamma  -= advGamma.momentum(vecGammaGrad, dGammaLearnRate);
+            vecGammaNv = advGamma.weight(vecGamma);
+        } else vecGamma -= adaGamma.delta(vecGammaGrad);
     }
 
-    bool BackProp() {
-        if (dLearnRate) setGrad = BNGradLossToInputGammaBeta(BdData, vecGradGamma, vecGradBeta, setGrad, vecNesterovGamma, dDecay);
-        else setGrad = BNGradLossToInputGammaBeta(BdData, vecGradGamma, vecGradBeta, setGrad, vecGamma, dDecay);
-        return setGrad.length;
+    void ForProp(neunet_vect &vecIn, uint64_t iBatSzIdx) {
+        this->setIn[iBatSzIdx] = std::move(vecIn);
+        if (++iForBatSzCnt == this->setIn.length) {
+            iForBatSzCnt = 0;
+            this->setIn  = BNTrain(BdData, this->setIn, dBetaLearnRate ? vecBetaNv : vecBeta, dGammaLearnRate ? vecGammaNv : vecGamma);
+            asyForCtrl.thread_wake_all(); 
+        } else asyForCtrl.thread_sleep();
+        vecIn = std::move(this->setIn[iBatSzIdx]);
     }
 
-    bool ForwPropAsync(neunet_vect &vecInput, uint64_t iIdx) {
-        setInput[iIdx] = std::move(vecInput);
-        auto bFlag = true;
-        if (++iLayerBatchSizeIdx == setInput.length) {
-            bFlag = ForwProp();
-            asyBNCtrl.thread_wake_all();
-        } else asyBNCtrl.thread_sleep();
-        vecInput = std::move(setGrad[iIdx]);
-        return bFlag;
+    void BackProp(neunet_vect &vecGrad, uint64_t iBatSzIdx) {
+        this->setIn[iBatSzIdx] = std::move(vecGrad);
+        if (++iBackBatSzCnt == this->setIn.length) {
+            iBackBatSzCnt = 0;
+            neunet_vect vecBetaGrad,
+                        vecGammaGrad;
+            this->setIn = BNGradLossToInputGammaBeta(BdData, vecGammaGrad, vecBetaGrad, this->setIn, dGammaLearnRate ? vecGammaNv : vecGamma, dDecay);
+            asyBackCtrl.thread_wake_all();
+            Update(vecBetaGrad, vecGammaGrad);
+        } else asyBackCtrl.thread_sleep();
+        vecGrad = std::move(this->setIn[iBatSzIdx]);
     }
 
-    bool BackPropAsync(neunet_vect &vecGrad, uint64_t iIdx) {
-        setGrad[iIdx] = std::move(vecGrad);
-        auto bFlag = true;
-        if (--iLayerBatchSizeIdx) asyBNCtrl.thread_sleep();
-        else {
-            bFlag = BackProp();
-            asyBNCtrl.thread_wake_all();
-            Update();
-        }
-        vecGrad = std::move(setGrad[iIdx]);
-        return bFlag;
-    }
+    void Deduce(neunet_vect &vecIn) { vecIn = BNDeduce(BdData, vecIn, vecBeta, vecGamma); }
 
-    bool Deduce(neunet_vect &vecInput) {
-        vecInput = BNDeduce(BdData, vecInput, vecBeta, vecGamma);
-        return vecInput.verify;
-    }
-
-    void Update() {
-        if (this->dLearnRate) {
-            vecBeta         -= advBeta.momentum(vecGradBeta, this->dLearnRate);
-            vecGamma        -= advGamma.momentum(vecGradGamma, this->dLearnRate);
-            vecNesterovBeta  = advBeta.weight(vecBeta);
-            vecNesterovGamma = advGamma.weight(vecGamma);
-        } else {
-            vecBeta  -= adaBeta.delta(vecGradBeta);
-            vecGamma -= adaGamma.delta(vecGradGamma);
-        }
-    }
-
-    virtual void Reset(bool bFull = true) {
-        if (bFull) Layer::Reset(true);
-        dDecay                 = 0.9l;
+    virtual ~LayerBN() {
+        dDecay                 = .9;
+        iBackBatSzCnt          = 0;
+        iForBatSzCnt           = 0;
+        dBetaLearnRate         = 0;
+        dGammaLearnRate        = 0;
         BdData.iTrainBatchCnt  = 0;
         BdData.iTrainBatchIdx  = 0;
         BdData.dCoeBatchSize   = 0;
         BdData.dCoeDbBatchSize = 0;
-        dBeta                  = 0;
-        dGamma                 = 0;
-        setInput.reset();
-        setGrad.reset();
         vecBeta.reset();
         vecGamma.reset();
-        vecNesterovBeta.reset();
-        vecNesterovGamma.reset();
-        vecGradBeta.reset();
-        vecGradGamma.reset();
         advBeta.reset();
         advGamma.reset();
         adaBeta.reset();
         adaGamma.reset();
+        vecBetaNv.reset();
+        vecGammaNv.reset();
         BdData.setBarX.reset();
         BdData.setDist.reset();
-        BdData.vecMuBeta.reset();
         BdData.vecSigma.reset();
-        BdData.vecExpMuBeta.reset();
-        BdData.vecExpSigmaSqr.reset();
+        BdData.vecMuBeta.reset();
         BdData.vecSigmaDom.reset();
         BdData.vecSigmaSqr.reset();
+        BdData.vecExpMuBeta.reset();
+        BdData.vecExpSigmaSqr.reset();
     }
 
-    virtual ~LayerBN() { Reset(false); }
-
-    virtual LayerBN &operator=(const LayerBN &lyrSrc) {
-        if (this->iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(lyrSrc);
-            ValueCopy(lyrSrc);
-        }
+    LayerBN &operator=(const LayerBN &lyrSrc) {
+        LayerDerive<matrix_elem_t>::operator=(lyrSrc);
+        ValueCopy(lyrSrc);
         return *this;
     }
 
-    virtual LayerBN &operator=(LayerBN &&lyrSrc) {
-        if (this->iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(std::move(lyrSrc));
-            ValueMove(std::move(lyrSrc));
-        }
+    LayerBN &operator=(LayerBN &&lyrSrc) {
+        LayerDerive<matrix_elem_t>::operator=(std::move(lyrSrc));
+        ValueMove(std::move(lyrSrc));
         return *this;
     }
 };

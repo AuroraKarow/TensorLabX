@@ -297,180 +297,271 @@ NEUNET_END
 LAYER_BEGIN
 
 struct Layer {
-    const uint64_t iLayerType = NEUNET_LAYER_ACT;
-    long double    dLearnRate = 0;
+    const uint64_t iLayerType = 0;
+    
+    Layer(uint64_t iLayerType = NEUNET_LAYER_NULL) : iLayerType(iLayerType) {}
 
-    // asynchronous
-
-    std::atomic_uint64_t iLayerBatchSizeIdx = 0;
-
-    virtual void ValueAssign(const Layer &lyrSrc) {
-        dLearnRate         = lyrSrc.dLearnRate;
-        iLayerBatchSizeIdx = (uint64_t)lyrSrc.iLayerBatchSizeIdx;
-    }
-
-    virtual void ValueCopy(const Layer &lyrSrc) { ValueAssign(lyrSrc); }
-
-    virtual void ValueMove(Layer &&lyrSrc) {
-        ValueAssign(lyrSrc);
-        lyrSrc.Reset(false);
-    }
-
-    Layer(uint64_t iInitLayerType = NEUNET_LAYER_ACT, long double dInitLearnRate = 0) :
-        iLayerType(iInitLayerType),
-        dLearnRate(dInitLearnRate) {}
-    Layer(const Layer &lyrSrc) :
-        iLayerType(lyrSrc.iLayerType) { ValueCopy(lyrSrc); }
-    Layer(Layer &&lyrSrc) :
-        iLayerType(lyrSrc.iLayerType) { ValueMove(std::move(lyrSrc)); }
-
-    virtual void Reset(bool bFull = true) { dLearnRate = 0; }
-
-    virtual ~Layer() { Reset(false); }
-
-    virtual Layer &operator=(const Layer &lyrSrc) {
-        if (iLayerType == lyrSrc.iLayerType) ValueCopy(lyrSrc);
-        return *this;
-    }
-    virtual Layer &operator=(Layer &&lyrSrc) {
-        if (iLayerType == lyrSrc.iLayerType) ValueMove(std::move(lyrSrc));
-        return *this;
-    }
-
+    virtual ~Layer() {}
 };
 
-matrix_declare struct LayerAct : Layer {
-    uint64_t iActType = NULL;
+matrix_declare struct LayerWeight : virtual Layer {
+    std::atomic_uint64_t iBatSzCnt = 0;
 
-    net_set<neunet_vect> setInput;
+    long double dLearnRate  = .0,
+                dRandFstRng = .0,
+                dRandSndRng = .0;
 
-    virtual void ValueAssign(const LayerAct &lyrSrc) { iActType = lyrSrc.iActType; }
+    uint64_t iRandAcc = 0;
 
-    virtual void ValueCopy(const LayerAct &lyrSrc) {
-        ValueAssign(lyrSrc);
-        setInput = lyrSrc.setInput;
+    neunet_vect vecWeight,
+                vecWeightTp,
+                vecWeightNv;
+
+    net_set<neunet_vect> setWeightGrad;
+
+    ada_delta<matrix_elem_t> adaDelta;
+
+    ada_nesterov<matrix_elem_t> advNesterov;
+
+    void ValueAssign(const LayerWeight &lyrSrc) {
+        iRandAcc    = lyrSrc.iRandAcc;
+        iBatSzCnt   = (uint64_t)lyrSrc.iBatSzCnt;
+        dLearnRate  = lyrSrc.dLearnRate;
+        dRandFstRng = lyrSrc.dRandFstRng;
+        dRandSndRng = lyrSrc.dRandSndRng;
     }
 
-    virtual void ValueMove(LayerAct &&lyrSrc) {
+    void ValueCopy(const LayerWeight &lyrSrc) {
         ValueAssign(lyrSrc);
-        setInput = std::move(lyrSrc.setInput);
-        lyrSrc.Reset(false);
+        adaDelta      = lyrSrc.adaDelta;
+        advNesterov   = lyrSrc.advNesterov;
+        vecWeight     = lyrSrc.vecWeight;
+        vecWeightTp   = lyrSrc.vecWeightTp;
+        vecWeightNv   = lyrSrc.vecWeightNv;
+        setWeightGrad = lyrSrc.setWeightGrad;
     }
 
-    LayerAct(uint64_t iCurrActType = NULL) : Layer(),
-        iActType(iCurrActType) {}
-    LayerAct(const LayerAct &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerAct(LayerAct &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
+    void ValueMove(LayerWeight &&lyrSrc) {
+        ValueAssign(lyrSrc);
+        adaDelta      = std::move(lyrSrc.adaDelta);
+        advNesterov   = std::move(lyrSrc.advNesterov);
+        vecWeight     = std::move(lyrSrc.vecWeight);
+        vecWeightTp   = std::move(lyrSrc.vecWeightTp);
+        vecWeightNv   = std::move(lyrSrc.vecWeightNv);
+        setWeightGrad = std::move(lyrSrc.setWeightGrad);
+    }
 
-    void RunInit(uint64_t iTrainBatchSize) { setInput.init(iTrainBatchSize); }
+    LayerWeight(uint64_t iLayerType = NEUNET_LAYER_NULL, long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) : Layer(iLayerType),
+        dLearnRate(dLearnRate),
+        dRandFstRng(dRandFstRng),
+        dRandSndRng(dRandSndRng),
+        iRandAcc(iRandAcc) {}
+    LayerWeight(const LayerWeight &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
+    LayerWeight(LayerWeight &&lyrSrc) : Layer(lyrSrc) { ValueMove(std::move(lyrSrc)); }
 
-    bool ForwProp(neunet_vect &vecInput, uint64_t iIdx) {
-        if (iIdx >= setInput.length) return false;
-        setInput[iIdx] = std::move(vecInput);
-        switch(iActType) {
-        case NEUNET_SIGMOID: vecInput = sigmoid(setInput[iIdx]); break;
-        case NEUNET_RELU: vecInput = ReLU(setInput[iIdx]); break;
-        case NEUNET_ARELU_LOSS:
-        case NEUNET_ARELU: vecInput = AReLU(setInput[iIdx]); break;
-        case NEUNET_SOFTMAX: vecInput = softmax(setInput[iIdx]); break;
-        default: vecInput = std::move(setInput[iIdx]); break;
+    // call this function after weight initializing
+    void Shape(uint64_t iBatSz, bool bWeightTp = false) {
+        setWeightGrad.init(iBatSz, false);
+        if (dLearnRate) {
+            vecWeightNv = advNesterov.weight(vecWeight);
+            if (bWeightTp) vecWeightTp = vecWeightNv.transpose;
+        } else if (bWeightTp) vecWeightTp = vecWeight.transpose;
+    }
+
+    void Update(bool bWeightTp = false) {
+        auto vecGrad = matrix::vect_sum(setWeightGrad).elem_wise_opt(setWeightGrad.length, MATRIX_ELEM_DIV);
+        if (dLearnRate) {
+            vecWeight  -= advNesterov.momentum(vecGrad, dLearnRate);
+            vecWeightNv = advNesterov.weight(vecWeight);
+            if (bWeightTp) vecWeightTp = vecWeightNv.transpose;
+        } else {
+            vecWeight -= adaDelta.delta(vecGrad);
+            if (bWeightTp) vecWeightTp = vecWeight.transpose;
         }
-        return vecInput.verify;
     }
 
-    bool BackProp(neunet_vect &vecGrad, const neunet_vect &vecOrgn, uint64_t iIdx) const {
-        if (iIdx >= setInput.length) return false;
-        switch (iActType) {
-        case NEUNET_SIGMOID: vecGrad = sigmoid_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
-        case NEUNET_RELU: vecGrad = ReLU_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
-        case NEUNET_ARELU: vecGrad = AReLU_dv(setInput[iIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
-        case NEUNET_ARELU_LOSS: vecGrad = AReLU_loss_grad(setInput[iIdx], vecGrad, vecOrgn); break;
+    LayerWeight &operator=(const LayerWeight &lyrSrc) {
+        ValueCopy(lyrSrc);
+        return *this;
+    }
+    LayerWeight &operator=(LayerWeight &&lyrSrc) {
+        ValueMove(std::move(lyrSrc));
+        return *this;
+    }
+
+    virtual ~LayerWeight() {
+        iRandAcc    = 0;
+        iBatSzCnt   = 0;
+        dLearnRate  = .0;
+        dRandFstRng = .0;
+        dRandSndRng = .0;
+        adaDelta.reset();
+        advNesterov.reset();
+        vecWeight.reset();
+        vecWeightTp.reset();
+        vecWeightNv.reset();
+        setWeightGrad.reset();
+    }
+};
+
+matrix_declare struct LayerBias : LayerWeight<matrix_elem_t> {
+    LayerBias(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0, uint64_t iLayerType = NEUNET_LAYER_BIAS) : LayerWeight<matrix_elem_t>(iLayerType, dLearnRate, dRandFstRng, dRandSndRng, iRandAcc) {}
+
+    void Shape(uint64_t iInLnCnt, uint64_t iInColCnt, uint64_t iChannCnt, uint64_t iBatSz) {
+        this->vecWeight = neunet_vect(iInLnCnt * iInColCnt, iChannCnt, true, this->dRandFstRng, this->dRandSndRng, this->iRandAcc);
+        LayerWeight<matrix_elem_t>::Shape(iBatSz);
+    }
+
+    void ForProp(neunet_vect &vecIn) {
+        if (this->dLearnRate) vecIn += this->vecWeightNv;
+        else vecIn += this->vecWeight;
+    }
+
+    void BackProp(neunet_vect &vecGrad, uint64_t iBatSzIdx) {
+        this->setWeightGrad[iBatSzIdx] = vecGrad;
+        if (++this->iBatSzCnt == this->setWeightGrad.length) {
+            this->iBatSzCnt = 0;
+            this->Update();
+        }
+    }
+
+    void Deduce(neunet_vect &vecIn) { vecIn += this->vecWeight; }
+
+    virtual ~LayerBias() {}
+};
+
+matrix_declare struct LayerDerive : virtual Layer {
+    net_set<neunet_vect> setIn;
+
+    void ValueCopy(const LayerDerive &lyrSrc) { setIn = lyrSrc.setIn; }
+
+    void ValueMove(LayerDerive &&lyrSrc) { setIn = std::move(lyrSrc.setIn); }
+
+    LayerDerive(uint64_t iLayerType = NEUNET_LAYER_NULL) : Layer(iLayerType) {}
+    LayerDerive(const LayerDerive &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
+    LayerDerive(LayerDerive &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
+
+    void Shape(uint64_t iBatSz) { setIn.init(iBatSz, false); }
+
+    LayerDerive &operator=(const LayerDerive &lyrSrc) {
+        ValueCopy(lyrSrc);
+        return *this;
+    }
+    LayerDerive &operator=(LayerDerive &&lyrSrc) {
+        ValueMove(std::move(lyrSrc));
+        return *this;
+    }
+
+    virtual ~LayerDerive() { setIn.reset(); }
+};
+
+matrix_declare struct LayerAct : LayerDerive<matrix_elem_t> {
+    uint64_t iActFnType = NULL;
+
+    void ValueAssign(const LayerAct &lyrSrc) { iActFnType = lyrSrc.iActFnType; }
+
+    LayerAct(uint64_t iActFnType = NULL, uint64_t iLayerType = NEUNET_LAYER_ACT) : LayerDerive<matrix_elem_t>(iLayerType),
+        iActFnType(iActFnType) {}
+    LayerAct(const LayerAct &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc) { ValueAssign(lyrSrc); }
+    LayerAct(LayerAct &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)) { ValueAssign(lyrSrc); }
+
+    void ForProp(neunet_vect &vecIn, uint64_t iBatSzIdx) {
+        this->setIn[iBatSzIdx] = std::move(vecIn);
+        switch(iActFnType) {
+        case NEUNET_SIGMOID: vecIn = sigmoid(this->setIn[iBatSzIdx]); break;
+        case NEUNET_RELU: vecIn = ReLU(this->setIn[iBatSzIdx]); break;
+        case NEUNET_ARELU_LOSS:
+        case NEUNET_ARELU: vecIn = AReLU(this->setIn[iBatSzIdx]); break;
+        case NEUNET_SOFTMAX: vecIn = softmax(this->setIn[iBatSzIdx]); break;
+        default: vecIn = std::move(this->setIn[iBatSzIdx]); break;
+        }
+    }
+
+    void BackProp(neunet_vect &vecGrad, const neunet_vect &vecOrgn, uint64_t iBatSzIdx) const {
+        switch (iActFnType) {
+        case NEUNET_SIGMOID: vecGrad = sigmoid_dv(this->setIn[iBatSzIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
+        case NEUNET_RELU: vecGrad = ReLU_dv(this->setIn[iBatSzIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
+        case NEUNET_ARELU: vecGrad = AReLU_dv(this->setIn[iBatSzIdx]).elem_wise_opt(vecGrad, MATRIX_ELEM_MULT); break;
+        case NEUNET_ARELU_LOSS: vecGrad = AReLU_loss_grad(this->setIn[iBatSzIdx], vecGrad, vecOrgn); break;
         case NEUNET_SOFTMAX: vecGrad = softmax_cec_grad(vecGrad, vecOrgn); break;
-        default: return true;
+        default: break;
         }
-        return vecGrad.verify;
     }
 
-    bool Deduce(neunet_vect &vecInput) const {
-        switch(iActType) {
-        case NEUNET_SIGMOID: vecInput = sigmoid(vecInput); break;
-        case NEUNET_RELU: vecInput = ReLU(vecInput); break;
+    void Deduce(neunet_vect &vecIn) const {
+        switch(iActFnType) {
+        case NEUNET_SIGMOID: vecIn = sigmoid(vecIn); break;
+        case NEUNET_RELU: vecIn = ReLU(vecIn); break;
         case NEUNET_ARELU_LOSS:
-        case NEUNET_ARELU: vecInput = AReLU(vecInput); break;
-        case NEUNET_SOFTMAX: vecInput = softmax(vecInput); break;
-        default: return true;
+        case NEUNET_ARELU: vecIn = AReLU(vecIn); break;
+        case NEUNET_SOFTMAX: vecIn = softmax(vecIn); break;
+        default: break;
         }
-        return vecInput.verify;
     }
 
-    virtual void Reset(bool bFull = true) {
-        if (bFull) Layer::Reset(true);
-        iActType = NULL;
-        setInput.reset();
-    }
-
-    virtual ~LayerAct() { Reset(false); }
-
-    virtual LayerAct &operator=(const LayerAct &lyrSrc) {
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(lyrSrc);
-            ValueCopy(lyrSrc);
-        }
+    LayerAct &operator=(const LayerAct &lyrSrc) {
+        LayerDerive<matrix_elem_t>::operator=(lyrSrc);
+        ValueAssign(lyrSrc);
         return *this;
     }
-    virtual LayerAct &operator=(LayerAct &&lyrSrc) {
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(std::move(lyrSrc));
-            ValueMove(std::move(lyrSrc));
-        }
+    LayerAct &operator=(LayerAct &&lyrSrc) {
+        LayerDerive<matrix_elem_t>::operator=(std::move(lyrSrc));
+        ValueAssign(lyrSrc);
         return *this;
     }
 
+    virtual ~LayerAct() { iActFnType = NULL; }
 };
 
-struct LayerPC : Layer {
-    bool     bPadMode      = true;
-    
-    uint64_t iInputLnCnt   = 0,
-             iInputColCnt  = 0,
+struct LayerDim : virtual Layer {
+    uint64_t iOutLnCnt = 0;
 
-             iOutputLnCnt  = 0,
-             iOutputColCnt = 0,
+    void ValueAssign(const LayerDim &lyrSrc) { iOutLnCnt = lyrSrc.iOutLnCnt; }
 
-             iTop          = 0,
-             iRight        = 0,
-             iBottom       = 0,
-             iLeft         = 0,
+    LayerDim(uint64_t iLayerType = NEUNET_LAYER_NULL, uint64_t iOutLnCnt = 0) : Layer(iLayerType),
+        iOutLnCnt(iOutLnCnt) {}
+    LayerDim(const LayerDim &lyrSrc) : Layer(lyrSrc) { ValueAssign(lyrSrc); }
 
-             iLnDist       = 0,
-             iColDist      = 0;
-    
-    virtual void ValueAssign(const LayerPC &lyrSrc) {
-        bPadMode      = lyrSrc.bPadMode;
-
-        iInputLnCnt   = lyrSrc.iInputLnCnt;
-        iInputColCnt  = lyrSrc.iInputColCnt;
-
-        iOutputLnCnt  = lyrSrc.iOutputLnCnt;
-        iOutputColCnt = lyrSrc.iOutputColCnt;
-
-        iTop          = lyrSrc.iTop;
-        iRight        = lyrSrc.iRight;
-        iBottom       = lyrSrc.iBottom;
-        iLeft         = lyrSrc.iLeft;
-
-        iLnDist       = lyrSrc.iLnDist;
-        iColDist      = lyrSrc.iColDist;
-    }
-
-    virtual void ValueCopy(const LayerPC &lyrSrc) { ValueAssign(lyrSrc); }
-
-    virtual void ValueMove(LayerPC &&lyrSrc) {
+    LayerDim &operator=(const LayerDim &lyrSrc) {
         ValueAssign(lyrSrc);
-        lyrSrc.Reset(false);
+        return *this;
     }
 
-    LayerPC(bool bIsPadMode = true, uint64_t iTopCnt = 0, uint64_t iRightCnt = 0, uint64_t iBottomCnt = 0, uint64_t iLeftCnt = 0, uint64_t iLnDistCnt = 0, uint64_t iColDistCnt = 0) : Layer(NEUNET_LAYER_PC),
+    ~LayerDim() { iOutLnCnt = 0; }
+};
+
+struct LayerPC : LayerDim {
+    bool     bPadMode   = true;
+     
+    uint64_t iInLnCnt   = 0,
+             iInColCnt  = 0,
+             iOutColCnt = 0,
+             
+             iTop       = 0,
+             iRight     = 0,
+             iBottom    = 0,
+             iLeft      = 0,
+             
+             iLnDist    = 0,
+             iColDist   = 0;
+    
+    void ValueAssign(const LayerPC &lyrSrc) {
+        bPadMode   = lyrSrc.bPadMode;
+        
+        iInLnCnt   = lyrSrc.iInLnCnt;
+        iInColCnt  = lyrSrc.iInColCnt;
+        iOutColCnt = lyrSrc.iOutColCnt;
+        
+        iTop       = lyrSrc.iTop;
+        iRight     = lyrSrc.iRight;
+        iBottom    = lyrSrc.iBottom;
+        iLeft      = lyrSrc.iLeft;
+        
+        iLnDist    = lyrSrc.iLnDist;
+        iColDist   = lyrSrc.iColDist;
+    }
+
+    LayerPC(bool bIsPadMode = true, uint64_t iTopCnt = 0, uint64_t iRightCnt = 0, uint64_t iBottomCnt = 0, uint64_t iLeftCnt = 0, uint64_t iLnDistCnt = 0, uint64_t iColDistCnt = 0, uint64_t iLayerType = NEUNET_LAYER_PC) : LayerDim(iLayerType),
         bPadMode(bIsPadMode),
         iTop(iTopCnt),
         iRight(iRightCnt),
@@ -478,172 +569,51 @@ struct LayerPC : Layer {
         iLeft(iLeftCnt),
         iLnDist(iLnDistCnt),
         iColDist(iColDistCnt) {}
-    LayerPC(const LayerPC &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerPC(LayerPC &&lyrSrc) : Layer(lyrSrc) { ValueMove(std::move(lyrSrc)); }
+    LayerPC(const LayerPC &lyrSrc) : LayerDim(lyrSrc) { ValueAssign(lyrSrc); }
     
-    void RunInit(uint64_t &iCurrInputLnCnt, uint64_t &iCurrInputColCnt) {
-        iInputLnCnt  = iCurrInputLnCnt;
-        iInputColCnt = iCurrInputColCnt;
+    void Shape(uint64_t &iInLnCnt, uint64_t &iInColCnt) {
+        this->iInLnCnt  = iInLnCnt;
+        this->iInColCnt = iInColCnt;
         if (bPadMode) {
-            iOutputLnCnt  = matrix::pad_res_dir_cnt(iTop, iBottom, iInputLnCnt, iLnDist);
-            iOutputColCnt = matrix::pad_res_dir_cnt(iLeft, iRight, iInputColCnt, iColDist);
+            iOutLnCnt  = matrix::pad_res_dir_cnt(iTop, iBottom, iInLnCnt, iLnDist);
+            iOutColCnt = matrix::pad_res_dir_cnt(iLeft, iRight, iInColCnt, iColDist);
         } else {
-            iOutputLnCnt  = matrix::crop_res_dir_cnt(iTop, iBottom, iInputLnCnt, iLnDist);
-            iOutputColCnt = matrix::crop_res_dir_cnt(iLeft, iRight, iInputColCnt, iColDist);
+            iOutLnCnt  = matrix::crop_res_dir_cnt(iTop, iBottom, iInLnCnt, iLnDist);
+            iOutColCnt = matrix::crop_res_dir_cnt(iLeft, iRight, iInColCnt, iColDist);
         }
-        iCurrInputLnCnt  = iOutputLnCnt;
-        iCurrInputColCnt = iOutputColCnt;
+        iInLnCnt  = iOutLnCnt;
+        iInColCnt = iOutColCnt;
     }
 
-    callback_matrix bool PadCrop(neunet_vect &vecSrc, bool bIsPadMode) {
-        if (!(iTop || iRight || iBottom || iLeft || iLnDist || iColDist)) return true;
-        if(bIsPadMode) vecSrc = chann_vec_pad(iOutputLnCnt, iOutputColCnt, vecSrc, iInputLnCnt, iInputColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
-        else vecSrc = chann_vec_crop(iOutputLnCnt, iOutputColCnt, vecSrc, iInputLnCnt, iInputColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
-        return vecSrc.verify;
+    callback_matrix void PadCrop(neunet_vect &vecSrc, bool bIsPadMode) {
+        if (!(iTop || iRight || iBottom || iLeft || iLnDist || iColDist)) return;
+        if(bIsPadMode) vecSrc = chann_vec_pad(iOutLnCnt, iOutColCnt, vecSrc, iInLnCnt, iInColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
+        else vecSrc = chann_vec_crop(iOutLnCnt, iOutColCnt, vecSrc, iInLnCnt, iInColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
     }
 
-    callback_matrix bool ForwProp(neunet_vect &vecInput) { return PadCrop(vecInput, bPadMode); }
+    callback_matrix void ForProp(neunet_vect &vecIn) { PadCrop(vecIn, bPadMode); }
 
-    callback_matrix bool BackProp(neunet_vect &vecGrad) { return PadCrop(vecGrad, !bPadMode); }
+    callback_matrix void BackProp(neunet_vect &vecGrad) { PadCrop(vecGrad, !bPadMode); }
 
-    callback_matrix bool Deduce(neunet_vect &vecInput) { return ForwProp(vecInput); }
+    callback_matrix void Deduce(neunet_vect &vecIn) { ForProp(vecIn); }
 
-    virtual void Reset(bool bFull = true) {
-        if (bFull) Layer::Reset(true);
-
-        bPadMode      = true;
-
-        iInputLnCnt   = 0;
-        iInputColCnt  = 0;
-
-        iOutputLnCnt  = 0;
-        iOutputColCnt = 0;
-
-        iTop          = 0;
-        iRight        = 0;
-        iBottom       = 0;
-        iLeft         = 0;
-
-        iLnDist       = 0;
-        iColDist      = 0;
-    }
-
-    virtual ~LayerPC() { Reset(false); }
-
-    virtual LayerPC &operator=(const LayerPC &lyrSrc){
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(lyrSrc);
-            ValueCopy(lyrSrc);
-        }
-        return *this;
-    }
-    virtual LayerPC &operator=(LayerPC &&lyrSrc){
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(std::move(lyrSrc));
-            ValueMove(std::move(lyrSrc));
-        }
-        return *this;
-    }
-};
-
-matrix_declare struct LayerBias : Layer {
-    matrix_elem_t dFstRng = 0,
-                  dSndRng = 0;
-
-    uint64_t iAcc       = 0,
-             iBatchSize = 0;
-
-    ada_nesterov<matrix_elem_t> advBias;
-    ada_delta<matrix_elem_t>    adaBias;
-
-    neunet_vect vecBias,
-                vecNesterovBias;
-
-    void ValueAssign(const LayerBias &lyrSrc) {
-        dFstRng    = lyrSrc.dFstRng;
-        dSndRng    = lyrSrc.dSndRng;
-        iAcc       = lyrSrc.iAcc;
-        iBatchSize = lyrSrc.iBatchSize;
-    }
-
-    void ValueCopy(const LayerBias &lyrSrc) {
+    LayerPC &operator=(const LayerPC &lyrSrc){
+        LayerDim::operator=(lyrSrc);
         ValueAssign(lyrSrc);
-        vecBias         = lyrSrc.vecBias;
-        vecNesterovBias = lyrSrc.vecNesterovBias;
-        advBias         = lyrSrc.advBias;
-        adaBias         = lyrSrc.adaBias;
-    }
-
-    void ValueMove(LayerBias &&lyrSrc) {
-        ValueAssign(lyrSrc);
-        vecBias         = std::move(lyrSrc.vecBias);
-        vecNesterovBias = std::move(lyrSrc.vecNesterovBias);
-        advBias         = std::move(lyrSrc.advBias);
-        adaBias         = std::move(lyrSrc.adaBias);
-        Reset(false);
-    }
-
-    LayerBias(long double dInitLearnRate = 0, const matrix_elem_t &dRandFstRng = 0, const matrix_elem_t &dRandSndRng = 0, uint64_t iRandAcc = 8) : Layer(NEUNET_LAYER_BIAS, dInitLearnRate),
-        dFstRng(dRandFstRng),
-        dSndRng(dRandSndRng),
-        iAcc(iRandAcc) {}
-    LayerBias(const LayerBias &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerBias(LayerBias &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
-
-    void RunInit(uint64_t iCurrInputLnCnt, uint64_t iCurrInputColCnt, uint64_t iCurrChannCnt, uint64_t iTrainBatchSize) {
-        iBatchSize = iTrainBatchSize;
-        vecBias    = neunet_vect(iCurrInputLnCnt * iCurrInputColCnt, iCurrChannCnt, true, dFstRng, dSndRng, iAcc);
-        if (dLearnRate) vecNesterovBias = advBias.weight(vecBias);
-    }
-
-    bool ForwProp(neunet_vect &vecInput) {
-        if (dLearnRate) {
-            vecInput += vecNesterovBias;
-            return vecInput.verify;
-        } else return Deduce(vecInput);
-    }
-
-    bool BackProp(neunet_vect &vecGrad) {
-        if (++iLayerBatchSizeIdx == iBatchSize) {
-            iLayerBatchSizeIdx = 0;
-            if (dLearnRate) vecBias -= advBias.momentum(vecGrad, dLearnRate);
-            else vecBias -= adaBias.delta(vecGrad);
-            return vecBias.verify;
-        } else return true;
-    }
-
-    callback_matrix bool Deduce(neunet_vect &vecInput) {
-        vecInput += vecBias;
-        return vecInput.verify;
-    }
-
-    virtual void Reset(bool bFull = true) {
-        if (bFull) Layer::Reset(true);
-        iAcc       = 0;
-        dFstRng    = 0;
-        dSndRng    = 0;
-        iBatchSize = 0;
-        vecBias.reset();
-        advBias.reset();
-        adaBias.reset();
-        vecNesterovBias.reset();
-    }
-
-    virtual ~LayerBias() { Reset(false); }
-
-    virtual LayerBias &operator=(const LayerBias &lyrSrc){
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(lyrSrc);
-            ValueCopy(lyrSrc);
-        }
         return *this;
     }
-    virtual LayerBias &operator=(LayerBias &&lyrSrc){
-        if (iLayerType == lyrSrc.iLayerType) {
-            Layer::operator=(std::move(lyrSrc));
-            ValueMove(std::move(lyrSrc));
-        }
-        return *this;
+
+    virtual ~LayerPC() {
+        bPadMode   = true;
+        iInLnCnt   = 0;
+        iInColCnt  = 0;
+        iOutColCnt = 0;
+        iTop       = 0;
+        iRight     = 0;
+        iBottom    = 0;
+        iLeft      = 0;
+        iLnDist    = 0;
+        iColDist   = 0;
     }
 };
 
