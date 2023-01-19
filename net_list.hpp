@@ -413,12 +413,18 @@ public:
 
     arg &operator[](uint64_t idx) const {
         assert(idx < len);
-        if (idx) if ((idx + 1) == len) return tail->elem;
-        else {
-            auto tool = head;
-            for (auto i = 0ull; i < idx; ++i) tool = tool->next;
-            return tool->elem;
-        } else return head->elem;
+        if ((idx + 1) == len) return tail->elem;
+        if (!idx) return head->elem;
+        auto back_idx = len - 2;
+        net_node<arg> *tool = nullptr;
+        if ((back_idx - idx) < idx) {
+            tool = tail->prev;
+            for (auto i = back_idx; i > idx; --i) tool = tool->prev;
+        } else {
+            tool = head->next;
+            for (auto i = 1ull; i < idx; ++i) tool = tool->next;
+        }
+        return tool->elem;
     }
 
     bool operator==(const net_list &val) const {

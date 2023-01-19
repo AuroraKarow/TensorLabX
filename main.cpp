@@ -30,25 +30,26 @@ int main(int argc, char *argv[], char *envp[]) {
 
     // network declaration
 
-    auto dLearnRate = .4l;
+    auto dNormLearnRate = .4l,
+         dBNLearnRate   = 1e-5l;
     NeunetCore net_core(125, 125, .1l);
 
     // layers adding
     
-    AddLayer<NetLayerConv>(net_core, 20, 5, 5, 1, 1, 0, 0, dLearnRate);
-    AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
+    AddLayer<NetLayerConv>(net_core, 20, 5, 5, 1, 1, 0, 0, dNormLearnRate);
+    AddLayer<NetLayerBN>(net_core, 0, 1, dBNLearnRate, dBNLearnRate);
     AddLayer<NetLayerAct>(net_core, NEUNET_RELU);
     AddLayer<NetLayerPool>(net_core, NEUNET_POOL_AVG, 2, 2, 2, 2);
-    AddLayer<NetLayerConv>(net_core, 50, 5, 5, 1, 1, 0, 0, dLearnRate);
-    AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
+    AddLayer<NetLayerConv>(net_core, 50, 5, 5, 1, 1, 0, 0, dNormLearnRate);
+    AddLayer<NetLayerBN>(net_core, 0, 1, dBNLearnRate, dBNLearnRate);
     AddLayer<NetLayerAct>(net_core, NEUNET_RELU);
     AddLayer<NetLayerPool>(net_core, NEUNET_POOL_AVG, 2, 2, 2, 2);
     AddLayer<NetLayerFlat>(net_core);
-    AddLayer<NetLayerFC>(net_core, 500, dLearnRate);
-    AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
+    AddLayer<NetLayerFC>(net_core, 500, dNormLearnRate);
+    AddLayer<NetLayerBN>(net_core, 0, 1, dBNLearnRate, dBNLearnRate);
     AddLayer<NetLayerAct>(net_core, NEUNET_SIGMOID);
-    AddLayer<NetLayerFC>(net_core, 10, dLearnRate);
-    AddLayer<NetLayerBN>(net_core, 0, 1, 1e-5l);
+    AddLayer<NetLayerFC>(net_core, 10, dNormLearnRate);
+    AddLayer<NetLayerBN>(net_core, 0, 1, dBNLearnRate, dBNLearnRate);
     AddLayer<NetLayerAct>(net_core, NEUNET_SOFTMAX);
 
     // mnist data loading

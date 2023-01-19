@@ -50,7 +50,7 @@ struct NeunetCore {
  * 
  * **Padding & cropping (NetLayerPC)**
  * 
- * bool bIsPadMode      = true
+ * bool     bIsPadMode  = true
  * uint64_t iTopCnt     = 0
  * uint64_t iRightCnt   = 0
  * uint64_t iBottomCnt  = 0
@@ -112,8 +112,7 @@ struct NeunetCore {
 template<typename LayerType, typename ... Args,  typename neunet_layer_type_v> bool AddLayer(NeunetCore &netCore, Args &&... argsLayerInit) { return netCore.seqLayer.emplace_back(std::make_shared<LayerType>(std::forward<Args>(argsLayerInit)...)); }
 
 // initialization of neural network running
-void Shape(NeunetCore &netCore, uint64_t iTrnBatCnt, uint64_t iInLnCnt, uint64_t iInColCnt, uint64_t iChannCnt) {
-    for (auto i = 0ull; i < netCore.seqLayer.length; ++i) switch (netCore.seqLayer[i]->iLayerType) {
+void Shape(NeunetCore &netCore, uint64_t iTrnBatCnt, uint64_t iInLnCnt, uint64_t iInColCnt, uint64_t iChannCnt) { for (auto i = 0ull; i < netCore.seqLayer.length; ++i) switch (netCore.seqLayer[i]->iLayerType) {
     case NEUNET_LAYER_ACT: neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[i])->Shape(netCore.iTrnBatSz); break;
     case NEUNET_LAYER_PC: neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[i])->Shape(iInLnCnt, iInColCnt); break;
     case NEUNET_LAYER_FLAT: neunet_layer_cast<layer::NetLayerFlat>(netCore.seqLayer[i])->Shape(iInLnCnt, iInColCnt, iChannCnt); break;
@@ -123,8 +122,7 @@ void Shape(NeunetCore &netCore, uint64_t iTrnBatCnt, uint64_t iInLnCnt, uint64_t
     case NEUNET_LAYER_BN: neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i])->Shape(iChannCnt, netCore.iTrnBatSz, iTrnBatCnt); break;
     case NEUNET_LAYER_BIAS: neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->Shape(iInLnCnt, iInColCnt, iChannCnt, netCore.iTrnBatSz); break;
     default: break;
-    }
-}
+} }
 
 // forward propagation
 void ForProp(NeunetCore &netCore, vect &vecIn, uint64_t iBatSzIdx) {
@@ -146,20 +144,17 @@ void ForProp(NeunetCore &netCore, vect &vecIn, uint64_t iBatSzIdx) {
 // backward propagation
 void BackProp(NeunetCore &netCore, vect &vecForPropOut, const vect &vecOrgn, uint64_t iBatSzIdx) {
     if (netCore.iNetStat != NEUNET_STAT_NRM) return;
-    for (auto i = netCore.seqLayer.length; i; --i) {
-        auto iLyrIdx = i - 1;
-        switch (netCore.seqLayer[iLyrIdx]->iLayerType) {
-        case NEUNET_LAYER_ACT: neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[iLyrIdx])->BackProp(vecForPropOut, vecOrgn, iBatSzIdx); break;
-        case NEUNET_LAYER_PC: neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[iLyrIdx])->BackProp(vecForPropOut); break;
-        case NEUNET_LAYER_FLAT: neunet_layer_cast<layer::NetLayerFlat>(netCore.seqLayer[iLyrIdx])->BackProp(vecForPropOut); break;
-        case NEUNET_LAYER_FC: neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[iLyrIdx])->BackProp(vecForPropOut, iBatSzIdx); break;
-        case NEUNET_LAYER_CONV: neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[iLyrIdx])->BackProp(vecForPropOut, iBatSzIdx); break;
-        case NEUNET_LAYER_POOL: neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[iLyrIdx])->BackProp(vecForPropOut, iBatSzIdx); break;
-        case NEUNET_LAYER_BN: neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[iLyrIdx])->BackProp(vecForPropOut, iBatSzIdx); break;
-        case NEUNET_LAYER_BIAS: neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->BackProp(vecForPropOut, iBatSzIdx); break;
-        default: break;
-        }
-    }
+    for (auto i = netCore.seqLayer.length; i; --i) { switch (netCore.seqLayer[i - 1]->iLayerType) {
+    case NEUNET_LAYER_ACT: neunet_layer_cast<layer::NetLayerAct>(netCore.seqLayer[i - 1])->BackProp(vecForPropOut, vecOrgn, iBatSzIdx); break;
+    case NEUNET_LAYER_PC: neunet_layer_cast<layer::NetLayerPC>(netCore.seqLayer[i - 1])->BackProp(vecForPropOut); break;
+    case NEUNET_LAYER_FLAT: neunet_layer_cast<layer::NetLayerFlat>(netCore.seqLayer[i - 1])->BackProp(vecForPropOut); break;
+    case NEUNET_LAYER_FC: neunet_layer_cast<layer::NetLayerFC>(netCore.seqLayer[i - 1])->BackProp(vecForPropOut, iBatSzIdx); break;
+    case NEUNET_LAYER_CONV: neunet_layer_cast<layer::NetLayerConv>(netCore.seqLayer[i - 1])->BackProp(vecForPropOut, iBatSzIdx); break;
+    case NEUNET_LAYER_POOL: neunet_layer_cast<layer::NetLayerPool>(netCore.seqLayer[i - 1])->BackProp(vecForPropOut, iBatSzIdx); break;
+    case NEUNET_LAYER_BN: neunet_layer_cast<layer::NetLayerBN>(netCore.seqLayer[i - 1])->BackProp(vecForPropOut, iBatSzIdx); break;
+    case NEUNET_LAYER_BIAS: neunet_layer_cast<layer::NetLayerBias>(netCore.seqLayer[i])->BackProp(vecForPropOut, iBatSzIdx); break;
+    default: break;
+    } }
     if (!vecForPropOut.verify) netCore.iNetStat = NEUNET_STAT_ERR;
 }
 
