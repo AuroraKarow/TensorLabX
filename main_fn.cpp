@@ -538,8 +538,7 @@ int main(int argc, char *argv[], char *envp[]) {
     /* train & test dataset, built-in data structure "mnist" */
 
     // root directory of mnist dataset
-    // std::string root = "...\\MNIST\\";
-    std::string root = "E:\\VS Code project data\\MNIST\\";
+    std::string root = "...\\MNIST\\";
     // load train & test dataset
     mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());
