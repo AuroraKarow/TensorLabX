@@ -9,7 +9,7 @@ Hello, This is Hatsune ~\
 こんにちは、ハツネちゃんです～　キラー～(∠・ω< )⌒✨
 
 TensorLabX是一個簡單易用的輕量級的神經網絡開源C++工具，這個工具基於CPU進行運算，GPU的運算支持已經進入日程表，預計基於NVIDIA平臺，支持CUDA。這個項目運行與Windows平臺。\
-TensorLabX is a simple and easy-to-use open sources lite C++ tool of ANN. It runs on CPU meanwhile GPU calculation support is on schedule now and it might be based on NVIDIA platform and support CUDA. This project run on Windows platform.
+TensorLabX is a simple and easy-to-use open sources lite C++ tool of ANN. It runs on CPU meanwhile GPU calculation support is on schedule now and it might be based on NVIDIA platform and support CUDA. This project runs on Windows platform.
 
 當前TensorLabX支持 \
 With TensorLabX you can
