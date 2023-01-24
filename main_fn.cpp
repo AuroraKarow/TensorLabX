@@ -385,7 +385,7 @@ void layer_forward(layer_bn_ptr src, vect &input, uint64_t bat_sz_idx) {
         src->input = BNTrain(src->BN_data, src->input, (src->beta_learn_rate ? src->beta_nv : src->beta), (src->gamma_learn_rate ? src->gamma_nv : src->gamma));
         src->batch_size_cnt = 0;
         src->BN_for_ctrl.thread_wake_all();
-    } else while (src->batch_size_cnt) src->BN_for_ctrl.thread_sleep(1000);
+    } else while (src->batch_size_cnt) src->BN_for_ctrl.thread_sleep(50);
     input = std::move(src->input[bat_sz_idx]);
 }
 
@@ -397,7 +397,7 @@ void layer_backward(layer_bn_ptr src, vect &grad, uint64_t bat_sz_idx) {
         src->back_bat_sz_cnt = 0;
         src->BN_back_ctrl.thread_wake_all();
         layer_update(src, beta_grad, gamma_grad);
-    } else while (src->back_bat_sz_cnt) src->BN_back_ctrl.thread_sleep(1000);
+    } else while (src->back_bat_sz_cnt) src->BN_back_ctrl.thread_sleep(50);
     grad = std::move(src->input[bat_sz_idx]);
 }
 
@@ -493,7 +493,7 @@ int main(int argc, char *argv[], char *envp[]) {
     // learn rate
     long double learn_rate = .4;
     // train & test data batch size
-    uint64_t trn_bat_sz = 125, tst_bat_sz = 125;
+    uint64_t trn_bat_sz = 4, tst_bat_sz = 4;
     // train precision
     long double trn_prec = .1;
     // network status code

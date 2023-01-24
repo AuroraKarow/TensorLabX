@@ -351,13 +351,13 @@ matrix_declare struct LayerWeight : virtual Layer {
         setWeightGrad = std::move(lyrSrc.setWeightGrad);
     }
 
-    LayerWeight(uint64_t iLayerType = NEUNET_LAYER_NULL, long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) : Layer(iLayerType),
+    LayerWeight(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) :
         dLearnRate(dLearnRate),
         dRandFstRng(dRandFstRng),
         dRandSndRng(dRandSndRng),
         iRandAcc(iRandAcc) {}
-    LayerWeight(const LayerWeight &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerWeight(LayerWeight &&lyrSrc) : Layer(lyrSrc) { ValueMove(std::move(lyrSrc)); }
+    LayerWeight(const LayerWeight &lyrSrc) { ValueCopy(lyrSrc); }
+    LayerWeight(LayerWeight &&lyrSrc) { ValueMove(std::move(lyrSrc)); }
 
     // call this function after weight initializing
     void Shape(uint64_t iBatSz, bool bWeightTp = false) {
@@ -405,7 +405,7 @@ matrix_declare struct LayerWeight : virtual Layer {
 };
 
 matrix_declare struct LayerBias final : LayerWeight<matrix_elem_t> {
-    LayerBias(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) : LayerWeight<matrix_elem_t>(NEUNET_LAYER_BIAS, dLearnRate, dRandFstRng, dRandSndRng, iRandAcc) {}
+    LayerBias(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) : Layer(NEUNET_LAYER_BIAS), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng, iRandAcc) {}
 
     void Shape(uint64_t iInLnCnt, uint64_t iInColCnt, uint64_t iChannCnt, uint64_t iBatSz) {
         this->vecWeight = neunet_vect(iInLnCnt * iInColCnt, iChannCnt, true, this->dRandFstRng, this->dRandSndRng, this->iRandAcc);
@@ -437,9 +437,9 @@ matrix_declare struct LayerDerive : virtual Layer {
 
     void ValueMove(LayerDerive &&lyrSrc) { setIn = std::move(lyrSrc.setIn); }
 
-    LayerDerive(uint64_t iLayerType = NEUNET_LAYER_NULL) : Layer(iLayerType) {}
-    LayerDerive(const LayerDerive &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerDerive(LayerDerive &&lyrSrc) : Layer(lyrSrc) { ValueMove(std::move(lyrSrc)); }
+    LayerDerive() {}
+    LayerDerive(const LayerDerive &lyrSrc) { ValueCopy(lyrSrc); }
+    LayerDerive(LayerDerive &&lyrSrc) { ValueMove(std::move(lyrSrc)); }
 
     void Shape(uint64_t iBatSz) { setIn.init(iBatSz, false); }
 
@@ -460,7 +460,7 @@ matrix_declare struct LayerAct : LayerDerive<matrix_elem_t> {
 
     void ValueAssign(const LayerAct &lyrSrc) { iActFnType = lyrSrc.iActFnType; }
 
-    LayerAct(uint64_t iActFnType = NULL) : LayerDerive<matrix_elem_t>(NEUNET_LAYER_ACT),
+    LayerAct(uint64_t iActFnType = NULL) : Layer(NEUNET_LAYER_ACT),
         iActFnType(iActFnType) {}
     LayerAct(const LayerAct &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc) { ValueAssign(lyrSrc); }
     LayerAct(LayerAct &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)) { ValueAssign(lyrSrc); }
@@ -518,9 +518,9 @@ struct LayerDim : virtual Layer {
 
     void ValueAssign(const LayerDim &lyrSrc) { iOutLnCnt = lyrSrc.iOutLnCnt; }
 
-    LayerDim(uint64_t iLayerType = NEUNET_LAYER_NULL, uint64_t iOutLnCnt = 0) : Layer(iLayerType),
+    LayerDim(uint64_t iOutLnCnt = 0) :
         iOutLnCnt(iOutLnCnt) {}
-    LayerDim(const LayerDim &lyrSrc) : Layer(lyrSrc) { ValueAssign(lyrSrc); }
+    LayerDim(const LayerDim &lyrSrc) { ValueAssign(lyrSrc); }
 
     LayerDim &operator=(const LayerDim &lyrSrc) {
         ValueAssign(lyrSrc);
@@ -561,7 +561,7 @@ struct LayerPC final : LayerDim {
         iColDist   = lyrSrc.iColDist;
     }
 
-    LayerPC(bool bIsPadMode = false, uint64_t iTopCnt = 0, uint64_t iRightCnt = 0, uint64_t iBottomCnt = 0, uint64_t iLeftCnt = 0, uint64_t iLnDistCnt = 0, uint64_t iColDistCnt = 0) : LayerDim(NEUNET_LAYER_PC),
+    LayerPC(bool bIsPadMode = false, uint64_t iTopCnt = 0, uint64_t iRightCnt = 0, uint64_t iBottomCnt = 0, uint64_t iLeftCnt = 0, uint64_t iLnDistCnt = 0, uint64_t iColDistCnt = 0) : Layer(NEUNET_LAYER_PC),
         bPadMode(bIsPadMode),
         iTop(iTopCnt),
         iRight(iRightCnt),

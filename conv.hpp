@@ -153,7 +153,7 @@ struct LayerCaffe : virtual LayerChann {
         setCaffeData = std::move(lyrSrc.setCaffeData);
     }
 
-    LayerCaffe(uint64_t iLayerType = NEUNET_LAYER_NULL, uint64_t iFilterLnCnt = 0, uint64_t iFilterColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0) : LayerChann(iLayerType),
+    LayerCaffe(uint64_t iFilterLnCnt = 0, uint64_t iFilterColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0) :
         iFilterLnCnt(iFilterLnCnt),
         iFilterColCnt(iFilterColCnt),
         iLnStride(iLnStride),
@@ -197,7 +197,7 @@ matrix_declare struct LayerConv final : LayerDerive<matrix_elem_t>, LayerWeight<
 
     void ValueAssign(const LayerConv &lyrSrc) { iKernelQty = lyrSrc.iKernelQty; }
 
-    LayerConv(uint64_t iKernelQty = 0, uint64_t iKernelLnCnt = 0, uint64_t iKernelColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0, long double dLearnRate = 0, long double dRandFstRng = 0, long double dRandSndRng = 0, uint64_t dRandAcc = 0) : LayerDerive<matrix_elem_t>(NEUNET_LAYER_CONV), LayerWeight<matrix_elem_t>(NEUNET_LAYER_CONV, dLearnRate, dRandFstRng, dRandSndRng, dRandAcc), LayerCaffe(NEUNET_LAYER_CONV, iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
+    LayerConv(uint64_t iKernelQty = 0, uint64_t iKernelLnCnt = 0, uint64_t iKernelColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0, long double dLearnRate = 0, long double dRandFstRng = 0, long double dRandSndRng = 0, uint64_t dRandAcc = 0) : Layer(NEUNET_LAYER_CONV), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng, dRandAcc), LayerCaffe(iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
         iKernelQty(iKernelQty) {}
     LayerConv(const LayerConv &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc), LayerWeight<matrix_elem_t>(lyrSrc), LayerCaffe(lyrSrc) { ValueAssign(lyrSrc); }
     LayerConv(LayerConv &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)), LayerWeight<matrix_elem_t>(std::move(lyrSrc)), LayerCaffe(std::move(lyrSrc)) { ValueAssign(lyrSrc); }
@@ -267,7 +267,7 @@ struct LayerPool final : LayerCaffe {
         if (iPoolType == NEUNET_POOL_MAX) setElemIdx = std::move(lyrSrc.setElemIdx);
     }
 
-    LayerPool(uint64_t iPoolType = NEUNET_POOL_MAX, uint64_t iFilterLnCnt = 0, uint64_t iFilterColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0) : LayerCaffe(NEUNET_LAYER_POOL, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
+    LayerPool(uint64_t iPoolType = NEUNET_POOL_MAX, uint64_t iFilterLnCnt = 0, uint64_t iFilterColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0) : Layer(NEUNET_LAYER_POOL), LayerCaffe(iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
         iPoolType(iPoolType),
         iFilterElemCnt(iFilterLnCnt * iFilterColCnt) {}
     LayerPool(const LayerPool &lyrSrc) : LayerCaffe(lyrSrc) { ValueCopy(lyrSrc); }

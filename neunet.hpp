@@ -26,10 +26,8 @@ struct NeunetCore {
                                queTstAcc,
     // test recall counter queue
                                queTstRc;
-    // asynchronous train controller
-    async::async_controller asyTrnCtrl,
-    // asynchronous test controller
-                            asyTstCtrl;
+    // asynchronous controller
+    async::async_controller asyCtrl;
     // thread pool
     async::async_pool asyThdPool;
 
@@ -184,6 +182,7 @@ bool ErrorAbort(NeunetCore &netCore) {
     netCore.queTstRc.err_abort();
     netCore.queTrnAcc.err_abort();
     netCore.queTrnRc.err_abort();
+    netCore.asyCtrl.thread_wake_all();
     return true;
 }
 
@@ -191,19 +190,14 @@ bool ErrorAbort(NeunetCore &netCore) {
 bool TaskOver(NeunetCore &netCore) { return netCore.iNetStat == NEUNET_STAT_END || netCore.iNetStat == NEUNET_STAT_ERR; }
 
 // train & test process thread
-void TrainTestThread(NeunetCore &netCore, const net_set<vect> &setTrnData, const net_set<uint64_t> &setTrnLbl, net_set<uint64_t> &setTrnDataIdx, const net_set<vect> &setTstData, const net_set<uint64_t> &setTstLbl, uint64_t iLblTypeCnt, uint64_t iTrnBatCnt, uint64_t iTstBatCnt) { for (auto i = 0ull; i < netCore.asyThdPool.size(); ++i) netCore.asyThdPool.add_task([&netCore, &setTrnData, &setTrnLbl, &setTstData, &setTstLbl, &setTrnDataIdx, iLblTypeCnt, iTrnBatCnt, iTstBatCnt, i](uint64_t iEpoch){ while (netCore.iNetStat == NEUNET_STAT_NRM) {
+void TrainTestThread(NeunetCore &netCore, const net_set<vect> &setTrnData, const net_set<uint64_t> &setTrnLbl, net_set<uint64_t> &setTrnDataIdx, const net_set<vect> &setTstData, const net_set<uint64_t> &setTstLbl, uint64_t iLblTypeCnt, uint64_t iTrnBatCnt, uint64_t iTstBatCnt) { for (auto i = 0ull; i < netCore.asyThdPool.size(); ++i) netCore.asyThdPool.add_task([&netCore, &setTrnData, &setTrnLbl, &setTstData, &setTstLbl, &setTrnDataIdx, iLblTypeCnt, iTrnBatCnt, iTstBatCnt, i]{ while (netCore.iNetStat == NEUNET_STAT_NRM) {
     uint64_t iDataIdx = i,
              iBatCnt  = 0;
-    bool bLastMark = false;
     while (iBatCnt < iTrnBatCnt && i < netCore.iTrnBatSz) {
         // train
         auto iLbl    = setTrnLbl[setTrnDataIdx[iDataIdx]];
         auto vecIn   = setTrnData[setTrnDataIdx[iDataIdx]],
              vecOrgn = lbl_orgn(iLbl, iLblTypeCnt);
-        if (iBatCnt || iEpoch) {
-            if (bLastMark) bLastMark = false;
-            else netCore.asyTrnCtrl.thread_sleep(1000);
-        }
         // fp
         ForProp(netCore, vecIn, i);
         if (ErrorAbort(netCore)) break;
@@ -213,18 +207,15 @@ void TrainTestThread(NeunetCore &netCore, const net_set<vect> &setTrnData, const
         if (ErrorAbort(netCore)) break;
         ++iBatCnt;
         iDataIdx += netCore.iTrnBatSz;
-        if (++netCore.iBatSzCnt == iTrnBatCnt) {
+        if (++netCore.iBatSzCnt == netCore.iTrnBatSz) {
             netCore.queTrnAcc.en_queue(netCore.iAccCnt);
             netCore.queTrnRc.en_queue(netCore.iRcCnt);
-            netCore.iBatSzCnt = 0;
-            bLastMark         = true;
             netCore.iAccCnt   = 0;
             netCore.iRcCnt    = 0;
-            if (iBatCnt == iTrnBatCnt) {
-                setTrnDataIdx.shuffle();
-                netCore.asyTstCtrl.thread_wake_all();
-            } else netCore.asyTrnCtrl.thread_wake_all();
-        }
+            netCore.iBatSzCnt = 0;
+            if (iBatCnt == iTrnBatCnt) setTrnDataIdx.shuffle();
+            netCore.asyCtrl.thread_wake_all();
+        } else netCore.asyCtrl.thread_sleep(1000);
     }
     if (TaskOver(netCore)) break;
     // test
@@ -233,10 +224,9 @@ void TrainTestThread(NeunetCore &netCore, const net_set<vect> &setTrnData, const
     while (iBatCnt < iTstBatCnt && i < netCore.iTstBatSz) {
         auto iLbl  = setTstLbl[iDataIdx];
         auto vecIn = setTstData[iDataIdx];
-        if (!(iBatCnt || bLastMark)) netCore.asyTstCtrl.thread_sleep();
-        if (ErrorAbort(netCore)) break;
         // deduce
         Deduce(netCore, vecIn);
+        if (ErrorAbort(netCore)) break;
         output_acc_rc(vecIn, netCore.dTrnPrec, iLbl, netCore.iAccCnt, netCore.iRcCnt);
         iDataIdx += netCore.iTstBatSz;
         ++iBatCnt;
@@ -246,13 +236,12 @@ void TrainTestThread(NeunetCore &netCore, const net_set<vect> &setTrnData, const
     if (++netCore.iBatSzCnt == netCore.asyThdPool.size()) {
         netCore.queTstAcc.en_queue(netCore.iAccCnt);
         netCore.queTstRc.en_queue(netCore.iRcCnt);
-        netCore.iBatSzCnt = 0;
         netCore.iAccCnt   = 0;
         netCore.iRcCnt    = 0;
-        netCore.asyTrnCtrl.thread_wake_all();
-    }
-    ++iEpoch;
-} }, 0); }
+        netCore.iBatSzCnt = 0;
+        netCore.asyCtrl.thread_wake_all();
+    } else netCore.asyCtrl.thread_sleep();
+} }); }
 
 // data show thread
 void DataShowThread(NeunetCore &netCore, uint64_t iTrnBatCnt, uint64_t iTstDataCnt) {

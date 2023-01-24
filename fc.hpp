@@ -27,8 +27,8 @@ struct LayerChann : virtual Layer {
         iChannCnt = lyrSrc.iChannCnt;
     }
 
-    LayerChann(uint64_t iLayerType = NEUNET_LAYER_NULL) : Layer(iLayerType) {}
-    LayerChann(const LayerChann &lyrSrc) : Layer(lyrSrc) { ValueAssign(lyrSrc); }
+    LayerChann() {}
+    LayerChann(const LayerChann &lyrSrc) { ValueAssign(lyrSrc); }
 
     void Shape(uint64_t iInLnCnt, uint64_t iInColCnt, uint64_t iChannCnt) {
         iInElemCnt      = iInLnCnt * iInColCnt;
@@ -47,7 +47,7 @@ struct LayerChann : virtual Layer {
 };
 
 struct LayerFlat final : LayerDim, LayerChann {
-    LayerFlat() : LayerDim(NEUNET_LAYER_FLAT), LayerChann(NEUNET_LAYER_FLAT) {}
+    LayerFlat() : Layer(NEUNET_LAYER_FLAT) {}
     LayerFlat(const LayerFlat &lyrSrc) : LayerDim(lyrSrc), LayerChann(lyrSrc) {}
 
     void Shape(uint64_t &iInLnCnt, uint64_t &iInColCnt, uint64_t &iChannCnt) {
@@ -74,7 +74,7 @@ struct LayerFlat final : LayerDim, LayerChann {
 };
 
 matrix_declare struct LayerFC final : LayerDerive<matrix_elem_t>, LayerWeight<matrix_elem_t>, LayerDim {
-    LayerFC(uint64_t iOutLnCnt = 1, long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 8) : LayerDerive<matrix_elem_t>(NEUNET_LAYER_FC), LayerWeight<matrix_elem_t>(NEUNET_LAYER_FC, dLearnRate, dRandFstRng, dRandSndRng, iRandAcc), LayerDim(NEUNET_LAYER_FC, iOutLnCnt) {}
+    LayerFC(uint64_t iOutLnCnt = 1, long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 8) : Layer(NEUNET_LAYER_FC), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng, iRandAcc), LayerDim(iOutLnCnt) {}
     LayerFC(const LayerFC &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc), LayerWeight<matrix_elem_t>(lyrSrc), LayerDim(lyrSrc) {}
     LayerFC(LayerFC &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)), LayerWeight<matrix_elem_t>(std::move(lyrSrc)), LayerDim(lyrSrc) {}
 

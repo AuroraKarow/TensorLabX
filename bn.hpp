@@ -235,7 +235,7 @@ matrix_declare struct LayerBN final : LayerDerive<matrix_elem_t> {
         BdData     = std::move(lyrSrc.BdData);
     }
 
-    LayerBN(long double dShiftPlaceholder = 0., long double dScalePlaceholder = 1., long double dShiftLearnRate = 0., long double dScaleLearnRate = 0., long double dMovAvgDecay = .9) : LayerDerive<matrix_elem_t>(NEUNET_LAYER_BN),
+    LayerBN(long double dShiftPlaceholder = 0., long double dScalePlaceholder = 1., long double dShiftLearnRate = 0., long double dScaleLearnRate = 0., long double dMovAvgDecay = .9) : Layer(NEUNET_LAYER_BN),
         dDecay(dMovAvgDecay),
         dBetaLearnRate(dShiftLearnRate),
         dGammaLearnRate(dScaleLearnRate),
