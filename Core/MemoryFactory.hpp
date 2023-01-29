@@ -57,14 +57,15 @@ namespace Core
                     }
                     else
                     {
-                        block = freeList.pop_front();
+                        block = freeList.front();
+                        freeList.pop_front();
                     }
                 }
 
-                std::map<ui64, BlockList<T>> usedBlocksMap;
+                std::map<ui64, MemoryBlockPtr<T>> usedBlocksMap;
                 if (usedBlocks.contains(blocksize))
                 {
-                    usedBlocksMap = usedBlocks(blocksize);
+                    usedBlocksMap = usedBlocks[blocksize];
                 }
                 usedBlocksMap.emplace(block->id, block);
                 MemoryUsed += blocksize;

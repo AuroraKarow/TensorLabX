@@ -45,12 +45,12 @@ namespace Core
 		public:
 			Matrix(ui64 row, ui64 col)
 			{
-				elementCount= row * col;
+				elementCount = row * col;
 				this->row = row;
 				this->col = col;
 				data = std::make_shared<Memory::MemoryBlock<T>>(elementCount);
-				
-				//Memory::MemoryFactory::Instance()->GetBlock(elementCount);
+
+				Memory::MemoryFactory<T>::Instance()->GetBlock(elementCount);
 			}
 			Matrix(const Matrix<T> &matrix)
 				: Matrix(matrix.row, matrix.col)
@@ -64,10 +64,9 @@ namespace Core
 
 			bool Equal(const Matrix<T> &matrix)
 			{
-				 return  false;
-				//  T *pthis = data->GetRaw<T>();
-				//  T *pm = matrix.data->GetRaw<T>();
-				//return Helper::MatrixHelper::ElementWiseEqual(pthis, elementCount * sizeof(T), pm, matrix.elementCount * sizeof(T));
+				const T *pthis = data->GetRaw();
+				const T *pm = matrix.data->GetRaw();
+				return Helper::MatrixHelper::ElementWiseEqual(pthis, elementCount * sizeof(T), pm, matrix.elementCount * sizeof(T));
 			}
 			bool ReferenceEqual(const Matrix<T> &matrix)
 			{
@@ -108,12 +107,12 @@ namespace Core
 			T Sum()
 			{
 				T sum = T();
-				//T* p = data.GetRaw();
-				// for (ui64 i = 0; i < elementCount; i++)
-				// {
-				// 	sum += p[i]
-				// }
-				
+				// T* p = data->GetRaw();
+				//  for (ui64 i = 0; i < elementCount; i++)
+				//  {
+				//  	sum += p[i]
+				//  }
+
 				return sum;
 			}
 
@@ -133,7 +132,7 @@ namespace Core
 				col = _m.col;
 				row = _m.row;
 				elementCount = _m.elementCount;
-				//data = std::move(_m.data);
+				// data = std::move(_m.data);
 			}
 			void copy(const Matrix<T> &_m)
 			{

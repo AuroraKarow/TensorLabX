@@ -41,6 +41,7 @@ namespace Core
 
             const T *GetRaw() 
             {
+                auto p = block.get();
                 return reinterpret_cast<T*>(block.get());
             }
 
