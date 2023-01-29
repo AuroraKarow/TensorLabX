@@ -20,7 +20,6 @@ namespace Core
             MAKE_SINGLETON(MemoryFactory);
 
         private:
-            
             ui64 MemoryUsed;
             std::map<ui64, BlockList<T>> freeBlocks;
             std::map<ui64, std::map<ui64, MemoryBlockPtr<T>>> usedBlocks;
@@ -32,7 +31,7 @@ namespace Core
 
         public:
             bool Recycle = false;
-            ui64 MemoryMaxUseable = 8 * 1024 * 1024 * 1024;
+            ui64 MemoryMaxUseable = 8 * 1024ull * 1024ull * 1024ull;
 
             void Sort() {}
 
@@ -61,6 +60,10 @@ namespace Core
                         freeList.pop_front();
                     }
                 }
+                else
+                {
+                    block = std::make_shared<MemoryBlock<T>>(blocksize);
+                }
 
                 std::map<ui64, MemoryBlockPtr<T>> usedBlocksMap;
                 if (usedBlocks.contains(blocksize))
@@ -73,7 +76,7 @@ namespace Core
                 return block;
             }
 
-            void ReturnBlock(MemoryBlockPtr<T> block)
+            void ReturnBlock(MemoryBlockPtr<T> &block)
             {
             }
         };
