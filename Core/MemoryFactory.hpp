@@ -78,6 +78,18 @@ namespace Core
 
             void ReturnBlock(MemoryBlockPtr<T> &block)
             {
+                ui64 size = block->size;
+                usedBlocks[size].erase(block->id);
+                if (freeBlocks.contains(size))
+                {
+                    freeBlocks[size].emplace_front(block);
+                }
+                else
+                {
+                    BlockList<T> freeList;
+                    freeBlocks[size] = freeList;
+                    freeList.emplace_front(block);
+                }
             }
         };
     }

@@ -48,9 +48,7 @@ namespace Core
 				elementCount = row * col;
 				this->row = row;
 				this->col = col;
-				data = std::make_shared<Memory::MemoryBlock<T>>(elementCount);
-
-				Memory::MemoryFactory<T>::Instance()->GetBlock(elementCount);
+				data = Memory::MemoryFactory<T>::Instance()->GetBlock(elementCount);
 			}
 			Matrix(const Matrix<T> &matrix)
 				: Matrix(matrix.row, matrix.col)
@@ -60,6 +58,10 @@ namespace Core
 			Matrix(Matrix<T> &&matrix)
 			{
 				this->move(std::move(matrix));
+			}
+
+			~Matrix(){
+				Memory::MemoryFactory<T>::Instance()->ReturnBlock(data);
 			}
 
 			bool Equal(const Matrix<T> &matrix)
