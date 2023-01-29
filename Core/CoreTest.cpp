@@ -14,12 +14,14 @@ void TestMatrixReferenceEqual()
 
 void TestSingleton() noexcept
 {
-    std::cout << "Hello World!\n"
-              << Constant->Pi;
+    std::cout
+        << Constant->Pi << std::endl;
 }
 
 int main()
 {
     TestMatrixReferenceEqual();
+    TestSingleton();
+    std::cout << "All tests run completed!";
     return EXIT_SUCCESS;
 }

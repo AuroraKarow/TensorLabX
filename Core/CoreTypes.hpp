@@ -12,7 +12,7 @@ typedef int64_t i64;
 typedef uint32_t ui32;
 typedef uint64_t ui64;
 
-typedef unsigned char byte;
+typedef unsigned char ubyte;
 typedef char sbyte;
 
 typedef float f32;

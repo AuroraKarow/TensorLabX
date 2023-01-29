@@ -8,7 +8,7 @@ namespace Core
         class MatrixHelper
         {
         public:
-            static bool ElementWiseEqual(void *a, ui32 sizeofA, void *b, ui32 sizeofB)
+            static bool ElementWiseEqual(const void *a, ui32 sizeofA, const void *b, ui32 sizeofB)
             {
                 if (a == b)
                 {
@@ -25,8 +25,8 @@ namespace Core
                     return false;
                 }
 
-                byte *l = (byte *)a;
-                byte *r = (byte *)b;
+                ubyte *l = (ubyte *)a;
+                ubyte *r = (ubyte *)b;
 
                 for (ui32 i = 0; i < sizeofA; i++)
                 {

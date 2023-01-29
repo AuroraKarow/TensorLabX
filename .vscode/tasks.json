@@ -54,7 +54,7 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "dependsOn":["clean"],
+            //"dependsOn":["clean"],
             "detail": "debug"
         },
         {
