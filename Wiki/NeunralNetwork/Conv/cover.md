@@ -60,7 +60,9 @@ $$\frac{\partial L}{\partial x_i}=\frac{\partial L}{\partial z}Max'(x)=\begin{ca
 [`GradLossToConvKernal`](GradLossToConvKernal.md)|捲積核更新梯度<br>Gradient for convolution kernel updating
 `PoolGlbAvg`|全局平均池化<br>Global average pooling
 `GradLossToPoolGlbAvgChann`|全局平均池化反向傳播，需要指定損失到全局池化輸出的梯度 `vecGradLossToOutput` 以及輸入矩陣的行 `iChannLnCnt`、列 `iChannColCnt` 計數值<br>Backpropagation of the global average pooling, need to specify the gradient from loss to global pooling output matrix `vecGradLossToOutput`, value of input matrix line count `iChannLnCnt` and column count `iChannColCnt`.
-[`PoolMaxAvg`](PoolMaxAvg.md)|最大或平均池化前向傳播<br>Forward porpagation of max or average pooling
-[`GradLossToPoolMaxAvgCaffeInput`](GradLossToPoolMaxAvgCaffeInput.md)|最大或平均池化反向傳播<br>Backward porpagation of max or average pooling
+[`PoolMax`](PoolMax.md)|最大池化<br>Max pooling
+[`GradLossToPoolMaxChann`](GradLossToPoolMaxChann.md)|最大池化反向傳播<br>Backward propagation of max pooling
+[`PoolAvg`](PoolAvg.md)|平均池化<br>Average pooling
+[`GradLossToPoolAvgChann`](GradLossToPoolAvgChann.md)|平均池化反向傳播<br>Backward propagation of average pooling
 
 [<< 返回 Back](../cover.md)

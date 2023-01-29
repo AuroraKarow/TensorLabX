@@ -351,13 +351,13 @@ matrix_declare struct LayerWeight : virtual Layer {
         setWeightGrad = std::move(lyrSrc.setWeightGrad);
     }
 
-    LayerWeight(uint64_t iLayerType = NEUNET_LAYER_NULL, long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) : Layer(iLayerType),
+    LayerWeight(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) :
         dLearnRate(dLearnRate),
         dRandFstRng(dRandFstRng),
         dRandSndRng(dRandSndRng),
         iRandAcc(iRandAcc) {}
-    LayerWeight(const LayerWeight &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerWeight(LayerWeight &&lyrSrc) : Layer(lyrSrc) { ValueMove(std::move(lyrSrc)); }
+    LayerWeight(const LayerWeight &lyrSrc) { ValueCopy(lyrSrc); }
+    LayerWeight(LayerWeight &&lyrSrc) { ValueMove(std::move(lyrSrc)); }
 
     // call this function after weight initializing
     void Shape(uint64_t iBatSz, bool bWeightTp = false) {
@@ -404,8 +404,8 @@ matrix_declare struct LayerWeight : virtual Layer {
     }
 };
 
-matrix_declare struct LayerBias : LayerWeight<matrix_elem_t> {
-    LayerBias(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0, uint64_t iLayerType = NEUNET_LAYER_BIAS) : LayerWeight<matrix_elem_t>(iLayerType, dLearnRate, dRandFstRng, dRandSndRng, iRandAcc) {}
+matrix_declare struct LayerBias final : LayerWeight<matrix_elem_t> {
+    LayerBias(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) : Layer(NEUNET_LAYER_BIAS), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng, iRandAcc) {}
 
     void Shape(uint64_t iInLnCnt, uint64_t iInColCnt, uint64_t iChannCnt, uint64_t iBatSz) {
         this->vecWeight = neunet_vect(iInLnCnt * iInColCnt, iChannCnt, true, this->dRandFstRng, this->dRandSndRng, this->iRandAcc);
@@ -427,7 +427,7 @@ matrix_declare struct LayerBias : LayerWeight<matrix_elem_t> {
 
     void Deduce(neunet_vect &vecIn) { vecIn += this->vecWeight; }
 
-    virtual ~LayerBias() {}
+    ~LayerBias() {}
 };
 
 matrix_declare struct LayerDerive : virtual Layer {
@@ -437,9 +437,9 @@ matrix_declare struct LayerDerive : virtual Layer {
 
     void ValueMove(LayerDerive &&lyrSrc) { setIn = std::move(lyrSrc.setIn); }
 
-    LayerDerive(uint64_t iLayerType = NEUNET_LAYER_NULL) : Layer(iLayerType) {}
-    LayerDerive(const LayerDerive &lyrSrc) : Layer(lyrSrc) { ValueCopy(lyrSrc); }
-    LayerDerive(LayerDerive &&lyrSrc) : Layer(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
+    LayerDerive() {}
+    LayerDerive(const LayerDerive &lyrSrc) { ValueCopy(lyrSrc); }
+    LayerDerive(LayerDerive &&lyrSrc) { ValueMove(std::move(lyrSrc)); }
 
     void Shape(uint64_t iBatSz) { setIn.init(iBatSz, false); }
 
@@ -460,20 +460,20 @@ matrix_declare struct LayerAct : LayerDerive<matrix_elem_t> {
 
     void ValueAssign(const LayerAct &lyrSrc) { iActFnType = lyrSrc.iActFnType; }
 
-    LayerAct(uint64_t iActFnType = NULL, uint64_t iLayerType = NEUNET_LAYER_ACT) : LayerDerive<matrix_elem_t>(iLayerType),
+    LayerAct(uint64_t iActFnType = NULL) : Layer(NEUNET_LAYER_ACT),
         iActFnType(iActFnType) {}
     LayerAct(const LayerAct &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc) { ValueAssign(lyrSrc); }
     LayerAct(LayerAct &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)) { ValueAssign(lyrSrc); }
 
     void ForProp(neunet_vect &vecIn, uint64_t iBatSzIdx) {
-        this->setIn[iBatSzIdx] = std::move(vecIn);
+        if (iActFnType) this->setIn[iBatSzIdx] = std::move(vecIn);
         switch(iActFnType) {
         case NEUNET_SIGMOID: vecIn = sigmoid(this->setIn[iBatSzIdx]); break;
         case NEUNET_RELU: vecIn = ReLU(this->setIn[iBatSzIdx]); break;
         case NEUNET_ARELU_LOSS:
         case NEUNET_ARELU: vecIn = AReLU(this->setIn[iBatSzIdx]); break;
         case NEUNET_SOFTMAX: vecIn = softmax(this->setIn[iBatSzIdx]); break;
-        default: vecIn = std::move(this->setIn[iBatSzIdx]); break;
+        default: break;
         }
     }
 
@@ -518,9 +518,9 @@ struct LayerDim : virtual Layer {
 
     void ValueAssign(const LayerDim &lyrSrc) { iOutLnCnt = lyrSrc.iOutLnCnt; }
 
-    LayerDim(uint64_t iLayerType = NEUNET_LAYER_NULL, uint64_t iOutLnCnt = 0) : Layer(iLayerType),
+    LayerDim(uint64_t iOutLnCnt = 0) :
         iOutLnCnt(iOutLnCnt) {}
-    LayerDim(const LayerDim &lyrSrc) : Layer(lyrSrc) { ValueAssign(lyrSrc); }
+    LayerDim(const LayerDim &lyrSrc) { ValueAssign(lyrSrc); }
 
     LayerDim &operator=(const LayerDim &lyrSrc) {
         ValueAssign(lyrSrc);
@@ -530,8 +530,8 @@ struct LayerDim : virtual Layer {
     ~LayerDim() { iOutLnCnt = 0; }
 };
 
-struct LayerPC : LayerDim {
-    bool     bPadMode   = true;
+struct LayerPC final : LayerDim {
+    bool     bPadMode   = false;
      
     uint64_t iInLnCnt   = 0,
              iInColCnt  = 0,
@@ -561,7 +561,7 @@ struct LayerPC : LayerDim {
         iColDist   = lyrSrc.iColDist;
     }
 
-    LayerPC(bool bIsPadMode = true, uint64_t iTopCnt = 0, uint64_t iRightCnt = 0, uint64_t iBottomCnt = 0, uint64_t iLeftCnt = 0, uint64_t iLnDistCnt = 0, uint64_t iColDistCnt = 0, uint64_t iLayerType = NEUNET_LAYER_PC) : LayerDim(iLayerType),
+    LayerPC(bool bIsPadMode = false, uint64_t iTopCnt = 0, uint64_t iRightCnt = 0, uint64_t iBottomCnt = 0, uint64_t iLeftCnt = 0, uint64_t iLnDistCnt = 0, uint64_t iColDistCnt = 0) : Layer(NEUNET_LAYER_PC),
         bPadMode(bIsPadMode),
         iTop(iTopCnt),
         iRight(iRightCnt),
@@ -586,9 +586,10 @@ struct LayerPC : LayerDim {
     }
 
     callback_matrix void PadCrop(neunet_vect &vecSrc, bool bIsPadMode) {
-        if (!(iTop || iRight || iBottom || iLeft || iLnDist || iColDist)) return;
-        if(bIsPadMode) vecSrc = chann_vec_pad(iOutLnCnt, iOutColCnt, vecSrc, iInLnCnt, iInColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
-        else vecSrc = chann_vec_crop(iOutLnCnt, iOutColCnt, vecSrc, iInLnCnt, iInColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
+        if (iTop || iRight || iBottom || iLeft || iLnDist || iColDist) {
+            if(bIsPadMode) vecSrc = chann_vec_pad(iOutLnCnt, iOutColCnt, vecSrc, iInLnCnt, iInColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
+            else vecSrc = chann_vec_crop(iOutLnCnt, iOutColCnt, vecSrc, iInLnCnt, iInColCnt, iTop, iRight, iBottom, iLeft, iLnDist, iColDist);
+        }
     }
 
     callback_matrix void ForProp(neunet_vect &vecIn) { PadCrop(vecIn, bPadMode); }
@@ -604,7 +605,7 @@ struct LayerPC : LayerDim {
     }
 
     virtual ~LayerPC() {
-        bPadMode   = true;
+        bPadMode   = false;
         iInLnCnt   = 0;
         iInColCnt  = 0;
         iOutColCnt = 0;

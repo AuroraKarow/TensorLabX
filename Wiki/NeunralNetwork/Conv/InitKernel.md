@@ -7,7 +7,7 @@ callback_matrix neunet_vect InitKernel(uint64_t            iKernelQty,
                                        uint64_t            iColCnt,
                                        const matrix_elem_t &dFstRng = 0,
                                        const matrix_elem_t &dSndRng = 0,
-                                       uint64_t            iAcc = 8)
+                                       uint64_t            iAcc = 8);
 ```
 
 偽隨機數初始化捲積核。\
@@ -15,7 +15,7 @@ Initializing convolution kernels with pseudo random number.
 
 參數<br>Parameters|描述<br>Description|I/O
 -|-|-
-`iKernelQty`|卷幾個數量<br>Kernel amount|*輸入<br>Output*
+`iKernelQty`|卷幾個數量<br>Kernel amount|*輸入<br>intput*
 `iChannCnt`|捲積核通道數<br>Kernel channel count|*輸入<br>input*
 `iLnCnt`|捲積核通道矩陣行計數<br>Line count of kernel channel matrix|*輸入<br>input*
 `iColCnt`|捲積核通道矩陣列計數<br>Column count of kernel channel matrix|*輸入<br>input*

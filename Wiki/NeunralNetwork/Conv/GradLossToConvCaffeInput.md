@@ -2,7 +2,7 @@
 
 ```c++
 callback_matrix neunet_vect GradLossToConvCaffeInput(const neunet_vect &vecGradLossToOutput,
-                                                     const neunet_vect &vecKernelChannTranspose);
+                                                     const neunet_vect &vecKernelTranspose);
 ```
 
 獲取損失到捲積輸入 Caffe 矩陣的梯度。\
@@ -11,7 +11,7 @@ Get gradient from loss to Caffe matrix of the input.
 參數<br>Parameters|描述<br>Description|I/O
 -|-|-
 `vecGradLossToOutput`|損失到捲積輸出矩陣的梯度<br>Gradient from loss to the output of convolution|*輸入<br>input*
-`vecKernelChannTranspose`|捲積核矩陣的轉置<br>Transposition of the kernel matrix|*輸入<br>input*
+`vecKernelTranspose`|捲積核矩陣的轉置<br>Transposition of the kernel matrix|*輸入<br>input*
 
 返回 Caffe 矩陣梯度。\
 Return gradient of Caffe matrix.

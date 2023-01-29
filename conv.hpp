@@ -33,9 +33,9 @@ callback_matrix neunet_vect CaffeTransform(const neunet_vect &vecCaffe, const ne
 
 callback_matrix neunet_vect InitKernel(uint64_t iKernelQty, uint64_t iChannCnt, uint64_t iLnCnt, uint64_t iColCnt, const matrix_elem_t &dFstRng = 0, const matrix_elem_t &dSndRng = 0, uint64_t iAcc = 8) { return neunet_vect(iLnCnt * iColCnt * iChannCnt, iKernelQty, true, dFstRng, dSndRng, iAcc); }
 
-callback_matrix neunet_vect Conv(const neunet_vect &vecCaffeInput, const neunet_vect &vecKernelChann) { return fc::Output(vecKernelChann, vecCaffeInput); }
+callback_matrix neunet_vect Conv(const neunet_vect &vecCaffeInput, const neunet_vect &vecKernel) { return fc::Output(vecKernel, vecCaffeInput); }
 
-callback_matrix neunet_vect GradLossToConvCaffeInput(const neunet_vect &vecGradLossToOutput, const neunet_vect &vecKernelChannTranspose) { return fc::GradLossToWeight(vecGradLossToOutput, vecKernelChannTranspose); }
+callback_matrix neunet_vect GradLossToConvCaffeInput(const neunet_vect &vecGradLossToOutput, const neunet_vect &vecKernelTranspose) { return fc::GradLossToWeight(vecGradLossToOutput, vecKernelTranspose); }
 
 callback_matrix neunet_vect GradLossToConvKernal(const neunet_vect &vecGradLossToOutput, const neunet_vect &vecCaffeInputTranspose) { return fc::GradLossToInput(vecGradLossToOutput, vecCaffeInputTranspose); }
 
@@ -48,28 +48,44 @@ callback_matrix neunet_vect PoolGlbAvg(const neunet_vect &vecChann) {
     return vecAns;
 }
 
-callback_matrix neunet_vect PoolMaxAvg(uint64_t iPoolType, const neunet_vect &vecCaffeInput, uint64_t iChannCnt, uint64_t iFilterElemCnt, net_set<net_list<matrix::pos>> &setCaffeMaxPos) {
-    neunet_vect vecAns(vecCaffeInput.line_count, iChannCnt);
-    for (auto i = 0ull; i < iChannCnt; ++i)
-        if (iPoolType == NEUNET_POOL_AVG) for (auto j = 0ull; j < vecAns.line_count; ++j) {
-            // avg
-            matrix_elem_t curr_val = 0;
-            for (auto k = 0ull; k < iFilterElemCnt; ++k) curr_val += vecCaffeInput[j][i * iFilterElemCnt + k];
-            vecAns[j][i] = curr_val / iFilterElemCnt;
-        } else if (iPoolType == NEUNET_POOL_MAX) {
-            if (!setCaffeMaxPos.length) setCaffeMaxPos.init(vecAns.element_count, false);
-            // max
-            auto iCurrColBegin = i * iFilterElemCnt,
-                 iCurrColEnd   = iCurrColBegin + iFilterElemCnt - 1;
-            for (auto j = 0ull; j < vecAns.line_count; ++j) {
-                auto iCurrIdx = matrix::elem_pos(j, i, iChannCnt);
-                setCaffeMaxPos[iCurrIdx] = vecCaffeInput.extremum_position(true, j, j, iCurrColBegin, iCurrColEnd);
-                vecAns[j][i] = vecCaffeInput[setCaffeMaxPos[iCurrIdx][0].ln][setCaffeMaxPos[iCurrIdx][0].col];
-            }
-        } else {
-            vecAns.reset();
-            break;
+callback_matrix neunet_vect PoolAvg(const neunet_vect &vecChann, const net_set<uint64_t> &setCaffeData, uint64_t iFilterElemCnt, uint64_t iCaffeLnCnt) {
+    neunet_vect vecAns(iCaffeLnCnt, vecChann.column_count);
+    uint64_t iAnsElemCnt = 0,
+             iStrideCnt  = 0;
+    for (auto i = 0ull; i < setCaffeData.length; ++i) {
+        vecAns.index(iAnsElemCnt) += vecChann.index(setCaffeData[i]);
+        if (++iStrideCnt == iFilterElemCnt) {
+            vecAns.index(iAnsElemCnt++) /= iFilterElemCnt;
+            iStrideCnt = 0;
         }
+    }
+    return vecAns;
+}
+
+callback_matrix neunet_vect PoolMax(const neunet_vect &vecChann, const net_set<uint64_t> &setCaffeData, uint64_t iFilterElemCnt, uint64_t iCaffeLnCnt, net_set<net_list<uint64_t>> &setElemIdx, bool bTrainFlag = true) {
+    neunet_vect vecAns(iCaffeLnCnt, vecChann.column_count);
+    if (bTrainFlag) setElemIdx.init(vecAns.element_count, false);
+    uint64_t iAnsElemCnt = 0,
+             iStrideCnt  = 0;
+    net_list<uint64_t> lsIdxTemp;
+    matrix_elem_t dMaxValTemp = 0;
+    for (auto i = 0ull; i < setCaffeData.length; ++i) {
+        auto iCurrIdx  = setCaffeData[i];
+        auto dCurrElem = vecChann.index(iCurrIdx);
+        if (!iStrideCnt) dMaxValTemp = dCurrElem;
+        if (dCurrElem >= dMaxValTemp) {
+            if (dCurrElem > dMaxValTemp) {
+                dMaxValTemp = dCurrElem;
+                if (bTrainFlag) lsIdxTemp.reset();
+            }
+            if (bTrainFlag) lsIdxTemp.push_back(iCurrIdx);
+        }
+        if (++iStrideCnt == iFilterElemCnt) {
+            if (bTrainFlag) setElemIdx[iAnsElemCnt] = std::move(lsIdxTemp);
+            vecAns.index(iAnsElemCnt++) = dMaxValTemp;
+            iStrideCnt = 0;
+        }
+    }
     return vecAns;
 }
 
@@ -82,20 +98,19 @@ callback_matrix neunet_vect GradLossToPoolGlbAvgChann(const neunet_vect &vecGrad
     return vecAns;
 }
 
-callback_matrix neunet_vect GradLossToPoolMaxAvgCaffeInput(uint64_t iPoolType, const neunet_vect &vecGradLossToOutput, uint64_t iFilterElemCnt, const net_set<net_list<matrix::pos>> &setCaffeMaxPos) {
-    neunet_vect vecAns(vecGradLossToOutput.line_count, iFilterElemCnt * vecGradLossToOutput.column_count);
+callback_matrix neunet_vect GradLossToPoolAvgChann(const neunet_vect &vecGradLossToOutput, const net_set<uint64_t> &setCaffeData, uint64_t iFilterElemCnt, uint64_t iChannElemCnt) {
+    neunet_vect vecAns(iChannElemCnt, vecGradLossToOutput.column_count);
+    uint64_t iCaffeDataCnt = 0;
     for (auto i = 0ull; i < vecGradLossToOutput.element_count; ++i) {
-        auto posDim             = matrix::elem_pos(i, vecGradLossToOutput.column_count);
-        auto iCurrChannBeginCol = posDim.col * iFilterElemCnt;
-        if (iPoolType == NEUNET_POOL_AVG) {
-            auto iAvgVal = vecGradLossToOutput.index(i) / iFilterElemCnt;
-            for (auto j = 0ull; j < iFilterElemCnt; ++j) vecAns[posDim.ln][j + iCurrChannBeginCol] = iAvgVal;
-        } else if (iPoolType == NEUNET_POOL_MAX && setCaffeMaxPos.length) for (auto temp : setCaffeMaxPos[i]) vecAns[temp.ln][temp.col] += vecGradLossToOutput.index(i);
-        else {
-            vecAns.reset();
-            break;
-        }
+        auto dGradElem = vecGradLossToOutput.index(i) / iFilterElemCnt;
+        for (auto j = 0ull; j < iFilterElemCnt; ++j) vecAns.index(setCaffeData[iCaffeDataCnt++]) += dGradElem;
     }
+    return vecAns;
+}
+
+callback_matrix neunet_vect GradLossToPoolMaxChann(const neunet_vect &vecGradLossToOutput, uint64_t iChannElemCnt, const net_set<net_list<uint64_t>> &setElemIdx) {
+    neunet_vect vecAns(iChannElemCnt, vecGradLossToOutput.column_count);
+    for(auto i = 0ull; i < setElemIdx.length; ++i) for (auto iIdxTemp : setElemIdx[i]) vecAns.index(iIdxTemp) += vecGradLossToOutput.index(i);
     return vecAns;
 }
 
@@ -104,13 +119,13 @@ CONV_END
 LAYER_BEGIN
 
 struct LayerCaffe : virtual LayerChann {
-    uint64_t iLnStride  = 0,
-             iColStride = 0,
-             iLnDilate  = 0,
-             iColDilate = 0,
+    uint64_t iLnStride     = 0,
+             iColStride    = 0,
+             iLnDilate     = 0,
+             iColDilate    = 0,
 
-             iCaffeLnCnt  = 0,
-             iCaffeColCnt = 0,
+             iCaffeLnCnt   = 0,
+             iCaffeColCnt  = 0,
 
              iFilterLnCnt  = 0,
              iFilterColCnt = 0;
@@ -118,12 +133,12 @@ struct LayerCaffe : virtual LayerChann {
     net_set<uint64_t> setCaffeData;
 
     void ValueAssign(const LayerCaffe &lyrSrc) {
-        iLnStride  = iLnStride;
-        iColStride = iColStride;
-        iLnDilate  = iLnDilate;
-        iColDilate = iColDilate;
-        iCaffeLnCnt  = iCaffeLnCnt;
-        iCaffeColCnt = iCaffeColCnt;
+        iLnStride     = iLnStride;
+        iColStride    = iColStride;
+        iLnDilate     = iLnDilate;
+        iColDilate    = iColDilate;
+        iCaffeLnCnt   = iCaffeLnCnt;
+        iCaffeColCnt  = iCaffeColCnt;
         iFilterLnCnt  = iFilterLnCnt;
         iFilterColCnt = iFilterColCnt;
     }
@@ -138,7 +153,7 @@ struct LayerCaffe : virtual LayerChann {
         setCaffeData = std::move(lyrSrc.setCaffeData);
     }
 
-    LayerCaffe(uint64_t iLayerType = NEUNET_LAYER_NULL, uint64_t iFilterLnCnt = 0, uint64_t iFilterColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0) : LayerChann(iLayerType),
+    LayerCaffe(uint64_t iFilterLnCnt = 0, uint64_t iFilterColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0) :
         iFilterLnCnt(iFilterLnCnt),
         iFilterColCnt(iFilterColCnt),
         iLnStride(iLnStride),
@@ -149,15 +164,9 @@ struct LayerCaffe : virtual LayerChann {
     LayerCaffe(LayerCaffe &&lyrSrc) : LayerChann(lyrSrc) { ValueMove(std::move(lyrSrc)); }
 
     void Shape(uint64_t &iInLnCnt, uint64_t &iInColCnt, uint64_t iChannCnt) {
-        iInElemCnt   = iInLnCnt * iInColCnt;
+        LayerChann::Shape(iInLnCnt, iInColCnt, iChannCnt);
         setCaffeData = conv::CaffeTransformData(iChannCnt, iCaffeLnCnt, iCaffeColCnt, iInLnCnt, iInColCnt, iInLnCnt, iInColCnt, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate);
     }
-
-    callback_matrix void ForProp(neunet_vect &vecIn) { vecIn = conv::CaffeTransform(vecIn, setCaffeData, iCaffeLnCnt, iCaffeColCnt); }
-
-    callback_matrix void BackProp(neunet_vect &vecGrad) { vecGrad = conv::CaffeTransform(vecGrad, setCaffeData, iInElemCnt, vecGrad.column_count, true); }
-
-    callback_matrix void Deduce(neunet_vect &vecIn) { ForProp(vecIn); }
 
     LayerCaffe &operator=(const LayerCaffe &lyrSrc) {
         LayerChann::operator=(lyrSrc);
@@ -183,12 +192,12 @@ struct LayerCaffe : virtual LayerChann {
     }
 };
 
-matrix_declare struct LayerConv : LayerDerive<matrix_elem_t>, LayerWeight<matrix_elem_t>, LayerCaffe {
+matrix_declare struct LayerConv final : LayerDerive<matrix_elem_t>, LayerWeight<matrix_elem_t>, LayerCaffe {
     uint64_t iKernelQty = 0;
 
     void ValueAssign(const LayerConv &lyrSrc) { iKernelQty = lyrSrc.iKernelQty; }
 
-    LayerConv(uint64_t iKernelQty = 0, uint64_t iKernelLnCnt = 0, uint64_t iKernelColCnt = 0, uint64_t iLnStide = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0, long double dLearnRate = 0, long double dRandFstRng = 0, long double dRandSndRng = 0, uint64_t dRandAcc = 0, uint64_t iLayerType = NEUNET_LAYER_CONV) : LayerDerive<matrix_elem_t>(iLayerType), LayerWeight<matrix_elem_t>(iLayerType, dLearnRate, dRandFstRng, dRandSndRng, dRandAcc), LayerCaffe(iLayerType, iKernelLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
+    LayerConv(uint64_t iKernelQty = 0, uint64_t iKernelLnCnt = 0, uint64_t iKernelColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0, long double dLearnRate = 0, long double dRandFstRng = 0, long double dRandSndRng = 0, uint64_t dRandAcc = 0) : Layer(NEUNET_LAYER_CONV), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng, dRandAcc), LayerCaffe(iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
         iKernelQty(iKernelQty) {}
     LayerConv(const LayerConv &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc), LayerWeight<matrix_elem_t>(lyrSrc), LayerCaffe(lyrSrc) { ValueAssign(lyrSrc); }
     LayerConv(LayerConv &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)), LayerWeight<matrix_elem_t>(std::move(lyrSrc)), LayerCaffe(std::move(lyrSrc)) { ValueAssign(lyrSrc); }
@@ -202,26 +211,21 @@ matrix_declare struct LayerConv : LayerDerive<matrix_elem_t>, LayerWeight<matrix
     }
 
     void ForProp(neunet_vect &vecIn, uint64_t iBatSzIdx) {
-        LayerCaffe::ForProp(vecIn);
-        this->setIn[iBatSzIdx] = std::move(vecIn);
+        this->setIn[iBatSzIdx] = conv::CaffeTransform(vecIn, setCaffeData, iCaffeLnCnt, iCaffeColCnt);
         if (this->dLearnRate) vecIn = conv::Conv(this->setIn[iBatSzIdx], this->vecWeightNv);
         else vecIn = conv::Conv(this->setIn[iBatSzIdx], this->vecWeight);
     }
 
     void BackProp(neunet_vect &vecGrad, uint64_t iBatSzIdx) {
         this->setWeightGrad[iBatSzIdx] = conv::GradLossToConvKernal(vecGrad, this->setIn[iBatSzIdx].transpose);
-        vecGrad                        = conv::GradLossToConvCaffeInput(vecGrad, this->vecWeightTp);
-        LayerCaffe::BackProp(vecGrad);
+        vecGrad = conv::CaffeTransform(conv::GradLossToConvCaffeInput(vecGrad, this->vecWeightTp), setCaffeData, iInElemCnt, iChannCnt, true);
         if (++this->iBatSzCnt == this->setIn.length) {
             this->iBatSzCnt = 0;
             LayerWeight<matrix_elem_t>::Update(true);
         }
     }
 
-    void Deduce(neunet_vect &vecIn) {
-        LayerCaffe::ForProp(vecIn);
-        vecIn = conv::Conv(vecIn, this->vecWeight);
-    }
+    void Deduce(neunet_vect &vecIn) { vecIn = conv::Conv(conv::CaffeTransform(vecIn, setCaffeData, iCaffeLnCnt, iCaffeColCnt), this->vecWeight); }
 
     LayerConv &operator=(const LayerConv &lyrSrc) {
         ValueAssign(lyrSrc);
@@ -238,15 +242,15 @@ matrix_declare struct LayerConv : LayerDerive<matrix_elem_t>, LayerWeight<matrix
         return *this;
     }
 
-    virtual ~LayerConv() { iKernelQty = 0; }
+    ~LayerConv() { iKernelQty = 0; }
 };
 
-struct LayerPool : LayerCaffe {
+struct LayerPool final : LayerCaffe {
     uint64_t iPoolType      = 0,
 
              iFilterElemCnt = 0;
 
-    net_set<net_set<net_list<matrix::pos>>> setPoolMaxPos;
+    net_set<net_set<net_list<uint64_t>>> setElemIdx;
 
     void ValueAssign(const LayerPool &lyrSrc) {
         iPoolType      = lyrSrc.iPoolType;
@@ -255,50 +259,46 @@ struct LayerPool : LayerCaffe {
 
     void ValueCopy(const LayerPool &lyrSrc) {
         ValueAssign(lyrSrc);
-        if (iPoolType == NEUNET_POOL_MAX) setPoolMaxPos = lyrSrc.setPoolMaxPos;
+        if (iPoolType == NEUNET_POOL_MAX) setElemIdx = lyrSrc.setElemIdx;
     }
 
     void ValueMove(LayerPool &&lyrSrc) {
         ValueAssign(lyrSrc);
-        if (iPoolType == NEUNET_POOL_MAX) setPoolMaxPos = std::move(lyrSrc.setPoolMaxPos);
+        if (iPoolType == NEUNET_POOL_MAX) setElemIdx = std::move(lyrSrc.setElemIdx);
     }
 
-    LayerPool(uint64_t iPoolType = NEUNET_POOL_MAX, uint64_t iFilterLnCnt = 0, uint64_t iFilterColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0, uint64_t iLayerType = NEUNET_LAYER_POOL) : LayerCaffe(iLayerType, iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
-        iPoolType(iPoolType) {}
+    LayerPool(uint64_t iPoolType = NEUNET_POOL_MAX, uint64_t iFilterLnCnt = 0, uint64_t iFilterColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0) : Layer(NEUNET_LAYER_POOL), LayerCaffe(iFilterLnCnt, iFilterColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
+        iPoolType(iPoolType),
+        iFilterElemCnt(iFilterLnCnt * iFilterColCnt) {}
     LayerPool(const LayerPool &lyrSrc) : LayerCaffe(lyrSrc) { ValueCopy(lyrSrc); }
     LayerPool(LayerPool &&lyrSrc) : LayerCaffe(std::move(lyrSrc)) { ValueMove(std::move(lyrSrc)); }
 
     void Shape(uint64_t &iInLnCnt, uint64_t &iInColCnt, uint64_t iChannCnt, uint64_t iBatSz = NULL) {
-        iInElemCnt = iInLnCnt * iInColCnt;
         if (iPoolType == NEUNET_POOL_GAG) {
+            iInElemCnt = iInLnCnt * iInColCnt;
             iInLnCnt   = 1;
             iInColCnt  = 1;
         } else {
             LayerCaffe::Shape(iInLnCnt, iInColCnt, iChannCnt);
-            if (iPoolType == NEUNET_POOL_MAX) setPoolMaxPos.init(iBatSz, false);
+            if (iPoolType == NEUNET_POOL_MAX) setElemIdx.init(iBatSz, false);
         }
     }
 
-    callback_matrix void ForProp(neunet_vect &vecIn, uint64_t iBatSzIdx = NULL) {
-        if (iPoolType == NEUNET_POOL_GAG) vecIn = conv::PoolGlbAvg(vecIn);
-        else {
-            auto iChannCnt = vecIn.column_count;
-            net_set<net_list<matrix::pos>> setTemp;
-            LayerCaffe::ForProp(vecIn);
-            vecIn = conv::PoolMaxAvg(iPoolType, vecIn, iChannCnt, iFilterElemCnt, iPoolType == NEUNET_POOL_MAX ? setPoolMaxPos[iBatSzIdx] : setTemp);
-        }
-    }
+    callback_matrix void ForProp(neunet_vect &vecIn, uint64_t iBatSzIdx = NULL, bool bTrainFlag = true) { switch (iPoolType) {
+        case NEUNET_POOL_GAG: vecIn = conv::PoolGlbAvg(vecIn); break;
+        case NEUNET_POOL_AVG: vecIn = conv::PoolAvg(vecIn, setCaffeData, iFilterElemCnt, iCaffeLnCnt); break;
+        case NEUNET_POOL_MAX: vecIn = conv::PoolMax(vecIn, setCaffeData, iFilterElemCnt, iCaffeLnCnt, setElemIdx[iBatSzIdx], bTrainFlag) ; break;
+        default: break;
+    } }
 
-    callback_matrix void BackProp(neunet_vect &vecGrad, uint64_t iBatSzIdx) {
-        if (iPoolType == NEUNET_POOL_GAG) vecGrad = conv::GradLossToPoolGlbAvgChann(vecGrad, iInElemCnt);
-        else {
-            net_set<net_list<matrix::pos>> setTemp;
-            vecGrad = conv::GradLossToPoolMaxAvgCaffeInput(iPoolType, vecGrad, iFilterElemCnt, iPoolType == NEUNET_POOL_MAX ? setPoolMaxPos[iBatSzIdx] : setTemp);
-            LayerCaffe::BackProp(vecGrad);
-        }
-    }
+    callback_matrix void BackProp(neunet_vect &vecGrad, uint64_t iBatSzIdx) { switch (iPoolType) {
+        case NEUNET_POOL_GAG: vecGrad = conv::GradLossToPoolGlbAvgChann(vecGrad, iInElemCnt); break;
+        case NEUNET_POOL_AVG: vecGrad = conv::GradLossToPoolAvgChann(vecGrad, setCaffeData, iFilterElemCnt, iInElemCnt); break;
+        case NEUNET_POOL_MAX: vecGrad = conv::GradLossToPoolMaxChann(vecGrad, iInElemCnt, setElemIdx[iBatSzIdx]); break;
+        default: break;
+    } }
 
-    callback_matrix void Deduce(neunet_vect &vecIn, uint64_t iBatSzIdx = NULL) { ForProp(vecIn, iBatSzIdx); }
+    callback_matrix void Deduce(neunet_vect &vecIn, uint64_t iBatSzIdx = NULL) { ForProp(vecIn, iBatSzIdx, false); }
 
 
     LayerPool &operator=(const LayerPool &lyrSrc) {
@@ -312,10 +312,10 @@ struct LayerPool : LayerCaffe {
         return *this;
     }
 
-    virtual ~LayerPool() {
+    ~LayerPool() {
         iPoolType      = 0;
         iFilterElemCnt = 0;
-        if (iPoolType == NEUNET_POOL_MAX) setPoolMaxPos.reset();
+        if (iPoolType == NEUNET_POOL_MAX) setElemIdx.reset();
     }
 };
 

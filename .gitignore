@@ -4,6 +4,7 @@ Modernization
 *.pdb
 *.obj
 *.ilk
+*.sln
 x64
 x86
 Src

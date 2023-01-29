@@ -271,7 +271,7 @@ struct layer_pool : layer_caffe {
     uint64_t pool_type       = 0,
              filter_elem_cnt = 0;
 
-    net_set<net_set<net_list<matrix::pos>>> max_pool_pos;
+    net_set<net_set<net_list<uint64_t>>> max_pool_pos;
 };
 typedef std::shared_ptr<layer_pool> layer_pool_ptr;
 
@@ -303,23 +303,21 @@ void layer_shape(layer_pool_ptr src, uint64_t &in_ln_cnt, uint64_t &in_col_cnt, 
     in_col_cnt = src->out_col_cnt;
 }
 
-void layer_forward(layer_pool_ptr src, vect &input, uint64_t bat_sz_idx) {
-    if (src->pool_type == NEUNET_POOL_GAG) input = conv::PoolGlbAvg(input);
-    else input = conv::PoolMaxAvg(src->pool_type, conv::CaffeTransform(input, src->caffe_data, src->caffe_ln_cnt, src->caffe_col_cnt), src->chann_cnt, src->filter_elem_cnt, src->max_pool_pos[bat_sz_idx]);
-}
+void layer_forward(layer_pool_ptr src, vect &input, uint64_t bat_sz_idx, bool trn_flag = true) { switch (src->pool_type) {
+    case NEUNET_POOL_GAG: input = conv::PoolGlbAvg(input); break;
+    case NEUNET_POOL_AVG: input = conv::PoolAvg(input, src->caffe_data, src->filter_elem_cnt, src->caffe_ln_cnt); break;
+    case NEUNET_POOL_MAX: input = conv::PoolMax(input, src->caffe_data, src->filter_elem_cnt, src->caffe_ln_cnt, src->max_pool_pos[bat_sz_idx], trn_flag); break;
+    default: break;
+} }
 
-void layer_backward(layer_pool_ptr src, vect &grad, uint64_t bat_sz_idx) {
-    if (src->pool_type == NEUNET_POOL_GAG) grad = conv::GradLossToPoolGlbAvgChann(grad, src->in_elem_cnt);
-    else grad = conv::CaffeTransform(conv::GradLossToPoolMaxAvgCaffeInput(src->pool_type, grad, src->filter_elem_cnt, src->max_pool_pos[bat_sz_idx]), src->caffe_data, src->in_elem_cnt, src->chann_cnt, true);
-}
+void layer_backward(layer_pool_ptr src, vect &grad, uint64_t bat_sz_idx) { switch (src->pool_type) {
+    case NEUNET_POOL_GAG: grad = conv::GradLossToPoolGlbAvgChann(grad, src->in_elem_cnt); break;
+    case NEUNET_POOL_AVG: grad = conv::GradLossToPoolAvgChann(grad, src->caffe_data, src->filter_elem_cnt, src->in_elem_cnt); break;
+    case NEUNET_POOL_MAX: grad = conv::GradLossToPoolMaxChann(grad, src->in_elem_cnt, src->max_pool_pos[bat_sz_idx]); break;
+    default: break;
+} }
 
-void layer_deduce(layer_pool_ptr src, vect &input) {
-    if (src->pool_type == NEUNET_POOL_GAG) layer_forward(src, input, 0);
-    else {
-        net_set<net_list<matrix::pos>> temp;
-        input = conv::PoolMaxAvg(src->pool_type, conv::CaffeTransform(input, src->caffe_data, src->caffe_ln_cnt, src->caffe_col_cnt), src->chann_cnt, src->filter_elem_cnt, temp);
-    }
-}
+void layer_deduce(layer_pool_ptr src, vect &input) { layer_forward(src, input, 0, false); }
 
 // layer BN
 
@@ -367,7 +365,7 @@ void layer_shape(layer_bn_ptr src, uint64_t chann_cnt, uint64_t batch_size, uint
     if (src->beta_learn_rate) src->beta_nv = src->nesterov_beta.weight(src->beta);
     if (src->gamma_learn_rate) src->gamma_nv = src->nesterov_gamma.weight(src->gamma);
     src->input.init(batch_size, false);
-    BNInitBNData(src->BN_data, batch_size, batch_cnt);
+    src->BN_data.BNDataInit(batch_size, batch_cnt);
 }
 
 void layer_update(layer_bn_ptr src, vect beta_grad, vect gamma_grad) {
@@ -387,7 +385,7 @@ void layer_forward(layer_bn_ptr src, vect &input, uint64_t bat_sz_idx) {
         src->input = BNTrain(src->BN_data, src->input, (src->beta_learn_rate ? src->beta_nv : src->beta), (src->gamma_learn_rate ? src->gamma_nv : src->gamma));
         src->batch_size_cnt = 0;
         src->BN_for_ctrl.thread_wake_all();
-    } else while (src->batch_size_cnt) src->BN_for_ctrl.thread_sleep(1000);
+    } else while (src->batch_size_cnt) src->BN_for_ctrl.thread_sleep(50);
     input = std::move(src->input[bat_sz_idx]);
 }
 
@@ -399,7 +397,7 @@ void layer_backward(layer_bn_ptr src, vect &grad, uint64_t bat_sz_idx) {
         src->back_bat_sz_cnt = 0;
         src->BN_back_ctrl.thread_wake_all();
         layer_update(src, beta_grad, gamma_grad);
-    } else while (src->back_bat_sz_cnt) src->BN_back_ctrl.thread_sleep(1000);
+    } else while (src->back_bat_sz_cnt) src->BN_back_ctrl.thread_sleep(50);
     grad = std::move(src->input[bat_sz_idx]);
 }
 
@@ -495,7 +493,7 @@ int main(int argc, char *argv[], char *envp[]) {
     // learn rate
     long double learn_rate = .4;
     // train & test data batch size
-    uint64_t trn_bat_sz = 125, tst_bat_sz = 125;
+    uint64_t trn_bat_sz = 4, tst_bat_sz = 4;
     // train precision
     long double trn_prec = .1;
     // network status code
@@ -540,8 +538,7 @@ int main(int argc, char *argv[], char *envp[]) {
     /* train & test dataset, built-in data structure "mnist" */
 
     // root directory of mnist dataset
-    // std::string root = "...\\MNIST\\";
-    std::string root = "E:\\VS Code project data\\MNIST\\";
+    std::string root = "...\\MNIST\\";
     // load train & test dataset
     mnist train((root + "train-images.idx3-ubyte").c_str(), (root + "train-labels.idx1-ubyte").c_str()), 
     test((root + "t10k-images.idx3-ubyte").c_str(), (root + "t10k-labels.idx1-ubyte").c_str());

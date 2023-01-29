@@ -632,31 +632,35 @@ void layer_shape(layer_pool_ptr src, uint64_t &in_ln_cnt, uint64_t &in_col_cnt, 
 }
 // 前向傳播
 // forward propagation
-void layer_forward(layer_pool_ptr src, vect &input, uint64_t bat_sz_idx) {
+void layer_forward(layer_pool_ptr src, vect &input, uint64_t bat_sz_idx, bool trn_flag = true) { switch (src->pool_type) {
     // 全局平均池化
     // global average pooling
-    if (src->pool_type == NEUNET_POOL_GAG) input = conv::PoolGlbAvg(input);
-    // 其他池化
-    // other pooling
-    else input = conv::PoolMaxAvg(src->pool_type, conv::CaffeTransform(input, src->caffe_data, src->caffe_ln_cnt, src->caffe_col_cnt), src->chann_cnt, src->filter_elem_cnt, src->max_pool_pos[bat_sz_idx]);
-}
+    case NEUNET_POOL_GAG: input = conv::PoolGlbAvg(input); break;
+    // 平均池化
+    // average pooling
+    case NEUNET_POOL_AVG: input = conv::PoolAvg(input, src->caffe_data, src->filter_elem_cnt, src->caffe_ln_cnt); break;
+    // 最大池化
+    // max pooling
+    case NEUNET_POOL_MAX: input = conv::PoolMax(input, src->caffe_data, src->filter_elem_cnt, src->caffe_ln_cnt, src->max_pool_pos[bat_sz_idx], trn_flag); break;
+    default: break;
+} }
 // 反向傳播
 // backward propagation
-void layer_backward(layer_pool_ptr src, vect &grad, uint64_t bat_sz_idx) {
-    // 池化沒有權重，因此回傳梯度即可。
-    // Since pooling need not use weight, backward propagating the gradient is fine.
-    if (src->pool_type == NEUNET_POOL_GAG) grad = conv::GradLossToPoolGlbAvgChann(grad, src->in_ln_cnt, src->in_col_cnt);
-    else grad = conv::CaffeTransform(conv::GradLossToPoolMaxAvgCaffeInput(src->pool_type, grad, src->filter_elem_cnt, src->max_pool_pos[bat_sz_idx]), src->caffe_data, src->in_elem_cnt, src->chann_cnt, true);
-}
+void layer_backward(layer_pool_ptr src, vect &grad, uint64_t bat_sz_idx) { switch (src->pool_type) {
+    // 全局平均池化
+    // global average pooling
+    case NEUNET_POOL_GAG: grad = conv::GradLossToPoolGlbAvgChann(grad, src->in_elem_cnt); break;
+    // 平均池化
+    // average pooling
+    case NEUNET_POOL_AVG: grad = conv::GradLossToPoolAvgChann(grad, src->caffe_data, src->filter_elem_cnt, src->in_elem_cnt); break;
+    // 最大池化
+    // max pooling
+    case NEUNET_POOL_MAX: grad = conv::GradLossToPoolMaxChann(grad, src->in_elem_cnt, src->max_pool_pos[bat_sz_idx]); break;
+    default: break;
+} }
 // 推導
 // deduce
-void layer_deduce(layer_pool_ptr src, vect &input) {
-    if (src->pool_type == NEUNET_POOL_GAG) layer_forward(src, input, 0);
-    else {
-        net_set<net_list<matrix::pos>> temp;
-        input = conv::PoolMaxAvg(src->pool_type, conv::CaffeTransform(input, src->caffe_data, src->caffe_ln_cnt, src->caffe_col_cnt), src->chann_cnt, src->filter_elem_cnt, temp);
-    }
-}
+void layer_deduce(layer_pool_ptr src, vect &input) { layer_forward(src, input, 0, false); }
 ```
 
 ### `layer_bn`
