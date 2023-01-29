@@ -64,10 +64,10 @@ namespace Core
 
 			bool Equal(const Matrix<T> &matrix)
 			{
-				// return  false;
+				 return  false;
 				//  T *pthis = data->GetRaw<T>();
 				//  T *pm = matrix.data->GetRaw<T>();
-				 return Helper::MatrixHelper::ElementWiseEqual(pthis, elementCount * sizeof(T), pm, matrix.elementCount * sizeof(T));
+				//return Helper::MatrixHelper::ElementWiseEqual(pthis, elementCount * sizeof(T), pm, matrix.elementCount * sizeof(T));
 			}
 			bool ReferenceEqual(const Matrix<T> &matrix)
 			{
