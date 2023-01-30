@@ -4,32 +4,74 @@
 #include "MemoryBlock.hpp"
 #include "Singleton.hpp"
 #include <map>
-#include <forward_list>
+#include <list>
 #include <stdexcept>
 
 namespace Core
 {
     namespace Memory
     {
+        class MemoryStatistics;
+
         template <typename T>
-        using BlockList = std::forward_list<MemoryBlockPtr<T>>;
+        class MemoryFactory;
+
+        template <typename T>
+        using BlockList = std::list<MemoryBlockPtr<T>>;
+
+        template <typename T>
+        using BlockMap = std::map<ui64, MemoryBlockPtr<T>>;
+
+        template <typename Tval, typename TSame>
+        concept IsFacotry = std::is_same<MemoryFactory<Tval>, TSame>::value;
+
+        template <typename Tval, class Tf>
+            requires IsFacotry<Tval, Tf>
+        std::string UnmemGetInfo();
 
         template <typename T>
         class MemoryFactory : public Singleton<MemoryFactory<T>>
         {
             MAKE_SINGLETON(MemoryFactory);
+            friend class MemoryStatistics;
+            friend std::string UnmemGetInfo<T, MemoryFactory<T>>();
 
         private:
-            ui64 MemoryUsed;
+            ui64 MemoryUsed = 0ull;
+            ui64 MemoryFree = 0ull;
             std::map<ui64, BlockList<T>> freeBlocks;
-            std::map<ui64, std::map<ui64, MemoryBlockPtr<T>>> usedBlocks;
+            std::map<ui64, BlockMap<T>> usedBlocks;
 
-            ui64 GetUpperSize(ui64 size)
+            std::string GetInfo()
             {
-                return size;
+                ui64 totfreeBlocks = 0;
+                ui64 totusedBlocks = 0;
+
+                std::string builder = "Memory allocated: " + MemoryFree + MemoryUsed + "\n";
+                builder.append("Memory used: " + MemoryUsed + "\n");
+                builder.append("Memory free: " + MemoryFree + "\n");
+
+                builder.append("Free blocks info: \n");
+                for (auto &free : freeBlocks)
+                {
+                    // builder.append("block size: " + free.first + " count: " + free.second.size() + "\n");
+                }
+
+                builder.append("Used blocks info: \n");
+                for (auto &free : usedBlocks)
+                {
+                    // builder.append("block size: " + free.first + " count: " + free.second.size() + "\n");
+                }
+
+                return builder;
             }
 
         public:
+            MemoryFactory()
+            {
+                MemoryStatistics::Instance()->AddSubscribe(*this);
+            }
+
             bool Recycle = false;
             ui64 MemoryMaxUseable = 8 * 1024ull * 1024ull * 1024ull;
 
@@ -51,26 +93,32 @@ namespace Core
                     BlockList<T> freeList = freeBlocks[blocksize];
                     if (freeList.empty())
                     {
-                        /*std::shared_ptr<MemoryBlock<T>>*/
                         block = std::make_shared<MemoryBlock<T>>(blocksize);
                     }
                     else
                     {
                         block = freeList.front();
                         freeList.pop_front();
+                        MemoryFree -= block->Size();
                     }
                 }
                 else
                 {
                     block = std::make_shared<MemoryBlock<T>>(blocksize);
+                    BlockList<T> list;
+                    freeBlocks.emplace(blocksize, list);
                 }
 
-                std::map<ui64, MemoryBlockPtr<T>> usedBlocksMap;
-                if (usedBlocks.contains(blocksize))
+                BlockMap<T> usedBlocksMap;
+                if (!usedBlocks.contains(blocksize))
+                {
+                    usedBlocks.emplace(blocksize, usedBlocksMap)
+                }
+                else
                 {
                     usedBlocksMap = usedBlocks[blocksize];
                 }
-                usedBlocksMap.emplace(block->id, block);
+                usedBlocksMap[block->id] = block;
                 MemoryUsed += blocksize;
 
                 return block;
@@ -80,18 +128,18 @@ namespace Core
             {
                 ui64 size = block->size;
                 usedBlocks[size].erase(block->id);
-                if (freeBlocks.contains(size))
-                {
-                    freeBlocks[size].emplace_front(block);
-                }
-                else
-                {
-                    BlockList<T> freeList;
-                    freeBlocks[size] = freeList;
-                    freeList.emplace_front(block);
-                }
+                freeBlocks[size].emplace_front(block);
+                MemoryUsed -= block->Size();
+                MemoryFree += block->Size();
             }
         };
+
+        template <typename Tval, class Tf>
+            requires IsFacotry<Tval, Tf>
+        std::string UnmemGetInfo()
+        {
+            return MemoryFactory<Tval>::Instance()->GetInfo();
+        }
     }
 }
 #endif

@@ -1,5 +1,6 @@
 #ifndef __CoreTypes__
 #define __CoreTypes__
+#pragma once
 
 #include <type_traits>
 #include <typeinfo>

@@ -2,6 +2,7 @@
 #define __CORE__MEMORY__
 #include "CoreTypes.hpp"
 #include <memory>
+#pragma once
 
 namespace Core
 {

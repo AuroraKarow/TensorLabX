@@ -1,6 +1,6 @@
 #ifndef __CORE__SINGLETON__
 #define __CORE__SINGLETON__
-
+#pragma once
 #include <memory>
 
 template <class T>

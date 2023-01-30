@@ -1,5 +1,7 @@
 #ifndef __Core__Matrix__
 #define __Core__Matrix__
+#pragma once
+
 #include "CoreTypes.hpp"
 #include "Constants.hpp"
 #include "Helper.hpp"

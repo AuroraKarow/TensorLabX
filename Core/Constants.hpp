@@ -2,6 +2,7 @@
 #include <cmath>
 #ifndef __CORE__CONSTANTS__
 #define __CORE__CONSTANTS__
+#pragma once
 
 namespace Core
 {

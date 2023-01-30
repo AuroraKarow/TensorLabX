@@ -1,5 +1,6 @@
 #include "CoreTypes.hpp"
 #include "Matrix.hpp"
+#include "MemoryStatistics.hpp"
 #include <iostream>
 using namespace std;
 using namespace Core::Data;
@@ -18,10 +19,17 @@ void TestSingleton() noexcept
         << Constant->Pi << std::endl;
 }
 
+void TestMemoryStatistics();
+
 int main()
 {
     TestMatrixReferenceEqual();
     TestSingleton();
-    std::cout << "All tests run completed!";
+    TestMemoryStatistics();
+    std::cout << "All tests run completed!\n";
     return EXIT_SUCCESS;
+}
+
+void TestMemoryStatistics(){
+    std::cout << Core::Memory::MemoryStatistics::Instance()->GetInfo();
 }
