@@ -54,16 +54,16 @@ namespace Core
                         << "Memory free: " << MemoryFree << std::endl;
 
                 builder << "Free blocks info:" << std::endl;
-                for (auto &free : freeBlocks)
-                {
-                    // builder.append("block size: " + free.first + " count: " + free.second.size() + "\n");
-                }
+                // for (auto &free : freeBlocks)
+                // {
+                //     // builder.append("block size: " + free.first + " count: " + free.second.size() + "\n");
+                // }
 
-                builder << "Used blocks info:" << std::endl;
-                for (auto &free : usedBlocks)
-                {
-                    // builder.append("block size: " + free.first + " count: " + free.second.size() + "\n");
-                }
+                // builder << "Used blocks info:" << std::endl;
+                // for (auto &free : usedBlocks)
+                // {
+                //     // builder.append("block size: " + free.first + " count: " + free.second.size() + "\n");
+                // }
 
                 return builder.str();
             }
@@ -95,7 +95,7 @@ namespace Core
 
                 if (freeBlocks.contains(blocksize))
                 {
-                    BlockList<T> freeList = freeBlocks[blocksize];
+                    BlockList<T> &freeList = freeBlocks[blocksize];
                     if (freeList.empty())
                     {
                         block = std::make_shared<MemoryBlock<T>>(blocksize);
@@ -110,20 +110,19 @@ namespace Core
                 else
                 {
                     block = std::make_shared<MemoryBlock<T>>(blocksize);
-                    BlockList<T> list;
-                    freeBlocks.emplace(blocksize, list);
+                    freeBlocks.emplace(blocksize, BlockList<T>());
                 }
 
-                BlockMap<T> usedBlocksMap;
+                BlockMap<T> *usedBlocksMap;
                 if (!usedBlocks.contains(blocksize))
                 {
                     usedBlocks.emplace(blocksize, usedBlocksMap)
                 }
                 else
                 {
-                    usedBlocksMap = usedBlocks[blocksize];
+                    usedBlocksMap = &usedBlocks[blocksize];
                 }
-                usedBlocksMap[block->id] = block;
+                usedBlocksMap[block->Id()] = block;
                 MemoryUsed += blocksize;
 
                 return block;
@@ -131,11 +130,11 @@ namespace Core
 
             void ReturnBlock(MemoryBlockPtr<T> &block)
             {
-                ui64 size = block->size;
-                usedBlocks[size].erase(block->id);
-                freeBlocks[size].emplace_front(block);
-                MemoryUsed -= block->Size();
-                MemoryFree += block->Size();
+                ui64 size = block->Size();
+                this->usedBlocks[size].erase(block->id);
+                this->freeBlocks[size].emplace_front(block);
+                MemoryUsed -= size;
+                MemoryFree += size;
             }
         };
 

@@ -21,6 +21,7 @@
         "fc": "cpp",
         "conv": "cpp",
         "bn": "cpp",
-        "net_tree": "cpp"
+        "net_tree": "cpp",
+        "*.hpp": "cpp",
     }
 }

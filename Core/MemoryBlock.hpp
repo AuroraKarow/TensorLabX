@@ -46,6 +46,11 @@ namespace Core
                 return reinterpret_cast<T*>(block.get());
             }
 
+            ui64 Id() const
+            {
+                return id;
+            }
+
             ui64 Size() const
             {
                 return size;
