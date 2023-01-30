@@ -78,6 +78,9 @@ namespace Core
             ui64 MemoryMaxUseable = 8 * 1024ull * 1024ull * 1024ull;
 
             void Sort() {}
+            ui64 GetUpperSize(ui64 s){
+                return s;
+            }
 
             std::shared_ptr<MemoryBlock<T>> GetBlock(ui64 count)
             {
