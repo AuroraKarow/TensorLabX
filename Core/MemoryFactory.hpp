@@ -113,16 +113,13 @@ namespace Core
                     freeBlocks.emplace(blocksize, BlockList<T>());
                 }
 
-                BlockMap<T> *usedBlocksMap;
                 if (!usedBlocks.contains(blocksize))
                 {
-                    usedBlocks.emplace(blocksize, usedBlocksMap)
+                    usedBlocks.emplace(blocksize, BlockMap<T>());
                 }
-                else
-                {
-                    usedBlocksMap = &usedBlocks[blocksize];
-                }
-                usedBlocksMap[block->Id()] = block;
+                BlockMap<T> usedBlocksMap = usedBlocks[blocksize];
+
+                usedBlocksMap.emplace(block->Id(), block);
                 MemoryUsed += blocksize;
 
                 return block;

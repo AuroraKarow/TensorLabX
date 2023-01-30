@@ -31,6 +31,12 @@ namespace Core
                 block = std::make_shared<T[]>(_size);
             }
 
+            MemoryBlock(std::shared_ptr<T[]> p, ui64 _size) : id(++iid)
+            {
+                size = _size;
+                block = p;
+            }
+
             ~MemoryBlock()
             {
             }
@@ -40,10 +46,10 @@ namespace Core
                 return block;
             }
 
-            const T *GetRaw() 
+            const T *GetRaw()
             {
                 auto p = block.get();
-                return reinterpret_cast<T*>(block.get());
+                return reinterpret_cast<T *>(block.get());
             }
 
             ui64 Id() const
@@ -75,7 +81,7 @@ namespace Core
                 return _copy;
             }
 
-            bool operator==(MemoryBlock<T> _mb)
+            bool operator==(MemoryBlock<T> &_mb)
             {
                 if (this == &_mb)
                 {
@@ -84,9 +90,14 @@ namespace Core
                 return block == _mb.block;
             }
 
-            bool operator!=(MemoryBlock<T> _mb)
+            bool operator!=(MemoryBlock<T> &_mb)
             {
                 return !(*this == _mb);
+            }
+
+            MemoryBlock<T> operator=(MemoryBlock<T> &_mb)
+            {
+                return MemoryBlock(_mb->block, _mb.size);
             }
         };
 
