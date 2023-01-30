@@ -6,6 +6,7 @@
 #include <map>
 #include <list>
 #include <stdexcept>
+#include <sstream>
 
 namespace Core
 {
@@ -47,23 +48,24 @@ namespace Core
                 ui64 totfreeBlocks = 0;
                 ui64 totusedBlocks = 0;
 
-                std::string builder = "Memory allocated: " + MemoryFree + MemoryUsed + "\n";
-                builder.append("Memory used: " + MemoryUsed + "\n");
-                builder.append("Memory free: " + MemoryFree + "\n");
+                std::stringstream builder;
+                builder << "Memory allocated: " << MemoryFree + MemoryUsed << std::endl
+                        << "Memory used: " << MemoryUsed << std::endl
+                        << "Memory free: " << MemoryFree << std::endl;
 
-                builder.append("Free blocks info: \n");
+                builder << "Free blocks info:" << std::endl;
                 for (auto &free : freeBlocks)
                 {
                     // builder.append("block size: " + free.first + " count: " + free.second.size() + "\n");
                 }
 
-                builder.append("Used blocks info: \n");
+                builder << "Used blocks info:" << std::endl;
                 for (auto &free : usedBlocks)
                 {
                     // builder.append("block size: " + free.first + " count: " + free.second.size() + "\n");
                 }
 
-                return builder;
+                return builder.str();
             }
 
         public:
