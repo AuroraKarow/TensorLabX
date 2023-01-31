@@ -8,6 +8,7 @@
 #include <typeinfo>
 #include <map>
 #include <functional>
+#include <sstream>
 
 namespace Core
 {
@@ -18,7 +19,8 @@ namespace Core
             MAKE_SINGLETON(MemoryStatistics);
 
         private:
-            std::map<size_t, std::function<std::string()>> infoInvoker;
+            std::map<size_t, std::function<std::string()>> strInfoInvoker;
+            std::map<size_t, std::function<FactoryInfo()>> infoInvoker;
             std::map<size_t, std::string> typeNames;
 
         public:
@@ -32,26 +34,35 @@ namespace Core
                 const std::type_info &t = typeid(Tval);
                 size_t hash = t.hash_code();
                 typeNames.emplace(hash, t.name());
-                auto ii = UnmemGetInfo<Tval, MemoryFactory<Tval>>;
+                auto strii = UnmemberedGetInfo<Tval, MemoryFactory<Tval>>;
+                auto ii = UnmemberedGetFInfo<Tval, MemoryFactory<Tval>>;
+                strInfoInvoker.emplace(hash, strii);
                 infoInvoker.emplace(hash, ii);
             }
 
             std::string GetInfo()
             {
-                std::string builder;
+                std::ostringstream builder;
                 ui64 totUsed = 0;
                 ui64 totFree = 0;
                 for (auto &t : this->typeNames)
                 {
                     size_t hash = t.first;
-                    builder.append("MemoryFactory<" + t.second + ">");
-                    builder.append("\n" + infoInvoker[hash]() + "\n");
-                }
+                    builder << "MemoryFactory<" << t.second << ">"
+                            << std::endl
+                            << strInfoInvoker[hash]() << std::endl;
 
-                return builder;
+                    auto info = infoInvoker[hash]();
+                    totUsed += info.used;
+                    totFree += info.free;
+                }
+                builder << "Summary:" << std::endl
+                        << "Total Used Bytes: " << totUsed << std::endl
+                        << "Total Free Bytes: " << totFree << std::endl
+                        << "Total Bytes: " << totUsed + totFree << std::endl;
+                return builder.str();
             }
         };
-
     } // Memory
 } // CORE
 
