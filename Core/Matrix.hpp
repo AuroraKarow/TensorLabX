@@ -1,6 +1,6 @@
 #ifndef __Core__Matrix__
 #define __Core__Matrix__
-#pragma once
+
 
 #include "CoreTypes.hpp"
 #include "Constants.hpp"
@@ -111,11 +111,11 @@ namespace Core
 			T Sum()
 			{
 				T sum = T();
-				// T* p = data->GetRaw();
-				//  for (ui64 i = 0; i < elementCount; i++)
-				//  {
-				//  	sum += p[i]
-				//  }
+				const T* p = data->GetRaw();
+				 for (ui64 i = 0; i < elementCount; i++)
+				 {
+				 	sum += p[i];
+				 }
 
 				return sum;
 			}
@@ -129,28 +129,28 @@ namespace Core
 				this->col = 0;
 				this->row = 0;
 				this->elementCount = 0;
-				// this->data.reset();
+				this->data->reset();
 			}
 			void move(Matrix<T> &&_m)
 			{
 				col = _m.col;
 				row = _m.row;
 				elementCount = _m.elementCount;
-				// data = std::move(_m.data);
+				data = std::move(_m.data);
 			}
 			void copy(const Matrix<T> &_m)
 			{
 				col = _m.col;
 				row = _m.row;
 
-				// if (elementCount >= _m.elementCount)
-				// {
-				// 	data->CopyFrom(_m);
-				// }
-				// else
-				// {
-				// 	data = _m.data->Clone();
-				// }
+				if (elementCount >= _m.elementCount)
+				{
+					data->CopyFrom(_m);
+				}
+				else
+				{
+					data = _m.data->Clone();
+				}
 				elementCount = _m.elementCount;
 			}
 		};

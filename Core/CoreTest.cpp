@@ -4,6 +4,10 @@
 #include <iostream>
 using namespace std;
 using namespace Core::Data;
+
+void TestMatrix();
+void TestMatrixSum();
+
 void TestMatrixReferenceEqual()
 {
     Matrix<int> m1(5, 5);
@@ -23,13 +27,26 @@ void TestMemoryStatistics();
 
 int main()
 {
-    TestMatrixReferenceEqual();
+    TestMatrix();
     TestSingleton();
     TestMemoryStatistics();
     std::cout << "All tests run completed!\n";
     return EXIT_SUCCESS;
 }
 
-void TestMemoryStatistics(){
+void TestMatrix()
+{
+    TestMatrixReferenceEqual();
+    TestMatrixSum();
+}
+
+void TestMatrixSum()
+{
+    Matrix<f32> m(5, 5);
+    _ASSERT(m.Sum() == 0);
+}
+
+void TestMemoryStatistics()
+{
     std::cout << Core::Memory::MemoryStatistics::Instance()->GetInfo();
 }

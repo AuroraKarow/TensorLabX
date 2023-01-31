@@ -46,7 +46,7 @@ namespace Core
                 return block;
             }
 
-            const T *GetRaw()
+            const T *GetRaw() const
             {
                 auto p = block.get();
                 return reinterpret_cast<T *>(block.get());
@@ -65,13 +65,13 @@ namespace Core
             void CopyFrom(const MemoryBlock<T> &source)
             {
                 ui64 sizeForCopy = size >= source.Size() ? size : source.Size();
-                // std::memcpy(block.get(), source.GetRaw<void>(), sizeForCopy);
+                std::memcpy(block.get(), source.GetRaw(), sizeForCopy);
             }
 
             MemoryBlock<T> &Clone()
             {
-                MemoryBlock<T> _copy(size);
-                // std::memcpy(block.get(), _copy.block.get(), size);
+                auto _copy = MemoryFactory<T>::Instance()->GetBlock(size);
+                std::memcpy(block.get(), _copy->GetRaw(), size);
                 return _copy;
             }
 
@@ -79,6 +79,11 @@ namespace Core
             {
                 MemoryBlock<T> _copy(size);
                 return _copy;
+            }
+
+            void Reset()
+            {
+                memset(block.get(), 0, sizeof(T) * size);
             }
 
             bool operator==(MemoryBlock<T> &_mb)
