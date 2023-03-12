@@ -212,7 +212,10 @@ protected:
             _ptr_col_cnt(ptr_len) {}
         
         matrix_elem_t &operator[](uint64_t col) const {
-            assert(col < _ptr_col_cnt);
+            net_assert(col < _ptr_col_cnt,
+                       "net_matrix::line_date",
+                       "[]",
+                       "Column index should be less than column count.");
             return *(_buf_ptr_->ptr + _ptr_ln_ * _ptr_col_cnt + col);
         }
         
@@ -351,7 +354,10 @@ public:
     }
 
     matrix_elem_t &index(uint64_t idx) const {
-        assert(idx < elem_cnt);
+        net_assert(idx < elem_cnt,
+                   "net_matrix",
+                   "index",
+                   "Pointer index should be less than pointer length.");
         return *(ptr + idx);
     }
 
@@ -388,31 +394,46 @@ public:
     uint64_t __elem_cnt__() const { return elem_cnt; }
     
     matrix_elem_t __determinant__() const {
-        assert(ln_cnt == col_cnt);
+        net_assert(ln_cnt == col_cnt,
+                   "net_matrix",
+                   "determinant",
+                   "Line & column count should be equal.");
         return det(ptr, ln_cnt);
     }
 
     net_matrix __inverse_() const {
-        assert(ln_cnt == col_cnt);
+        net_assert(ln_cnt == col_cnt,
+                   "net_matrix",
+                   "determinant",
+                   "Line & column count should be equal.");
         return net_matrix(inverser(ptr, ln_cnt), ln_cnt, col_cnt);
     }
 
     net_matrix __tranpose__() const { return net_matrix(transposition(ptr, ln_cnt, col_cnt), col_cnt, ln_cnt); }
 
     matrix_elem_t __atom__() const {
-        assert(ln_cnt == col_cnt && ln_cnt == 1);
+        net_assert(ln_cnt == col_cnt && ln_cnt == 1,
+                   "net_matrix",
+                   "determinant",
+                   "Line & column count should equal to 1.");
         return *ptr;
     }
 
     net_matrix __abs__() const { return net_matrix(absolute(ptr, elem_cnt), ln_cnt, col_cnt); }
 
     net_matrix __LU_decompose__() const {
-        assert(ln_cnt == col_cnt);
+        net_assert(ln_cnt == col_cnt,
+                   "net_matrix",
+                   "determinant",
+                   "Line & column count should be equal.");
         return net_matrix(LU(ptr, ln_cnt), ln_cnt, col_cnt);
     }
 
     net_matrix __adjugation__() const {
-        assert(ln_cnt == col_cnt);
+        net_assert(ln_cnt == col_cnt,
+                   "net_matrix",
+                   "determinant",
+                   "Line & column count should be equal.");
         return net_matrix(adjugate(ptr, ln_cnt), ln_cnt, col_cnt);
     }
 
@@ -532,7 +553,10 @@ public:
     }
 
     line_data operator[](uint64_t ln) const {
-        assert(ln < ln_cnt);
+        net_assert(ln < ln_cnt,
+                   "net_matrix",
+                   "[]",
+                   "Line index should be less than line count.");
         return line_data(this, ln, col_cnt);
     }
 

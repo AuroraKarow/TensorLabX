@@ -434,7 +434,7 @@ protected:
 public:
     net_tree(hash_fn_t<k_arg> hash_func = hash_in_built) :
         p_hash_fn(hash_func) {}
-    net_tree(init_list_kv_t<k_arg, arg> init_list, hash_fn_t<k_arg> hash_func = hash_in_built) : net_tree(hash_func) { assert(insert(init_list) == NEUNET_INSERT_SUCCESS); }
+    net_tree(init_list_kv_t<k_arg, arg> init_list, hash_fn_t<k_arg> hash_func = hash_in_built) : net_tree(hash_func) { net_assert(insert(init_list) == NEUNET_INSERT_SUCCESS, "net_tree", "net_tree", "Tree initializing failed."); }
     net_tree(const net_tree &src) { value_copy(src); }
     net_tree(net_tree &&src) { value_move(std::move(src)); }
 
@@ -517,7 +517,10 @@ public:
     
     arg &get_value(uint64_t hash_key) const {
         auto tgt_leaf = net_leaf_find(root, hash_key);
-        assert(tgt_leaf && tgt_leaf->hash_key == hash_key);
+        net_assert(tgt_leaf && tgt_leaf->hash_key == hash_key,
+                   "net_tree",
+                   "get_value",
+                   "Hash key is invalid.");
         return tgt_leaf->elem.value;
     }
 

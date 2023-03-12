@@ -274,7 +274,10 @@ public:
         auto curr_hash = p_hash_fn(key),
              curr_idx  = 0ull,
              find_res  = hash_key_verify(curr_idx, curr_hash);
-        assert(find_res != NEUNET_HASH_NOT_FOUND);
+        net_assert(find_res != NEUNET_HASH_NOT_FOUND,
+                   "net_map",
+                   "[]",
+                   "Hash key could not be found.");
         if (find_res == NEUNET_HASH_EXIST_BACK) return kv_data[backup][curr_idx].get_value(curr_hash);
         else return kv_data[!backup][curr_idx].get_value(curr_hash);
     }

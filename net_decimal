@@ -14,6 +14,8 @@
 #define NEUNET_DEC_DIG_MAX  0x0000000000000013
 #define NEUNET_DEC_SEG_MAX  0x8ac7230489e80000
 
+#define number_arg          = std::enable_if_t<std::is_floating_point_v<arg> || std::is_integral_v<arg>>
+
 #define callback_dec_arg    template <typename arg, typename number_arg>
 
 #include "net_decimal.hpp"

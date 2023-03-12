@@ -3,6 +3,8 @@
 #ifndef __NET_SET__
 #define __NET_SET__
 
+#define NEUNET_CACHE_LEN    128
+
 #include "net_base"
 #include "net_set.hpp"
 

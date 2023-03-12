@@ -1,29 +1,30 @@
 #pragma once
-#include "iostream"
-#include "net_decimal"
+#include "async"
+#include "string"
 #include "matrix"
+#include "net_decimal"
 
-using neunet::vect_dec;
+template<typename arg> using seq = neunet::net_sequence<arg>;
 
 using decimal = neunet::net_decimal;
 
-template <typename T> using set = neunet::net_set<T>;
-template <typename T> using seq = neunet::net_sequence<T>;
+using namespace neunet::async;
+using neunet::vect;
 
 bool isZero(seq<decimal> &D);
 seq<decimal> cutZero(seq<decimal> &aim);
 void tellMuls(seq<decimal> &A, seq<decimal> &B);
-vect_dec lineSum(vect_dec &input);
+vect lineSum(vect &input);
 
 seq<seq<decimal>> modX(uint64_t Size, seq<decimal> D = seq<decimal>(0, 0), decimal value = 1);
 seq<decimal> ModuloInverse(seq<decimal> &_Data_U, seq<decimal> &_Data_V);
 seq<seq<seq<decimal>>> OutAG(seq<decimal> &_base, uint64_t a, uint64_t g);
 seq<decimal> OutB(seq<decimal> &_base, uint64_t p);
-vect_dec svChange(seq<decimal> &_matrix, uint64_t ln_s);
-seq<vect_dec> OutWinoVect(uint64_t data_ls, uint64_t conv_ls);
-vect_dec multiMatrix(seq<vect_dec> &_multiABG, vect_dec &_data, vect_dec & _kernel, uint64_t data_ls, uint64_t ker_ls);
-vect_dec ConvWinograd(seq<vect_dec> &_multiABG, vect_dec &_Data, vect_dec &_Kernel);
-vect_dec chaI(vect_dec a);
+vect svChange(seq<decimal> &_matrix, uint64_t ln_s);
+seq<vect> OutWinoVect(uint64_t data_ls, uint64_t conv_ls);
+vect multiMatrix(seq<vect> &_multiABG, vect &_data, vect & _kernel, uint64_t data_ls, uint64_t ker_ls);
+vect ConvWinograd(seq<vect> &_multiABG, vect &_Data, vect &_Kernel);
+vect chaI(vect a);
 
 
 // class polynomial{
@@ -108,8 +109,8 @@ void tellMuls(seq<decimal> &A, seq<decimal> &B){
     }
 }
 
-vect_dec lineSum(vect_dec &input){
-    vect_dec out(input.line_count, 1);
+vect lineSum(vect &input){
+    vect out(input.line_count, 1);
     for(auto m = 0; m < input.line_count; m++){ out[m][0] = input.elem_sum(m, m, 0, input.column_count - 1, 0, 0); }
     return out;
 }
@@ -121,7 +122,7 @@ private:
     seq<decimal> Inp, inp, outp, outm, outmt, outd, outmd, outl, zero;
     seq<seq<decimal>> Idata, idata, tdata;
 
-    /*vect_dec indata, Data_t, Out, Ker;
+    /*vect indata, Data_t, Out, Ker;
     uint64_t kl, kc, ks, cnl, Dl, Dc, C, Ol;
     seq<uint64_t> size, Ks;
     
@@ -131,7 +132,7 @@ private:
         return e;
     }
 
-    vect_dec intc(vect_dec c){
+    vect intc(vect c){
         c *= 10;
         for(uint64_t i = 0; i < c.ELEM_CNT; i++){ c.pos_idx(i) = (int)c.pos_idx(i); }
         return c;
@@ -417,11 +418,11 @@ public:
 
     ~polynomial(){ reset(); }
 
-    /*vect_dec Cal(vect_dec D, vect_dec K, uint64_t E, vect_dec DD = {}, vect_dec DK = {}, int c = -1){
+    /*vect Cal(vect D, vect K, uint64_t E, vect DD = {}, vect DK = {}, int c = -1){
         //std::cout << std::endl << "D:" << std::endl << D << std::endl << "K:" << std::endl << K << std::endl << "DD:" << std::endl << DD << std::endl << "DK:" << std::endl << DK << std::endl << "COUNT:" << std::endl << c << std::endl;
         if(E == 0){ return D.elem_cal_opt(K, MATRIX_ELEM_MULT); }
         else{
-            seq<vect_dec> M;
+            seq<vect> M;
             M.init(4);
             E--;
             //std::cout << "POW:" << pow(3, E) << std::endl << std::endl;
@@ -471,21 +472,21 @@ public:
         uint64_t lp(0), cp(0);
         std::cout << "Size:" << std::endl;
         std::cout << Wino_cha() << std::endl;
-        vect_dec Ker(size[1] * size[2], 1, true);
+        vect Ker(size[1] * size[2], 1, true);
         Ker = intc(Ker);
         indata = intc(indata);
         std::cout << std::endl << "INDATA: " << std::endl << indata << std::endl;
         indata = conv::Im2ColFeaturePad(indata.reshape(C, cnl), Dl, Dc, Dl, Dc, size[3] - Dl, size[4] - Dc, 0, 0, 0, 0);
-        vect_dec data(indata.ELEM_CNT, 1, true);
+        vect data(indata.ELEM_CNT, 1, true);
         data = intc(data);
         Data_t = conv::Im2ColInputTransform(data, Ol, Dl, size[1], size[2], size[1]/3, size[2]/3, 0, 0, 0, 0, 0, 0, 0, 0);
         std::cout << "DATA:" << std::endl << Data_t.line_count << std::endl << Data_t.column_count << std::endl;
         std::cout << "K:" << std::endl << Data_t.child(0, 7, 80, 107, 0, 0).child(0, 3, 9, 17, 0, 0) << std::endl << std::endl << Data_t.child(0, 7, 80, 107, 0, 0).child(4, 7, 0, 8, 0, 0) << std::endl;
         //std::cout << Data_t << std::endl;
-        vect_dec cal = Cal(Data_t, Ker, size[0]);
+        vect cal = Cal(Data_t, Ker, size[0]);
         std::cout << std::endl << "CAL:" << std::endl << cal << std::endl << std::endl;
         std::cout << "CAL_Size:" << std::endl << cal.line_count << std::endl << std::endl;
-        vect_dec conv_c = conv::ConvIm2Col(Data_t, Ker);
+        vect conv_c = conv::ConvIm2Col(Data_t, Ker);
         std::cout << "CONV_C:" << std::endl << conv_c << std::endl << std::endl;
         return 0;
     }*/
@@ -531,6 +532,52 @@ public:
     }*/
 
 };
+
+
+seq<long double> minus_p(seq<long double> &inp0, seq<long double> &inp1, long double value, uint64_t p, int radix){
+    int ans;
+    for(int x = inp1.length - 1; x >= 0; x--){
+                    ans = inp0[p + x + 1] + radix * inp0[p + x] - value * inp1[x];
+                    inp0[p + x] = (int)(ans / radix);
+                    inp0[p + x + 1] = (int)(ans % radix);
+    }
+}
+
+
+
+seq<long double> divide_poly(seq<long double> &_inp0, seq<long double> &_inp1, int mode=0, uint64_t radix=10, uint64_t bt=0){
+        seq<long double> inp0 = _inp0, inp1 = _inp1;
+        seq<long double> outd;
+        inp0 = cutZero(inp0);
+        inp1 = cutZero(inp1);
+        if(isZero(inp1)){ return zero; }
+        if(mode == 0) {
+            outd.init(inp0.length - inp1.length + 1);
+            for(int a = 0; a < outd.length; a++){
+                outd[outd.length - a - 1] = inp0[inp0.length - a - 1] / inp1[inp1.length - 1]; 
+                for(int b = 1; b <= inp1.length; b++){
+                    inp0[inp0.length - a - b] -= outd[outd.length - a - 1] * inp1[inp1.length - b];
+                }
+            }
+        }
+        else {
+            outd.init(inp0.length - inp1.length + 1 + bt);
+            inp0.insert(0, 0);
+            for(int a = 0; a < outd.length; a++){
+                inp0.incert(inp0.length, 0);
+                outd[a] = (int)((inp0[a + 1] + radix * inp0[a]) / (inp1[0] + inp1[0] / fabs(inp1[0])));  
+                if(outd[a] == 0){ continue; }
+                minus_p(inp0, inp1, out[a], a, radix);
+            }
+            while(outd[a + 1] != 0 || fabs(inp0[a + 1]) > fabs(inp1[0])){
+                outd[a] += outd[a] / fabs(outd[a]) * 2;
+                minus_p(inp0, inp1, 2, a, radix);
+            }
+            if(inp0[a + 1] == 0){ continue; }
+            int t = (int)(inp1[0] / inp0[a + 1]) / fabs((int)(inp1[0] / inp0[a + 1]));
+            minus_p(inp0, inp1, outd[a] / fabs(outd[a]) * t, a, radix);
+        }
+}
 
 
 seq<seq<decimal>> modX(uint64_t Size, seq<decimal> D, decimal value){
@@ -645,11 +692,11 @@ seq<decimal> OutB(seq<decimal> &_base, uint64_t p){
 }
 
 
-vect_dec svChange(seq<decimal> &_matrix, uint64_t ln_s){
+vect svChange(seq<decimal> &_matrix, uint64_t ln_s){
     //extract_number()
     seq<decimal> matrix = _matrix;
     uint64_t col = matrix.size() / ln_s;
-    vect_dec V(ln_s, col);
+    vect V(ln_s, col);
     for(uint64_t l = 0; l < ln_s; l++){
         for(uint64_t c = 0; c < col; c++){
             V[l][c] = matrix[c + l * col];
@@ -659,11 +706,11 @@ vect_dec svChange(seq<decimal> &_matrix, uint64_t ln_s){
 }
 
 
-seq<vect_dec> OutWinoVect(uint64_t data_ls, uint64_t conv_ls){
+seq<vect> OutWinoVect(uint64_t data_ls, uint64_t conv_ls){
     int K = 0;
     seq<seq<seq<decimal>>> OUT;
-    vect_dec A, G, B;
-    seq<vect_dec> AGB;
+    vect A, G, B;
+    seq<vect> AGB;
     seq<decimal> Base = {0, 1};
     uint64_t num;
     uint64_t S = data_ls - conv_ls + 1;
@@ -682,11 +729,11 @@ seq<vect_dec> OutWinoVect(uint64_t data_ls, uint64_t conv_ls){
 }
 
 
-vect_dec multiMatrix(seq<vect_dec> &_multiABG, vect_dec &_data, vect_dec & _kernel, uint64_t data_ls, uint64_t ker_ls){
-    vect_dec data = _data, kernel = _kernel;
+vect multiMatrix(seq<vect> &_multiABG, vect &_data, vect & _kernel, uint64_t data_ls, uint64_t ker_ls){
+    vect data = _data, kernel = _kernel;
     // std::cout << "Data:" << std::endl << data << std::endl;
     // std::cout << "Kernel:" << std::endl << kernel << std::endl;
-    seq<vect_dec> matrix, multi = _multiABG;
+    seq<vect> matrix, multi = _multiABG;
     data = data.transpose;
     kernel = kernel.transpose;
     uint64_t Ln_s = data_ls - ker_ls + 1;
@@ -694,28 +741,28 @@ vect_dec multiMatrix(seq<vect_dec> &_multiABG, vect_dec &_data, vect_dec & _kern
     for(uint64_t m = 0; m < Ln_s; m++){
         for(uint64_t n = 0; n < ker_ls; n++){
             // std::cout << std::endl << m * ker_ls + n << std::endl;
-            // vect_dec A = multi[1] * data.child(0, data.line_count - 1, (m + n) * data.column_count / data_ls, (m + n + 1) * data.column_count / data_ls - 1, 0, 0), B = multi[2] * kernel.child(0, kernel.line_count - 1, n * kernel.column_count / ker_ls, (n + 1) * kernel.column_count / ker_ls - 1, 0, 0);
+            // vect A = multi[1] * data.child(0, data.line_count - 1, (m + n) * data.column_count / data_ls, (m + n + 1) * data.column_count / data_ls - 1, 0, 0), B = multi[2] * kernel.child(0, kernel.line_count - 1, n * kernel.column_count / ker_ls, (n + 1) * kernel.column_count / ker_ls - 1, 0, 0);
             // std::cout << "A:" << std::endl << A << std::endl;
             // std::cout << "B:" << std::endl << B << std::endl;
             // std::cout << "AB:" << std::endl << A.elem_cal_opt(B, MATRIX_ELEM_MULT) << std::endl;
             matrix[m * ker_ls + n] = multi[0] * (multi[1] * data.child(0, data.line_count - 1, (m + n) * data.column_count / data_ls, (m + n + 1) * data.column_count / data_ls - 1, 0, 0)).elem_wise_opt(multi[2] * kernel.child(0, kernel.line_count - 1, n * kernel.column_count / ker_ls, (n + 1) * kernel.column_count / ker_ls - 1, 0, 0), MATRIX_ELEM_MULT);
         }
     }
-    return vect_dec(matrix, Ln_s, ker_ls);
+    return vect(matrix, Ln_s, ker_ls);
 }
 
 
-vect_dec ConvWinograd(seq<vect_dec> &_multiABG, vect_dec &_Data, vect_dec &_Kernel){
+vect ConvWinograd(seq<vect> &_multiABG, vect &_Data, vect &_Kernel){
     uint64_t Data_ls = _Data.line_count, Ker_ls = _Kernel.line_count;
-    vect_dec convolution, Data = _Data, kernel = _Kernel;
-    seq<vect_dec> multi = _multiABG; 
+    vect convolution, Data = _Data, kernel = _Kernel;
+    seq<vect> multi = _multiABG; 
     convolution = multiMatrix(multi, Data, kernel, Data_ls, Ker_ls);
     convolution = lineSum(convolution);
     return convolution;
 }
 
 
-vect_dec chaI(vect_dec a){
+vect chaI(vect a){
     for(uint64_t m = 0; m < a.line_count; m++){
         for(uint64_t n = 0; n < a.column_count; n++){
             a[m][n] = (int)(a[m][n] * 10);
@@ -749,10 +796,10 @@ int main(){
     Mul.C_IM(b);
     std::string s = "12354";
     std::cout << "S->Number" << std::endl << stoi(s) << std::endl; 
-    // vect_dec data, ker;
-    // seq<vect_dec> abg;
-    // data = chaI(vect_dec(19, 19, true));
-    // ker = chaI(vect_dec(12, 12, true));
+    // vect data, ker;
+    // seq<vect> abg;
+    // data = chaI(vect(19, 19, true));
+    // ker = chaI(vect(12, 12, true));
     // abg = OutWinoVect(19, 12);
     // std::cout << abg << std::endl;
     // //std::cout << OutWinoVect(4, 3)[0].child(1, 1, 0, OutWinoVect(4, 3)[0].column_count - 1, 0, 0) << std::endl;
@@ -761,14 +808,14 @@ int main(){
     // set<std::future<bool>> sgn(3);
     // async_concurrent concurr(3);
     // async_batch batch(3);
-    // auto func_ptr = package_function(capsulate_function<seq<vect_dec>>(OutWinoVect), 17, 11);
+    // auto func_ptr = package_function(capsulate_function<seq<vect>>(OutWinoVect), 17, 11);
     
     // for(auto i=0; i<batch.batch_size(); ++i)
     //     sgn[i] = batch.set_task(i, [&concurr](int idx)
     //     {
-    //         seq<vect_dec> abg = OutWinoVect(17 + idx, 11 + idx);
-    //         vect_dec data = chaI(vect_dec(17 + idx, 17 + idx, true));
-    //         vect_dec ker = chaI(vect_dec(11 + idx, 11 + idx, true));
+    //         seq<vect> abg = OutWinoVect(17 + idx, 11 + idx);
+    //         vect data = chaI(vect(17 + idx, 17 + idx, true));
+    //         vect ker = chaI(vect(11 + idx, 11 + idx, true));
     //         auto flag = false;
     //         concurr.batch_thread_attach();
     //         std::cout << std::endl << "Winograd:" << std::endl << ConvWinograd(abg, data, ker) << std::endl << std::endl;
@@ -799,9 +846,9 @@ int main(){
     Indata.init(a00.size() + b00.size() - 2);
     std::cout << a4 << std::endl;
     std::cout << Indata << std::endl;
-    //vect_dec d = {{2,4,5,1,6,2,3},{2,4,5,1,6,2,3}};
+    //vect d = {{2,4,5,1,6,2,3},{2,4,5,1,6,2,3}};
     //std::cout << d.elem_cal_opt(2, MATRIX_ELEM_DIV) << std::endl;
-    /*Indata = vect_dec(9, 9, true);
+    /*Indata = vect(9, 9, true);
     uint64_t ln = Indata.line_count;
     Indata = Indata.reshape(Indata.line_count * Indata.column_count, 1);*/
     //std::cout << Indata << std::endl << std::endl << Indata.child(2, 4, 0, 0, 0, 0) << std::endl;

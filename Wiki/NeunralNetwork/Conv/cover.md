@@ -7,15 +7,15 @@ Basic function of the convolution layer.
 using namespace neunet::conv;
 ```
 
-$$Conv(X_O,K_O) \implies X_O*K_O=Z_O$$
-$$X_O*K_O \backsim Caffe(X)K=Z$$
-$$\frac{dL}{dCaffe(x)}=\frac{dL}{dZ}K^T$$
-$$\begin{align*}
+$$ Conv(X_O,K_O) \implies X_O*K_O=Z_O $$
+$$ X_O*K_O \backsim Caffe(X)K=Z $$
+$$ \frac{dL}{dCaffe(x)}=\frac{dL}{dZ}K^T $$
+$$ \begin{align*}
     \frac{dL}{dX}&=\frac{dL}{dCaffe(x)}Caffe'(x)\\
     &=deCaffe(\frac{dL}{dCaffe(x)})\\
     &=deCaffe(\frac{dL}{dZ}K^T)
-\end{align*}$$
-$$\frac{dL}{dK}=Caffe(X)^T\frac{dL}{dZ}$$
+\end{align*} $$
+$$ \frac{dL}{dK}=Caffe(X)^T\frac{dL}{dZ} $$
 
 在反向傳播時，相同位置的 Caffe 矩陣梯度需要相加。\
 The Caffe element gradients at same position of Im2Col matrix are need to sum in backward propagation.

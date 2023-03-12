@@ -128,7 +128,7 @@ public:
             return false;
         }
         long long *idx_arr = nullptr;
-        if (load_cnt) idx_arr = num_rand<long long>(0, elem_cnt);
+        if (load_cnt) idx_arr = num_rand<long long>(0, elem_cnt, 8);
         else load_cnt = elem_cnt;
         elem.init(load_cnt);
         lbl.init(load_cnt);
@@ -249,12 +249,18 @@ public:
     bool operator!=(const mnist &val) const { return !(*this == val); }
 
     mnist &operator=(const mnist &src) {
-        assert(elem_status == src.elem_status);
+        net_assert(elem_status == src.elem_status,
+                   "mnist",
+                   "=",
+                   "Element status should be equal.");
         value_copy(src);
         return *this;
     }
     mnist &operator=(mnist &&src) {
-        assert(elem_status == src.elem_status);
+        net_assert(elem_status == src.elem_status,
+                   "mnist",
+                   "=",
+                   "Element status should be equal.");
         value_move(std::move(src));
         return *this;
     }

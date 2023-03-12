@@ -18,8 +18,6 @@
 #define ul_ptr          unsigned long long *
 #define lf_ptr          long double *
 
-#define number_arg      = std::enable_if_t<std::is_floating_point_v<arg> || std::is_integral_v<arg>>
-
 std::default_random_engine lib_rand_e;
 
 #include "net_base.hpp"

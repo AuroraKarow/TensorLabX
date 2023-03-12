@@ -1,5 +1,10 @@
 NEUNET_BEGIN
 
+void net_assert(bool expression, const char *ty_name_space, const char *fn_name, const char *msg) { if (!expression) {
+    std::cerr << '[' << ty_name_space << "::" << fn_name << "][" << msg << ']' << std::endl;
+    std::abort();
+}}
+
 /* Pointer */
 
 callback_arg arg *ptr_init(uint64_t len) {
@@ -30,6 +35,7 @@ callback_args void ptr_reset(arg *&first, args *&...others) {
 }
 
 callback_arg bool ptr_elem_equal(const arg *fst_src, uint64_t fst_len, const arg *snd_src, uint64_t snd_len) {
+    if (fst_src == snd_src) return true;
     if(snd_len == fst_len) {
         for (auto i = 0ull; i < fst_len; ++i) if (*(fst_src + i) != *(snd_src + i)) return false;
         return true;
@@ -56,17 +62,24 @@ callback_arg bool ptr_shuffle(arg *&src, uint64_t len) {
     } else return false;
 }
 
-callback_arg void ptr_reverse(arg *&src, uint64_t len) { if (len > 1) for (auto i = 0ull, j = len - 1; i < j; ++i, --j) std::swap(*(src + i), *(src + j)); }
+callback_arg void ptr_reverse(arg *&src, uint64_t len) {
+    if (len == 1) return;
+    if (len == 2) {
+        std::swap(*src, *(src + 1));
+        return;
+    }
+    std::reverse(src, src + len);    
+}
 
-callback_arg bool ptr_copy(arg *&dest, const arg *src, uint64_t src_len) {
+template<typename d_arg, typename s_arg> bool ptr_copy(d_arg *&dest, const s_arg *src, uint64_t src_len) {
     if(dest && src && src_len) {
-        if constexpr (std::is_copy_assignable_v<arg> && std::is_copy_constructible_v<arg>) std::copy(src, src + src_len, dest);
+        if constexpr (std::is_copy_assignable_v<s_arg> && std::is_copy_constructible_v<s_arg>) std::copy(src, src + src_len, dest);
         else for (auto i = 0ull; i < src_len; ++i) *(dest + i) = *(src + i);
         return true;
     } else return false;
 }
-callback_arg arg *ptr_copy(const arg *src, uint64_t len) {
-    auto ans = ptr_init<arg>(len);
+template<typename d_arg, typename s_arg> d_arg *ptr_copy(const s_arg *src, uint64_t len) {
+    auto ans = ptr_init<d_arg>(len);
     ptr_copy(ans, src, len);
     return ans;
 }
@@ -81,9 +94,10 @@ callback_arg void ptr_alter(arg *&src, uint64_t src_len, uint64_t alter_len, boo
         return;
     }
     if (src && src_len && remain) {
-        auto temp = ptr_init<arg>(alter_len);
+        auto temp       = ptr_init<arg>(alter_len);
         auto remain_len = src_len > alter_len ? alter_len : src_len;
-        for(auto i = 0ull; i < remain_len; ++i) *(temp + i) = std::move(*(src + i));
+        if constexpr (std::is_copy_assignable_v<arg>) ptr_copy(temp, src, remain_len);
+        else for(auto i = 0ull; i < remain_len; ++i) *(temp + i) = std::move(*(src + i));
         ptr_move(src, std::move(temp));
     } else {
         ptr_reset(src);
@@ -162,11 +176,11 @@ callback_arg arg *ptr_sub(uint64_t &sub_len, const arg *src, uint64_t src_len, u
     auto rng = snd_rng - fst_rng + 1;
     if(rng == src_len) {
         sub_len = src_len;
-        return ptr_copy(src, src_len);
+        return ptr_copy<arg>(src, src_len);
     } else {
         sub_len = rng;
         auto ptr_temp = src + fst_rng;
-        return ptr_copy(ptr_temp, rng);
+        return ptr_copy<arg>(ptr_temp, rng);
     }
 }
 callback_arg arg *ptr_sub(uint64_t &sub_len, const arg *src, uint64_t src_len, uint64_t *idx_arr, uint64_t arr_len) {
@@ -195,7 +209,7 @@ callback_arg arg *ptr_concat(const arg *src_fst, uint64_t len_fst, const arg *sr
 }
 
 callback_arg arg *ptr_union(uint64_t &ans_len, const arg *src_fst, uint64_t len_fst, const arg *src_snd, uint64_t len_snd) {
-    auto temp_snd     = ptr_copy(src_snd, len_snd);
+    auto temp_snd     = ptr_copy<arg>(src_snd, len_snd);
     auto temp_snd_len = len_snd;
     for (auto i = 0ull; i < len_fst; ++i) for (auto j = 0ull; j < temp_snd_len; ++j) if (*(temp_snd + j) == *(src_fst + i)) {
         ptr_erase(temp_snd, temp_snd_len, j, false);
@@ -209,7 +223,7 @@ callback_arg arg *ptr_union(uint64_t &ans_len, const arg *src_fst, uint64_t len_
 }
 
 callback_arg arg *ptr_intersect(uint64_t &ans_len, const arg *src_fst, uint64_t len_fst, const arg *src_snd, uint64_t len_snd) {
-    auto temp_snd     = ptr_copy(src_snd, len_snd);
+    auto temp_snd     = ptr_copy<arg>(src_snd, len_snd);
     auto temp_snd_len = len_snd,
          ans_len_temp = len_fst > len_snd ? len_fst : len_snd;
     auto ans          = ptr_init<arg>(ans_len_temp);
@@ -250,7 +264,7 @@ callback_arg bool ptr_cut(arg *&src, uint64_t src_len, uint64_t tgt_idx, bool su
         else {
             auto ans_len  = src_len - tgt_idx - 1;
             auto ans_addr = src + tgt_idx + 1,
-                 ans      = ptr_copy(ans_addr, ans_len);
+                 ans      = ptr_copy<arg>(ans_addr, ans_len);
             ptr_move(src, std::move(ans));
         }
         return true;
@@ -278,8 +292,7 @@ callback_arg ul_ptr ptr_find(uint64_t &ans_len, const arg *src, uint64_t src_len
 double *ptr_narr_float(const long double *src, uint64_t len) {
     if (!(len && src)) return nullptr;
     auto ans = ptr_init<double>(len);
-    if constexpr (sizeof(double) == sizeof(long double)) std::copy(src, src + len, ans);
-    else for (auto i = 0ull; i < len; ++i) *(ans + i) = (*(src + i));
+    ptr_copy(ans, src, len);
     return ans;
 }
 
@@ -349,7 +362,10 @@ uint64_t num_cnt(uint64_t first, uint64_t second, uint64_t dilate = 0) {
 }
 
 long double num_rate(long double numerator, long double denominator) {
-    assert(denominator);
+    net_assert(denominator,
+               "neunet",
+               "num_rate",
+               "Denominator could not equal to 0.");
     return numerator / denominator;
 }
 
@@ -384,7 +400,7 @@ uint32_t num_swap_endian(uint32_t val) {
 	return (val << 16) | (val >> 16);
 }
 
-long long num_bit_reverse(long long src, uint8_t bit_cnt = 3) {
+long long num_bit_inverse(long long src, uint8_t bit_cnt = 3) {
     long long ans = 0;
     while (bit_cnt)
     {
@@ -393,18 +409,10 @@ long long num_bit_reverse(long long src, uint8_t bit_cnt = 3) {
         src >>= 1;
         --bit_cnt;
     }
-    return ans;    
+    return ans;
 }
 
-uint64_t num_bit_cnt(long long src) {
-    auto ans = 0ull;
-    while(src)
-    {
-        ++ ans;
-        src >>= 1;
-    }
-    return ans;    
-}
+uint64_t num_bit_cnt(long long src) { return std::log2(src) + 1; }
 
 long double num_rand(long double fst_rng = 0, long double snd_rng = 0, uint64_t acc = 8) {
     if (fst_rng == snd_rng) return (((long double)lib_rand_e() / (long double)lib_rand_e._Max) - .5l) * 2.0l;
@@ -430,7 +438,7 @@ long double num_rand(long double fst_rng = 0, long double snd_rng = 0, uint64_t 
     }
 }
 
-callback_arg arg *num_rand(uint64_t amt, arg fst_rng = 0, arg snd_rng = 0, bool order = true, uint64_t acc = 8) {
+callback_arg arg *num_rand(uint64_t amt, arg fst_rng, arg snd_rng, bool order = true, uint64_t acc = 8) {
     if (amt == 0) return nullptr;
     auto ans = ptr_init<arg>(amt);
     auto cnt = 0;

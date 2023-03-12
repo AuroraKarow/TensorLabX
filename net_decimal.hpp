@@ -115,7 +115,7 @@ bool dec_ntt(uint64_t *&src, uint64_t len, bool inverse = false) {
     if (num_pad_pow(len, 2) || len < 4 && src == nullptr) return false;
     auto idx_bit_cnt = num_bit_cnt(len - 1);
     auto temp = ptr_init<uint64_t>(len);
-    for (auto i = 0ull; i < len; ++i) *(temp + i) = *(src + num_bit_reverse(i, idx_bit_cnt));
+    for (auto i = 0ull; i < len; ++i) *(temp + i) = *(src + num_bit_inverse(i, idx_bit_cnt));
     ptr_move(src, std::move(temp));
     for (auto i = 1ull; i < len; i <<= 1) {
         auto g_root = dec_euler_pow(NEUNET_EULER_MOD_G, (NEUNET_EULER_MOD - 1) / (i << 1));

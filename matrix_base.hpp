@@ -71,7 +71,7 @@ callback_matrix matrix_ptr init_rand(uint64_t elem_cnt, const matrix_elem_t &fst
 callback_matrices void recycle(matrices_ptr &...val) { ptr_reset(val...); }
 
 callback_matrix matrix_ptr copy(const matrix_ptr src, uint64_t elem_cnt) {
-    if (src && elem_cnt) return ptr_copy(src, elem_cnt);
+    if (src && elem_cnt) return ptr_copy<matrix_elem_t>(src, elem_cnt);
     else return nullptr;
 }
 callback_matrix bool copy(matrix_ptr &dest, uint64_t dest_elem_cnt, const matrix_ptr src, uint64_t elem_cnt) {
