@@ -77,7 +77,6 @@ private:
                 } else vec_data.index(i) = 0;
             }
             if (padding) vec_data = vec_data.padding(padding, padding, padding, padding);
-            vec_data.reshape(data_length, 1);
             if (elem_status == mnist_elem_norm) vec_data.elem_wise_opt(vec_data.elem_sum(), MATRIX_ELEM_DIV);
         }
         ptr_reset(data_ptr);
@@ -128,12 +127,13 @@ public:
             return false;
         }
         long long *idx_arr = nullptr;
-        if (load_cnt) idx_arr = num_rand<long long>(0, elem_cnt, 8);
+        if (load_cnt) idx_arr = num_rand<long long>(elem_cnt, 0, elem_cnt);
         else load_cnt = elem_cnt;
         elem.init(load_cnt);
         lbl.init(load_cnt);
         data_idx.init(load_cnt);
         for (auto i = 0ull; i < load_cnt; ++i) data_idx[i] = i;
+        data_idx.shuffle();
         auto cnt = 0;
         for (auto i = 0ull; i < elem_cnt; ++i) if ((idx_arr && *(idx_arr + cnt) == i) || !idx_arr) {
             elem[cnt] = read_curr_elem(true, padding);
@@ -163,6 +163,7 @@ public:
             lbl.init(elem.length);
             data_idx.init(elem.length);
             for (auto i = 0ull; i < elem.length; ++i) data_idx[i] = i;
+            data_idx.shuffle();
             lbl_load_distribute.reset();
         }
         else if (lbl_load_distribute.length == 10) load_qnty = std::move(lbl_load_distribute);

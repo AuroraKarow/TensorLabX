@@ -15,7 +15,8 @@ matrix_declare struct BNData final {
                 vecSigma,
                 vecSigmaDom,
                 vecExpMuBeta,
-                vecExpSigmaSqr;
+                vecExpSigmaSqr,
+                vecExpSigmaDom;
 
     uint64_t iTrainBatchCnt = 0,
              iTrainBatchIdx = 0;
@@ -40,6 +41,7 @@ matrix_declare struct BNData final {
         vecSigma       = BdSrc.vecSigma;
         vecSigmaDom    = BdSrc.vecSigmaDom;
         vecExpMuBeta   = BdSrc.vecExpMuBeta;
+        vecExpSigmaDom = BdSrc.vecExpSigmaDom;
         vecExpSigmaSqr = BdSrc.vecExpSigmaSqr;
     }
 
@@ -50,6 +52,7 @@ matrix_declare struct BNData final {
         vecSigma       = std::move(BdSrc.vecSigma);
         vecSigmaDom    = std::move(BdSrc.vecSigmaDom);
         vecExpMuBeta   = std::move(BdSrc.vecExpMuBeta);
+        vecExpSigmaDom = std::move(BdSrc.vecExpSigmaDom);
         vecExpSigmaSqr = std::move(BdSrc.vecExpSigmaSqr);
     }
 
@@ -86,6 +89,7 @@ matrix_declare struct BNData final {
         vecSigma.reset();
         vecSigmaDom.reset();
         vecExpMuBeta.reset();
+        vecExpSigmaDom.reset();
         vecExpSigmaSqr.reset();
         setBarX.reset();
         setDist.reset();
@@ -93,6 +97,23 @@ matrix_declare struct BNData final {
 
     ~BNData() { Reset(); }
 };
+
+callback_matrix void BNExpMovAvg(BNData<matrix_elem_t> &BdData, long double dDecay = .9l) {
+    auto dHalfDecay  = 1 - dDecay;
+    auto vecMuBeta   = dHalfDecay * BdData.vecMuBeta,
+         vecSigmaSqr = dHalfDecay * BdData.vecSigmaSqr;
+    if (BdData.vecExpMuBeta.verify && BdData.vecExpSigmaSqr.verify) {
+        BdData.vecExpMuBeta   = dDecay * BdData.vecExpMuBeta + vecMuBeta;
+        BdData.vecExpSigmaSqr = dDecay * BdData.vecExpSigmaSqr + vecSigmaSqr;
+    } else {
+        BdData.vecExpMuBeta   = std::move(vecMuBeta);
+        BdData.vecExpSigmaSqr = std::move(vecSigmaSqr);
+    }
+    if (++BdData.iTrainBatchIdx == BdData.iTrainBatchCnt) {
+        BdData.iTrainBatchIdx = 0;
+        BdData.vecExpSigmaDom = BdData.vecExpSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
+    }
+}
 
 callback_matrix net_set<neunet_vect> BNTrain (BNData<matrix_elem_t> &BdData, const net_set<neunet_vect> &setInput, const neunet_vect &vecBeta, const neunet_vect &vecGamma) {
     // Average, mu
@@ -120,7 +141,7 @@ callback_matrix net_set<neunet_vect> BNTrain (BNData<matrix_elem_t> &BdData, con
     return setY;
 }
 
-callback_matrix net_set<neunet_vect> BNGradLossToInputGammaBeta(BNData<matrix_elem_t> &BdData, neunet_vect &vecGradGamma, neunet_vect &vecGradBeta, net_set<neunet_vect> &setGradLossToOutput, const neunet_vect &vecGamma, long double dDecay = .9l) {
+callback_matrix net_set<neunet_vect> BNGradLossToInputGammaBeta(BNData<matrix_elem_t> &BdData, neunet_vect &vecGradGamma, neunet_vect &vecGradBeta, net_set<neunet_vect> &setGradLossToOutput, const neunet_vect &vecGamma) {
     // Gradient gamma & beta
     vecGradGamma = neunet_vect(BdData.vecSigma.column_count, 1);
     vecGradBeta  = vecGradGamma;
@@ -145,30 +166,12 @@ callback_matrix net_set<neunet_vect> BNGradLossToInputGammaBeta(BNData<matrix_el
     vecGradMuBeta *= BdData.dCoeBatchSize;
     // Gradient input
     net_set<neunet_vect> setGradInput(BdData.setBarX.length);
-    for (auto i = 0ull; i < setGradInput.length; ++i) {
-        setGradInput[i] = setGradBarX[i].elem_wise_opt(BdData.vecSigmaDom, MATRIX_ELEM_DIV) + BdData.dCoeDbBatchSize * vecGradSigmaSqr.elem_wise_opt(BdData.setDist[i], MATRIX_ELEM_MULT) - vecGradMuBeta;
-        if (!setGradInput[i].verify) {
-            setGradInput.reset();
-            break;
-        }
-    }
-    // moving average
-    if (BdData.vecExpMuBeta.verify && BdData.vecExpSigmaSqr.verify) {
-        BdData.vecExpMuBeta   = dDecay * BdData.vecExpMuBeta + (1 - dDecay) * BdData.vecMuBeta;
-        BdData.vecExpSigmaSqr = dDecay * BdData.vecExpSigmaSqr + (1 - dDecay) * BdData.vecSigmaSqr;
-    } else {
-        BdData.vecExpMuBeta   = std::move(BdData.vecMuBeta);
-        BdData.vecExpSigmaSqr = std::move(BdData.vecSigmaSqr);            
-    }
-    if (++BdData.iTrainBatchIdx == BdData.iTrainBatchCnt) {
-        BdData.iTrainBatchIdx = 0;
-        BdData.vecExpSigmaSqr = BdData.vecExpSigmaSqr.elem_wise_opt(0.5l, MATRIX_ELEM_POW);
-    }
+    for (auto i = 0ull; i < setGradInput.length; ++i) setGradInput[i] = setGradBarX[i].elem_wise_opt(BdData.vecSigmaDom, MATRIX_ELEM_DIV) + BdData.dCoeDbBatchSize * vecGradSigmaSqr.elem_wise_opt(BdData.setDist[i], MATRIX_ELEM_MULT) - vecGradMuBeta;
     return setGradInput;
 }
 
 callback_matrix neunet_vect BNDeduce(const BNData<matrix_elem_t> &BdData, const neunet_vect &vecInput, const neunet_vect &vecBeta, const neunet_vect &vecGamma) {
-    auto vecAns = (vecInput - BdData.vecExpMuBeta).elem_wise_opt(BdData.vecExpSigmaSqr, MATRIX_ELEM_DIV);
+    auto vecAns = (vecInput - BdData.vecExpMuBeta).elem_wise_opt(BdData.vecExpSigmaDom, MATRIX_ELEM_DIV);
     for (auto i = 0ull; i < vecAns.line_count; ++i) for (auto j = 0ull; j < vecAns.column_count; ++j) vecAns[i][j] = vecGamma.index(j) * vecAns[i][j] + vecBeta.index(j);
     return vecAns;
 }
@@ -272,6 +275,7 @@ matrix_declare struct LayerBN final : LayerDerive<matrix_elem_t> {
             this->setIn  = BNTrain(BdData, this->setIn, dBetaLearnRate ? vecBetaNv : vecBeta, dGammaLearnRate ? vecGammaNv : vecGamma);
             iForBatSzCnt = 0;
             asyForCtrl.thread_wake_all();
+            BNExpMovAvg(BdData, dDecay);
         } else while (iForBatSzCnt) asyForCtrl.thread_sleep(1000);
         vecIn = std::move(this->setIn[iBatSzIdx]);
     }
@@ -281,7 +285,7 @@ matrix_declare struct LayerBN final : LayerDerive<matrix_elem_t> {
         if (++iBackBatSzCnt == this->setIn.length) {
             neunet_vect vecBetaGrad,
                         vecGammaGrad;
-            this->setIn   = BNGradLossToInputGammaBeta(BdData, vecGammaGrad, vecBetaGrad, this->setIn, dGammaLearnRate ? vecGammaNv : vecGamma, dDecay);
+            this->setIn   = BNGradLossToInputGammaBeta(BdData, vecGammaGrad, vecBetaGrad, this->setIn, dGammaLearnRate ? vecGammaNv : vecGamma);
             iBackBatSzCnt = 0;
             asyBackCtrl.thread_wake_all();
             Update(vecBetaGrad, vecGammaGrad);
