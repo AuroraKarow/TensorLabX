@@ -40,7 +40,12 @@ callback_matrix neunet_vect softmax(const neunet_vect &src) {
     return ans;
 }
 
-callback_matrix neunet_vect softmax_cec_grad(const neunet_vect &softmax_output, const neunet_vect &origin) { return softmax_output - origin; }
+callback_matrix neunet_vect softmax_cec_grad(const neunet_vect &softmax_output, const neunet_vect &origin) {
+    auto out_grad = origin.elem_wise_opt(softmax_output, MATRIX_ELEM_DIV);
+    auto sum_grad = out_grad.elem_wise_opt(softmax_output, MATRIX_ELEM_MULT).elem_sum();
+    for (auto i = 0ull; i < out_grad.element_count; ++i) out_grad.index(i) = sum_grad - out_grad.index(i);
+    return out_grad.elem_wise_opt(softmax_output, MATRIX_ELEM_MULT);
+}
 
 uint64_t samp_block_cnt(uint64_t filter_dir_cnt, uint64_t dir_dilate) { return (dir_dilate + 1) * filter_dir_cnt - dir_dilate; }
 
