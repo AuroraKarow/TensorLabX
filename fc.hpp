@@ -1,6 +1,6 @@
 FC_BEGIN
 
-callback_matrix neunet_vect InitWeight(uint64_t iInputLnCnt, uint64_t iOutputLnCnt, const matrix_elem_t &dFstRng = 0, const matrix_elem_t &dSndRng = 0, uint64_t iAcc = 8) { return neunet_vect(iOutputLnCnt, iInputLnCnt, true, dFstRng, dSndRng, iAcc); }
+callback_matrix neunet_vect InitWeight(uint64_t iInputLnCnt, uint64_t iOutputLnCnt, const matrix_elem_t &dFstRng = -1, const matrix_elem_t &dSndRng = 1) { return neunet_vect(iOutputLnCnt, iInputLnCnt, true, dFstRng, dSndRng); }
 
 callback_matrix neunet_vect Output(const neunet_vect &vecInput, const neunet_vect &vecWeight) { return vecWeight * vecInput; }
 
@@ -74,12 +74,12 @@ struct LayerFlat final : LayerDim, LayerChann {
 };
 
 matrix_declare struct LayerFC final : LayerDerive<matrix_elem_t>, LayerWeight<matrix_elem_t>, LayerDim {
-    LayerFC(uint64_t iOutLnCnt = 1, long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 8) : Layer(NEUNET_LAYER_FC), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng, iRandAcc), LayerDim(iOutLnCnt) {}
+    LayerFC(uint64_t iOutLnCnt = 1, long double dLearnRate = .0, long double dRandFstRng = -1, long double dRandSndRng = 1) : Layer(NEUNET_LAYER_FC), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng), LayerDim(iOutLnCnt) {}
     LayerFC(const LayerFC &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc), LayerWeight<matrix_elem_t>(lyrSrc), LayerDim(lyrSrc) {}
     LayerFC(LayerFC &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)), LayerWeight<matrix_elem_t>(std::move(lyrSrc)), LayerDim(lyrSrc) {}
 
     void Shape(uint64_t &iInLnCnt, uint64_t iBatSz) {
-        this->vecWeight = fc::InitWeight(iInLnCnt, iOutLnCnt, this->dRandFstRng, this->dRandSndRng, this->iRandAcc);
+        this->vecWeight = fc::InitWeight(iInLnCnt, iOutLnCnt, this->dRandFstRng, this->dRandSndRng);
         LayerDerive<matrix_elem_t>::Shape(iBatSz);
         LayerWeight<matrix_elem_t>::Shape(iBatSz, true);
         iInLnCnt = this->iOutLnCnt;

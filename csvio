@@ -4,8 +4,6 @@
 #define __CSVIO__
 
 #include <fstream>
-#include <sstream>
-#include "net_sequence"
 
 #define CSVIO_BEGIN namespace neunet{ namespace csvio { 
 #define CSVIO_END   }}

@@ -64,9 +64,8 @@ struct NeunetCore {
  * 
  * uint64_t    iOutLnCnt   =  1
  * long double dLearnRate  = .0
- * long double dRandFstRng = .0
- * long double dRandSndRng = .0
- * uint64_t    iRandAcc    =  8
+ * long double dRandFstRng = -1
+ * long double dRandSndRng = 1
  * 
  * **Convolution (NetLayerConv)**
  * 
@@ -78,9 +77,8 @@ struct NeunetCore {
  * uint64_t    iLnDilate     = 0
  * uint64_t    iColDilate    = 0
  * long double dLearnRate    = 0
- * long double dRandFstRng   = 0
- * long double dRandSndRng   = 0
- * uint64_t    dRandAcc      = 0
+ * long double dRandFstRng   = -1
+ * long double dRandSndRng   = 1
  * 
  * **Pooling (NetLayerPool)**
  * 
@@ -103,9 +101,8 @@ struct NeunetCore {
  * **Bias (NetLayerBias)**
  * 
  * long double dLearnRate  = .0
- * long double dRandFstRng = .0
- * long double dRandSndRng = .0
- * uint64_t    iRandAcc    =  0
+ * long double dRandFstRng = -1
+ * long double dRandSndRng = 1
  */
 template<typename LayerType, typename ... Args,  typename neunet_layer_type_v> bool AddLayer(NeunetCore &netCore, Args &&... argsLayerInit) { return netCore.seqLayer.emplace_back(std::make_shared<LayerType>(std::forward<Args>(argsLayerInit)...)); }
 

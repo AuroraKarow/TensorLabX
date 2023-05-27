@@ -1,66 +1,40 @@
 CSVIO_BEGIN
 
-std::string parse_table(const std::string &file_path) {
+net_set<net_set<std::string>> input_table(const std::string &file_path) {
     std::ifstream in(file_path);
+    net_set<net_set<std::string>> ans;
     if (!in.is_open()) {
-        std::cout << "Error opening file";
+        std::cerr << "Error opening file";
         in.close();
-        return " ";
-    } else {
-        std::stringstream buffer;
-        buffer << in.rdbuf();
-        std::string dat(buffer.str());
-        in.close();
-        return dat;
+        return ans;
     }
+    std::stringstream buffer;
+    buffer << in.rdbuf();
+    std::string dat(buffer.str());
+    in.close();
+    ans.init(std::count(dat.begin(), dat.end(), '\n') + 1);
+    auto from = dat.begin(),
+         to   = from;
+    for (auto i = 0ull; i < ans.length; ++i) {
+        for (; to != dat.end(); ++to) if (*to == '\n') break;
+        ans[i].init(std::count(from, to, ',') + 1);
+        auto j = 0ull;
+        for (; from != to; ++from) if (*from == ',') ++j;
+        else ans[i][j].push_back(*from);
+        ++from;
+        ++to;
+    }
+    return ans;
 }
 
-net_set<std::string> parse_line_strings(const std::string &strings) {
-    net_sequence<std::string> out;
-    std::string elem = "";
-    for(auto i = 0ull; i < strings.length(); ++i) {
-        char temp = strings.at(i);
-        char next_temp = ' ';
-        if (i + 1 != strings.length()) next_temp = strings.at(i+1);
-        else next_temp = ' ';
-        if (temp != ' ' && temp != '\t' && temp != '\n' && temp != '\0') elem.push_back(temp);
-        else if (next_temp == ' ' || next_temp == '\t' || next_temp == '\n' || temp == '\0') continue;
-        else {
-            out.emplace_back(elem);
-            elem = "";
-        }
-    }
-    out.emplace_back(elem);
-    out.shrink();
-    return out;
-}
-
-void output_table(const net_set<net_set<std::string>> &output_strings, const std::string &file_path)
-{
-    std::ofstream oFile;
-    oFile.open(file_path, std::ios::out|std::ios::trunc);
+void output_table(const net_set<net_set<std::string>> &output_strings, const std::string &file_path) {
+    std::ofstream of_file;
+    of_file.open(file_path, std::ios::out|std::ios::trunc);
     for(auto i = 0ull; i < output_strings.size(); ++i) {
-        for(auto j=0ull; j<output_strings[i].size(); ++j) oFile << output_strings[i][j] << ',';
-        oFile << std::endl;
+        for(auto j=0ull; j<output_strings[i].size(); ++j) of_file << output_strings[i][j] << ',';
+        of_file << std::endl;
     }
-    oFile.close();
+    of_file.close();
 }
 
-net_set<net_set<std::string>> input_table(const std::string &file_path)
-{
-    auto tab_str = parse_table(file_path);
-    auto ln_cnt  = 0ull;
-    auto ln_vect = str_split(ln_cnt, tab_str.c_str(), '\n');
-    net_set<net_set<std::string>> struct_tab(ln_cnt);
-    for(auto i = 0ull; i < ln_cnt; ++i) {
-        auto col_cnt  = 0ull;
-        auto col_vect = str_split(col_cnt, ln_vect[i], ',');
-        struct_tab[i].init(col_cnt);
-        for (auto j = 0ull; j < col_cnt; ++j) struct_tab[i][j] = col_vect[j];
-        str_arr_reset(col_vect, col_cnt);
-    }
-    str_arr_reset(ln_vect, ln_cnt);
-    return struct_tab;
-}
-
-CSVIO_END 
+CSVIO_END

@@ -31,7 +31,7 @@ callback_matrix neunet_vect CaffeTransform(const neunet_vect &vecCaffe, const ne
     return vecAns;
 }
 
-callback_matrix neunet_vect InitKernel(uint64_t iKernelQty, uint64_t iChannCnt, uint64_t iLnCnt, uint64_t iColCnt, const matrix_elem_t &dFstRng = 0, const matrix_elem_t &dSndRng = 0, uint64_t iAcc = 8) { return neunet_vect(iLnCnt * iColCnt * iChannCnt, iKernelQty, true, dFstRng, dSndRng, iAcc); }
+callback_matrix neunet_vect InitKernel(uint64_t iKernelQty, uint64_t iChannCnt, uint64_t iLnCnt, uint64_t iColCnt, const matrix_elem_t &dFstRng = -1, const matrix_elem_t &dSndRng = 1) { return neunet_vect(iLnCnt * iColCnt * iChannCnt, iKernelQty, true, dFstRng, dSndRng); }
 
 callback_matrix neunet_vect Conv(const neunet_vect &vecCaffeInput, const neunet_vect &vecKernel) { return fc::Output(vecKernel, vecCaffeInput); }
 
@@ -197,13 +197,13 @@ matrix_declare struct LayerConv final : LayerDerive<matrix_elem_t>, LayerWeight<
 
     void ValueAssign(const LayerConv &lyrSrc) { iKernelQty = lyrSrc.iKernelQty; }
 
-    LayerConv(uint64_t iKernelQty = 0, uint64_t iKernelLnCnt = 0, uint64_t iKernelColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0, long double dLearnRate = 0, long double dRandFstRng = 0, long double dRandSndRng = 0, uint64_t dRandAcc = 0) : Layer(NEUNET_LAYER_CONV), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng, dRandAcc), LayerCaffe(iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
+    LayerConv(uint64_t iKernelQty = 0, uint64_t iKernelLnCnt = 0, uint64_t iKernelColCnt = 0, uint64_t iLnStride = 0, uint64_t iColStride = 0, uint64_t iLnDilate = 0, uint64_t iColDilate = 0, long double dLearnRate = 0, long double dRandFstRng = -1, long double dRandSndRng = 1) : Layer(NEUNET_LAYER_CONV), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng), LayerCaffe(iKernelLnCnt, iKernelColCnt, iLnStride, iColStride, iLnDilate, iColDilate),
         iKernelQty(iKernelQty) {}
     LayerConv(const LayerConv &lyrSrc) : LayerDerive<matrix_elem_t>(lyrSrc), LayerWeight<matrix_elem_t>(lyrSrc), LayerCaffe(lyrSrc) { ValueAssign(lyrSrc); }
     LayerConv(LayerConv &&lyrSrc) : LayerDerive<matrix_elem_t>(std::move(lyrSrc)), LayerWeight<matrix_elem_t>(std::move(lyrSrc)), LayerCaffe(std::move(lyrSrc)) { ValueAssign(lyrSrc); }
 
     void Shape(uint64_t &iInLncnt, uint64_t &iInColCnt, uint64_t &iChannCnt, uint64_t iBatSz) {
-        this->vecWeight = conv::InitKernel(iKernelQty, iChannCnt, iFilterLnCnt, iFilterColCnt, this->dRandFstRng, this->dRandSndRng, this->iRandAcc);
+        this->vecWeight = conv::InitKernel(iKernelQty, iChannCnt, iFilterLnCnt, iFilterColCnt, this->dRandFstRng, this->dRandSndRng);
         LayerDerive<matrix_elem_t>::Shape(iBatSz);
         LayerWeight<matrix_elem_t>::Shape(iBatSz, true);
         LayerCaffe::Shape(iInLncnt, iInColCnt, iChannCnt);

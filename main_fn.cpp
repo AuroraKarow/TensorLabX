@@ -51,8 +51,6 @@ struct layer_weight : virtual layer_base {
                 rand_fst_rng = .0,
                 rand_snd_rng = .0;
 
-    uint64_t rand_acc = 0;
-
     vect weight,
          weight_tp,
          weight_nv;
@@ -154,17 +152,16 @@ void layer_deduce(layer_act_ptr src, vect &input) {
 struct layer_fc : layer_derive, layer_dim, layer_weight {};
 typedef std::shared_ptr<layer_fc> layer_fc_ptr;
 
-void layer_init(layer_fc_ptr src, uint64_t out_ln_cnt, long double learn_rate = 0, long double rand_fst_rng = 0, long double rand_snd_rng = 0, uint64_t rand_acc = 0) {
+void layer_init(layer_fc_ptr src, uint64_t out_ln_cnt, long double learn_rate = 0, long double rand_fst_rng = -1, long double rand_snd_rng = 1) {
     src->type         = lyr_fc;
     src->learn_rate   = learn_rate;
     src->out_ln_cnt   = out_ln_cnt;
     src->rand_fst_rng = rand_fst_rng;
     src->rand_snd_rng = rand_snd_rng;
-    src->rand_acc     = rand_acc;
 }
 
 void layer_shape(layer_fc_ptr src, uint64_t &in_ln_cnt, uint64_t batch_size) {
-    src->weight = fc::InitWeight(in_ln_cnt, src->out_ln_cnt, src->rand_fst_rng, src->rand_snd_rng, src->rand_acc);
+    src->weight = fc::InitWeight(in_ln_cnt, src->out_ln_cnt, src->rand_fst_rng, src->rand_snd_rng);
     if (src->learn_rate) {
         src->weight_nv = src->nesterov.weight(src->weight);
         src->weight_tp = src->weight_nv.transpose;
@@ -215,7 +212,7 @@ struct layer_caffe : virtual layer_flat {
 struct layer_conv : layer_derive, layer_weight, layer_caffe { uint64_t kernel_qty = 0; };
 typedef std::shared_ptr<layer_conv> layer_conv_ptr;
 
-void layer_init(layer_conv_ptr src, uint64_t kernel_qty, uint64_t kernel_ln_cnt, uint64_t kernel_col_cnt, uint64_t ln_stride, uint64_t col_stride, uint64_t ln_dilate = 0, uint64_t col_dilate = 0, long double learn_rate = 0, long double rand_fst_rng = 0, long double rand_snd_rng = 0, uint64_t rand_acc = 0) {
+void layer_init(layer_conv_ptr src, uint64_t kernel_qty, uint64_t kernel_ln_cnt, uint64_t kernel_col_cnt, uint64_t ln_stride, uint64_t col_stride, uint64_t ln_dilate = 0, uint64_t col_dilate = 0, long double learn_rate = 0, long double rand_fst_rng = -1, long double rand_snd_rng = 1) {
     src->type           = lyr_conv;
     src->kernel_qty     = kernel_qty;
     src->filter_ln_cnt  = kernel_ln_cnt;
@@ -227,7 +224,6 @@ void layer_init(layer_conv_ptr src, uint64_t kernel_qty, uint64_t kernel_ln_cnt,
     src->learn_rate     = learn_rate;
     src->rand_fst_rng   = rand_fst_rng;
     src->rand_snd_rng   = rand_snd_rng;
-    src->rand_acc       = rand_acc;
 }
 
 void layer_shape(layer_conv_ptr src, uint64_t &in_ln_cnt, uint64_t &in_col_cnt, uint64_t &chann_cnt, uint64_t batch_size) {
@@ -238,7 +234,7 @@ void layer_shape(layer_conv_ptr src, uint64_t &in_ln_cnt, uint64_t &in_col_cnt, 
     src->in_elem_cnt = in_ln_cnt * in_col_cnt;
     src->chann_cnt   = chann_cnt;
     src->caffe_data  = conv::CaffeTransformData(chann_cnt, src->caffe_ln_cnt, src->caffe_col_cnt, in_ln_cnt, in_col_cnt, src->out_ln_cnt, src->out_col_cnt, src->filter_ln_cnt, src->filter_col_cnt, src->ln_stride, src->col_stride, src->ln_dilate, src->col_dilate);
-    if (!src->weight.verify) src->weight = conv::InitKernel(src->kernel_qty, chann_cnt, src->filter_ln_cnt, src->filter_col_cnt, src->rand_fst_rng, src->rand_snd_rng, src->rand_acc);
+    if (!src->weight.verify) src->weight = conv::InitKernel(src->kernel_qty, chann_cnt, src->filter_ln_cnt, src->filter_col_cnt, src->rand_fst_rng, src->rand_snd_rng);
     if (src->learn_rate) {
         src->weight_nv = src->nesterov.weight(src->weight);
         src->weight_tp = src->weight_nv.transpose;
@@ -385,6 +381,7 @@ void layer_forward(layer_bn_ptr src, vect &input, uint64_t bat_sz_idx) {
         src->input = BNTrain(src->BN_data, src->input, (src->beta_learn_rate ? src->beta_nv : src->beta), (src->gamma_learn_rate ? src->gamma_nv : src->gamma));
         src->batch_size_cnt = 0;
         src->BN_for_ctrl.thread_wake_all();
+        BNExpMovAvg(src->BN_data, src->mov_avg_decay);
     } else while (src->batch_size_cnt) src->BN_for_ctrl.thread_sleep(50);
     input = std::move(src->input[bat_sz_idx]);
 }
@@ -393,7 +390,7 @@ void layer_backward(layer_bn_ptr src, vect &grad, uint64_t bat_sz_idx) {
     src->input[bat_sz_idx] = std::move(grad);
     if (++src->back_bat_sz_cnt == src->input.length) {
         vect beta_grad, gamma_grad;
-        src->input = BNGradLossToInputGammaBeta(src->BN_data, gamma_grad, beta_grad, src->input, (src->gamma_learn_rate ? src->gamma_nv : src->gamma), src->mov_avg_decay);
+        src->input = BNGradLossToInputGammaBeta(src->BN_data, gamma_grad, beta_grad, src->input, (src->gamma_learn_rate ? src->gamma_nv : src->gamma));
         src->back_bat_sz_cnt = 0;
         src->BN_back_ctrl.thread_wake_all();
         layer_update(src, beta_grad, gamma_grad);

@@ -59,12 +59,12 @@ callback_matrix matrix_ptr init_identity(uint64_t dim_cnt) {
     return ans;
 }
 
-callback_matrix matrix_ptr init_rand(uint64_t elem_cnt, const matrix_elem_t &fst_rng = 0, const matrix_elem_t &snd_rng = 0, uint64_t acc = 8) {
+callback_matrix matrix_ptr init_rand(uint64_t elem_cnt, const matrix_elem_t &fst_rng = -1, const matrix_elem_t &snd_rng = 1) {
     if (elem_cnt == 0) return nullptr;
     auto ans = init<matrix_elem_t>(elem_cnt);
     for (auto i = 0ull; i < elem_cnt; ++i)
-        if constexpr (std::is_same_v<matrix_elem_t, net_decimal>) *(ans + i) = num_rand(fst_rng.number_format, snd_rng.number_format, acc);
-        else *(ans + i) = num_rand(fst_rng, snd_rng, acc);
+        if constexpr (std::is_same_v<matrix_elem_t, net_decimal>) *(ans + i) = num_rand(fst_rng.number_format, snd_rng.number_format);
+        else *(ans + i) = num_rand(fst_rng, snd_rng);
     return ans;
 }
 

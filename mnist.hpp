@@ -127,7 +127,7 @@ public:
             return false;
         }
         long long *idx_arr = nullptr;
-        if (load_cnt) idx_arr = num_rand<long long>(elem_cnt, 0, elem_cnt);
+        if (load_cnt) idx_arr = num_rand<long long>(elem_cnt, 0, elem_cnt, true);
         else load_cnt = elem_cnt;
         elem.init(load_cnt);
         lbl.init(load_cnt);

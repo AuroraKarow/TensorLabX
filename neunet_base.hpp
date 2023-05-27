@@ -316,8 +316,6 @@ matrix_declare struct LayerWeight : virtual Layer {
                 dRandFstRng = .0,
                 dRandSndRng = .0;
 
-    uint64_t iRandAcc = 0;
-
     neunet_vect vecWeight,
                 vecWeightTp,
                 vecWeightNv;
@@ -329,7 +327,6 @@ matrix_declare struct LayerWeight : virtual Layer {
     ada_nesterov<matrix_elem_t> advNesterov;
 
     void ValueAssign(const LayerWeight &lyrSrc) {
-        iRandAcc    = lyrSrc.iRandAcc;
         iBatSzCnt   = (uint64_t)lyrSrc.iBatSzCnt;
         dLearnRate  = lyrSrc.dLearnRate;
         dRandFstRng = lyrSrc.dRandFstRng;
@@ -356,11 +353,10 @@ matrix_declare struct LayerWeight : virtual Layer {
         setWeightGrad = std::move(lyrSrc.setWeightGrad);
     }
 
-    LayerWeight(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) :
+    LayerWeight(long double dLearnRate = .0, long double dRandFstRng = -1, long double dRandSndRng = 1) :
         dLearnRate(dLearnRate),
         dRandFstRng(dRandFstRng),
-        dRandSndRng(dRandSndRng),
-        iRandAcc(iRandAcc) {}
+        dRandSndRng(dRandSndRng) {}
     LayerWeight(const LayerWeight &lyrSrc) { ValueCopy(lyrSrc); }
     LayerWeight(LayerWeight &&lyrSrc) { ValueMove(std::move(lyrSrc)); }
 
@@ -395,7 +391,6 @@ matrix_declare struct LayerWeight : virtual Layer {
     }
 
     virtual ~LayerWeight() {
-        iRandAcc    = 0;
         iBatSzCnt   = 0;
         dLearnRate  = .0;
         dRandFstRng = .0;
@@ -410,10 +405,10 @@ matrix_declare struct LayerWeight : virtual Layer {
 };
 
 matrix_declare struct LayerBias final : LayerWeight<matrix_elem_t> {
-    LayerBias(long double dLearnRate = .0, long double dRandFstRng = .0, long double dRandSndRng = .0, uint64_t iRandAcc = 0) : Layer(NEUNET_LAYER_BIAS), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng, iRandAcc) {}
+    LayerBias(long double dLearnRate = .0, long double dRandFstRng = -1, long double dRandSndRng = 1) : Layer(NEUNET_LAYER_BIAS), LayerWeight<matrix_elem_t>(dLearnRate, dRandFstRng, dRandSndRng) {}
 
     void Shape(uint64_t iInLnCnt, uint64_t iInColCnt, uint64_t iChannCnt, uint64_t iBatSz) {
-        this->vecWeight = neunet_vect(iInLnCnt * iInColCnt, iChannCnt, true, this->dRandFstRng, this->dRandSndRng, this->iRandAcc);
+        this->vecWeight = neunet_vect(iInLnCnt * iInColCnt, iChannCnt, true, this->dRandFstRng, this->dRandSndRng);
         LayerWeight<matrix_elem_t>::Shape(iBatSz);
     }
 

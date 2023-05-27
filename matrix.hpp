@@ -232,12 +232,12 @@ protected:
     };
 
 public:
-    net_matrix(uint64_t mtx_ln_cnt, uint64_t mtx_col_cnt, bool rand_init = false, const matrix_elem_t &fst_rng = 0, const matrix_elem_t &snd_rng = 0, uint64_t acc = 5) :
+    net_matrix(uint64_t mtx_ln_cnt, uint64_t mtx_col_cnt, bool rand_init = false, const matrix_elem_t &fst_rng = -1, const matrix_elem_t &snd_rng = 1) :
         ln_cnt(mtx_ln_cnt),
         col_cnt(mtx_col_cnt),
         elem_cnt(mtx_ln_cnt * mtx_col_cnt) {
             if (elem_cnt == 0) return;
-            if (rand_init) ptr = init_rand<matrix_elem_t>(elem_cnt, fst_rng, snd_rng, acc);
+            if (rand_init) ptr = init_rand<matrix_elem_t>(elem_cnt, fst_rng, snd_rng);
             else ptr = init<matrix_elem_t>(elem_cnt);
         }
     template<typename matrix_elem_para, typename matrix_elem_para_v> net_matrix(const i_arg &src) :

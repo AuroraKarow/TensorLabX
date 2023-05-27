@@ -414,36 +414,20 @@ long long num_bit_inverse(long long src, uint8_t bit_cnt = 3) {
 
 uint64_t num_bit_cnt(long long src) { return std::log2(src) + 1; }
 
-long double num_rand(long double fst_rng = 0, long double snd_rng = 0, uint64_t acc = 8) {
-    if (fst_rng == snd_rng) return (((long double)lib_rand_e() / (long double)lib_rand_e._Max) - .5l) * 2.0l;
-    else {
-        // random seed
-        auto curr_time = std::chrono::time_point_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        curr_time /= 100;
-        // interval
-        if (fst_rng > snd_rng) std::swap(fst_rng, snd_rng);
-        long double ans   = 0;
-        auto        times = 1ull;
-        for (auto i = 0ull; i < acc || ans < snd_rng; ++i) {
-            ans       *= 10;
-            ans       += curr_time % 10;
-            curr_time /= 10;
-            times     *= 10;
-        }
-        // rectify
-        auto rng = snd_rng - fst_rng;
-        ans /= times / rng;
-        ans += fst_rng;
-        return ans;
-    }
+long double num_rand(long double fst_rng, long double snd_rng) {
+    NEUNET_SRAND
+    if (fst_rng == snd_rng) return fst_rng;
+    if (snd_rng < fst_rng) std::swap(fst_rng, snd_rng);
+    auto rng_dif = snd_rng - fst_rng;
+    return (rng_dif / RAND_MAX) * std::rand() + fst_rng;
 }
 
-callback_arg arg *num_rand(uint64_t amt, arg fst_rng, arg snd_rng, bool order = true, uint64_t acc = 8) {
+callback_arg arg *num_rand(uint64_t amt, arg fst_rng, arg snd_rng, bool order) {
     if (amt == 0) return nullptr;
     auto ans = ptr_init<arg>(amt);
     auto cnt = 0;
     while (cnt < amt) {
-        arg temp = num_rand(fst_rng, snd_rng, acc);
+        arg temp = num_rand(fst_rng, snd_rng);
         for (auto i = 0ull; i < cnt; ++i) if (temp == *(ans + i)) continue;
         *(ans + cnt++) = temp;
     }

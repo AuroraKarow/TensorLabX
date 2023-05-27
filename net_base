@@ -18,7 +18,11 @@
 #define ul_ptr          unsigned long long *
 #define lf_ptr          long double *
 
-std::default_random_engine lib_rand_e;
+// std::default_random_engine lib_rand_e;
+
+NEUNET_BEGIN bool       net_rand_seed = false; NEUNET_END
+
+#define NEUNET_SRAND    if (!neunet::net_rand_seed) { std::srand(std::time(NULL)); neunet::net_rand_seed = true; }
 
 #include "net_base.hpp"
 
