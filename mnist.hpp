@@ -1,6 +1,6 @@
 DATASET_BEGIN
 
-class mnist final {
+template <uint64_t elem_status = mnist_elem_orgn> class mnist final {
 private:
     void value_assign(const mnist &src) {
         elem_ln_cnt  = src.elem_ln_cnt;
@@ -70,14 +70,14 @@ private:
             vec_data = vect(data_length, 1);
             for (auto i = 0ull; i < data_length; ++i) {
                 int curr_pt = data_ptr[i];
-                if (curr_pt) switch (elem_status) {
-                case mnist_elem_bool: vec_data.index(i) = 1; break;
-                case mnist_elem_gray: vec_data.index(i) = 255; break;
-                default: vec_data.index(i) = curr_pt; break;
+                if (curr_pt) {
+                    if constexpr (elem_status == mnist_elem_bool) vec_data.index(i) = 1;
+                    else if constexpr (elem_status == mnist_elem_gray)  vec_data.index(i) = 255;
+                    else vec_data.index(i) = curr_pt;
                 } else vec_data.index(i) = 0;
             }
             if (padding) vec_data = vec_data.padding(padding, padding, padding, padding);
-            if (elem_status == mnist_elem_norm) vec_data.elem_wise_opt(vec_data.elem_sum(), MATRIX_ELEM_DIV);
+            if constexpr (elem_status == mnist_elem_norm) vec_data.elem_wise_opt(vec_data.elem_sum(), MATRIX_ELEM_DIV);
         }
         ptr_reset(data_ptr);
         return vec_data;
@@ -102,16 +102,11 @@ private:
     }
 
 public:
-    mnist(uint64_t load_elem_status = mnist_elem_orgn) :
-        elem_status(load_elem_status < 3 ? load_elem_status : 0) {}
-    mnist(const mnist &src) :
-        elem_status(src.elem_status) { value_copy(src); }
-    mnist(mnist &&src) :
-        elem_status(src.elem_status) { value_move(std::move(src)); }
-    mnist(const ch_str elem_dir, const ch_str lbl_dir, uint64_t load_cnt = 0, uint64_t load_elem_status = mnist_elem_orgn, uint64_t padding = 0) :
-        elem_status(load_elem_status) { load(elem_dir, lbl_dir, load_cnt, padding); }
-    mnist(const ch_str elem_dir, const ch_str lbl_dir, net_set<uint64_t> &&lbl_load_distribute, uint64_t load_elem_status = mnist_elem_orgn, uint64_t padding = 0) :
-        elem_status(load_elem_status) { load(elem_dir, lbl_dir, std::move(lbl_load_distribute), padding); }
+    mnist() {}
+    mnist(const mnist &src) { value_copy(src); }
+    mnist(mnist &&src) { value_move(std::move(src)); }
+    mnist(const ch_str elem_dir, const ch_str lbl_dir, uint64_t load_cnt = 0, uint64_t padding = 0) { load(elem_dir, lbl_dir, load_cnt, padding); }
+    mnist(const ch_str elem_dir, const ch_str lbl_dir, net_set<uint64_t> &&lbl_load_distribute, uint64_t padding = 0) { load(elem_dir, lbl_dir, std::move(lbl_load_distribute), padding); }
     
     uint64_t size() const { return elem.length; }
 
@@ -231,8 +226,6 @@ private:
              elem_col_cnt = 0,
              elem_cnt     = 0;
 
-    const uint64_t elem_status;
-
 public:
     net_set<vect> elem;
 
@@ -245,23 +238,15 @@ public:
     __declspec(property(get=col_cnt))        uint64_t element_column_count;
     __declspec(property(get=dataset_verify)) bool     verify;
 
-    bool operator==(const mnist &val) const { return elem_status == val.elem_status && elem_ln_cnt == val.elem_ln_cnt && elem_col_cnt == val.elem_col_cnt && elem_cnt == val.elem_cnt && lbl == val.lbl && elem == val.elem; }
+    bool operator==(const mnist &val) const { return elem_ln_cnt == val.elem_ln_cnt && elem_col_cnt == val.elem_col_cnt && elem_cnt == val.elem_cnt && lbl == val.lbl && elem == val.elem; }
     
     bool operator!=(const mnist &val) const { return !(*this == val); }
 
     mnist &operator=(const mnist &src) {
-        net_assert(elem_status == src.elem_status,
-                   "mnist",
-                   "=",
-                   "Element status should be equal.");
         value_copy(src);
         return *this;
     }
     mnist &operator=(mnist &&src) {
-        net_assert(elem_status == src.elem_status,
-                   "mnist",
-                   "=",
-                   "Element status should be equal.");
         value_move(std::move(src));
         return *this;
     }

@@ -436,10 +436,7 @@ public:
     }
 
     arg &operator[](uint64_t idx) const {
-        net_assert(idx < len,
-                   "net_list",
-                   "[]",
-                   "Index should be less than list length.");
+        if (idx >= len) return neunet_null_ref(arg);
         if ((idx + 1) == len) return tail->elem;
         if (!idx) return head->elem;
         auto back_idx = len - 2;

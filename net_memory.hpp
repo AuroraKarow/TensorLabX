@@ -31,10 +31,7 @@ protected:
         uint64_t size() const { return this->len; }
 
         arg &operator[](uint64_t idx) const {
-            net_assert(idx < this->len,
-                       "net_memory::net_memory_seg",
-                       "[]",
-                       "Index should be less than memory segment length");
+            if (idx >= this->len) return neunet_null_ref(arg);
             return this->ptr_base->mem_val[ptr_addr + idx];
         }
 

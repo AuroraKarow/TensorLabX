@@ -213,14 +213,17 @@ public:
     }
     
     iterator end() const { return iterator(nullptr, 0); }
+
+    bool copy(uint64_t idx, const net_set<arg> &src, uint64_t src_idx, uint64_t copy_len) {
+        if (src_idx + copy_len > src.len || idx + copy_len > len) return false;
+        std::copy(src.ptr + src_idx, src.ptr + src_idx + copy_len, ptr + idx);
+        return true;
+    }
     
     void reset() { len = 0; ptr_reset(ptr); }
     
     arg &operator[](uint64_t idx) const {
-        net_assert(idx < len,
-                   "net_set",
-                   "[]",
-                   "Index should be less than set length.");
+        if (idx >= len) return neunet_null_ref(arg);
         return *(ptr + idx);
     }
 

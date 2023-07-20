@@ -21,10 +21,10 @@ private:
             col_cnt(curr_col_cnt) {}
         
         px operator[](uint64_t col) {
-            net_assert(col < col_cnt,
-                       "bitmap::line_data",
-                       "[]",
-                       "Column pixel index should be less than column count.");
+            if (col >= col_cnt) return px {neunet_null_ref(long double),
+                                           neunet_null_ref(long double),
+                                           neunet_null_ref(long double),
+                                           neunet_null_ref(long double)};
             return px{ptr->rgba[bmio_r][ln][col],
                       ptr->rgba[bmio_g][ln][col],
                       ptr->rgba[bmio_b][ln][col],
@@ -125,10 +125,7 @@ public:
     bool operator!=(const bitmap &src) const { return !(*this == src); }
 
     line_data operator[](uint64_t ln) {
-        net_assert(ln < ln_cnt(),
-                   "bitmap",
-                   "[]",
-                   "Line pixel index should be less than line count.");
+        if (ln >= ln_cnt()) return {};
         return line_data(this, ln, col_cnt());
     }
 
