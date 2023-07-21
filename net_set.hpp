@@ -223,8 +223,13 @@ public:
     void reset() { len = 0; ptr_reset(ptr); }
     
     arg &operator[](uint64_t idx) const {
-        if (idx >= len) return neunet_null_ref(arg);
-        return *(ptr + idx);
+        return *(ptr + idx); // FIXME: performance lost
+        // net_assert(idx < len,
+        //            "net_set",
+        //            "[]",
+        //            "Index should be less than set length.");
+        // return *(ptr + idx);
+        return neunet_null_ref(arg);
     }
 
     bool operator==(const net_set &src) const {
