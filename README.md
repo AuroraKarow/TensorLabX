@@ -4,6 +4,7 @@
 [![TensorLab](https://badgen.net/badge/github/TensorLabX?icon=github&color=purple)](https://github.com/AuroraKarow/TensorLabX)
 [![Download](https://badgen.net/badge/Download/1.30/green)](https://github.com/AuroraKarow/TensorLabX/archive/refs/heads/main.zip)
 [![TensorLab](https://badgen.net/badge/github/TensorLab?icon=github)](https://github.com/AuroraKarow/TensorLab)
+[![net_decimal](https://badgen.net/badge/github/net_decimal?icon=github)](https://github.com/AuroraKarow/net_decimal)
 
 Hello, This is Hatsune ~\
 こんにちは、ハツネちゃんです～　キラー～(∠・ω< )⌒✨
@@ -29,7 +30,9 @@ API used in development
 [Microsoft GDI+](https://learn.microsoft.com/zh-cn/windows/win32/gdiplus/-gdiplus-gdi-start)
 
 感謝開發者的貢獻。\
-Thanks for contributors working.
+Thanks developers
+
+<img src="https://avatars.githubusercontent.com/u/57707515" width = "20px" /> LSK [@David262](https://github.com/David262)
 
 <img src="https://avatars.githubusercontent.com/u/34509899" width = "20px" /> AuroraKarow [@AuroraKarow](https://github.com/AuroraKarow)
 
