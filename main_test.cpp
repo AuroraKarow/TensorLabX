@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include "neunet"
+#include "net_decimal"
 
 using std::cout;
 using std::endl;
@@ -13,11 +14,11 @@ using std::endl;
 using namespace neunet;
 
 int main(int argc, char *argv[], char *envp[]) {
-    cout << "hello, world." << endl; vect fst {10000, 10000, true}, snd {10000, 10000, true};
+    cout << "hello, world." << endl;
     auto chrono_begin = NEUNET_CHRONO_TIME_POINT;
 
-    
-    auto ans = fst * snd;
+    net_decimal::default_infinite_precision = 64;
+    cout << std::pow("-0.216"_d, 1_d / 3_d) << endl;
 
     cout << (NEUNET_CHRONO_TIME_POINT - chrono_begin) << "ms" << endl;
     return EXIT_SUCCESS;
