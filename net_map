@@ -4,7 +4,6 @@
 #define __NET_MAP__
 
 #include "net_tree"
-#include "net_list"
 
 #define NEUNET_HASH_EXIST_CURR  0x0000
 #define NEUNET_HASH_EXIST_BACK  0x0001
