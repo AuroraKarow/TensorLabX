@@ -4,7 +4,10 @@
 #define __MATRIX__
 
 #include <intrin.h>
+
 #include "net_decimal"
+#include "net_list"
+#include "net_sequence"
 
 #define MATRIX_BEGIN        namespace neunet { namespace matrix {
 #define MATRIX_END          }}
@@ -34,8 +37,6 @@
 
 #define callback_matrices   template<typename ... args>
 
-#include "matrix_base.hpp"
-
 #define matrix_elem_para    i_arg
 #define matrix_elem_para_v  = std::enable_if_t<std::is_same_v<i_arg, net_decimal> ||\
                             std::is_floating_point_v<i_arg> ||\
@@ -45,6 +46,7 @@
 
 #define neunet_vect         matrix::net_matrix<matrix_elem_t>
 
+#include "matrix_base.hpp"
 #include "matrix.hpp"
 
 NEUNET_BEGIN
