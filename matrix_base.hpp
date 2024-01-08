@@ -416,7 +416,7 @@ callback_matrix uint64_t rank(const matrix_ptr src, uint64_t ln_cnt, uint64_t co
                 if (elim_val) {
                     if (elim_flag) {
                         if (elim_val != 1) for (auto k = i; k < col_cnt; ++k) *(ans + elem_pos(j, k, col_cnt)) /= elim_val;
-                        if (j != i) ans = ln_col_swap(ans, ln_cnt, col_cnt, i, j);
+                        if (j != i) move(ans, ln_col_swap(ans, ln_cnt, col_cnt, i, j));
                         ++ rank_val;
                         elim_flag = false;
                     }
