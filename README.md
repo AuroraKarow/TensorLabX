@@ -3,7 +3,6 @@
 [![GPL-3.0 license](https://badgen.net/badge/License/GPL3/red)](...)
 [![TensorLab](https://badgen.net/badge/github/TensorLabX?icon=github&color=purple)](https://github.com/AuroraKarow/TensorLabX)
 [![Download](https://badgen.net/badge/Download/1.30/green)](https://github.com/AuroraKarow/TensorLabX/archive/refs/heads/main.zip)
-[![TensorLab](https://badgen.net/badge/github/TensorLab?icon=github)](https://github.com/AuroraKarow/TensorLab)
 [![net_decimal](https://badgen.net/badge/github/net_decimal?icon=github)](https://github.com/AuroraKarow/net_decimal)
 
 Hello, This is Hatsune ~\
