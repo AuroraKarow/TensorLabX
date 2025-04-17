@@ -1,7 +1,7 @@
 # TensorLabX
 
-[![GPL-3.0 license](https://badgen.net/badge/License/GPL3/red)](https://github.com/AuroraKarow/TensorLabX/LICENSE)
-[![TensorLab](https://badgen.net/badge/github/TensorLabX?icon=github&color=purple)](https://github.com/AuroraKarow/TensorLabX)
+[![GPL-3.0 license](https://badgen.net/badge/License/GPL3/red)](https://github.com/AuroraKarow/TensorLabX/blob/main/LICENSE)
+[![Neural Net Batch Proto](https://badgen.net/badge/github/TensorLabX?icon=github&color=purple)](https://github.com/AuroraKarow/neural_net_batch)
 [![Download](https://badgen.net/badge/Download/1.30/green)](https://github.com/AuroraKarow/TensorLabX/archive/refs/heads/main.zip)
 [![net_decimal](https://badgen.net/badge/github/net_decimal?icon=github)](https://github.com/AuroraKarow/net_decimal)
 
